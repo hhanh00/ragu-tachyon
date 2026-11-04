@@ -1,0 +1,7 @@
+[
+  {
+    "source": "curve_cycles.py",
+    "scene": "PingPong",
+    "output": "curve-cycle-ping-pong.png"
+  }
+]

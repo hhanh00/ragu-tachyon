@@ -1,0 +1,7 @@
+[
+  {
+    "source": "split_accumulation.py",
+    "scene": "InstanceWitnessLanes",
+    "output": "split-accumulation-lanes.png"
+  }
+]
