@@ -1,0 +1,12 @@
+[
+  {
+    "source": "revdot_folding.py",
+    "scene": "ErrorMatrix",
+    "output": "revdot-error-matrix.png"
+  },
+  {
+    "source": "revdot_folding.py",
+    "scene": "TwoLayers",
+    "output": "revdot-two-layers.png"
+  }
+]

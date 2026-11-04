@@ -1,0 +1,7 @@
+[
+  {
+    "source": "endoscalars.py",
+    "scene": "TwoScalars",
+    "output": "endoscalars-two-scalars.png"
+  }
+]

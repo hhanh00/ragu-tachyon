@@ -1,0 +1,7 @@
+[
+  {
+    "source": "staging.py",
+    "scene": "StageSlots",
+    "output": "staging-slots.png"
+  }
+]
