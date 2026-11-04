@@ -331,7 +331,7 @@ The prover pays more than this table suggests. Each of the four new polynomials 
 
 The decider pays too. To test $S_{\text{new}}$ it computes $m(w, x, y)$ at a fresh $w$, which means one $s_i(x, y)$ for each circuit. That is a linear cost in the total size of the registry, and the [compressed verifier](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/instance.rs#L528) evaluates $m$ at several points of the walk, but all of this happens once for a whole history.
 
-Adding a circuit therefore leaves the recursive circuit almost unchanged, so the book [encourages applications](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L108-L115) to split work into many small circuits that communicate along the PCD tree, and it speaks of hundreds or thousands of circuits. Tachyon, which has not activated on mainnet and whose design is still changing, has [a few dozen steps](./pcd-intro.md#choosing-among-many-steps) at the revision we read.
+Adding a circuit therefore leaves the recursive circuit almost unchanged, so the book [encourages applications](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L108-L115) to split work into many small circuits that communicate along the PCD tree, and it speaks of hundreds or thousands of circuits. Tachyon, which has not activated on mainnet and whose design is still changing, has [a few dozen steps](./pcd-intro.md#choosing-among-many-steps) at the revision we read, and those steps [run against a mock](./proof-tree.md) of Ragu.
 
 ## 9. Assigning domain points
 
@@ -432,7 +432,7 @@ Suppose the verifier wants a proof that some $x$ satisfies $x^4 + 2 = 35$. Tryin
 
 <!-- /worked:substitution -->
 
-The extra row plays the part of the [header suffix from chapter 02](./pcd-intro.md#choosing-among-many-steps). The book's [substitution section](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/recursion/public_inputs.md?plain=1#L99-L118) says that an application circuit's suffix fills the linear coefficient of $k(Y)$, and that application suffixes are nonzero. Internal circuits output suffix zero, so they cannot pass as application circuits. [The code applies this](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/profile.rs#L407-L426) to every internal circuit slot.
+The extra row plays the part of the [header suffix from chapter 02](./pcd-intro.md#choosing-among-many-steps). The book's [substitution section](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/recursion/public_inputs.md?plain=1#L99-L118) says that an application circuit's suffix fills the linear coefficient of $k(Y)$, and that application suffixes are nonzero. Internal circuits output suffix zero, so they cannot pass as application circuits. [The code applies this](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/profile.rs#L407-L426) to every internal circuit slot. In the code a suffix [belongs to a header type](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/header.rs#L99) and not to one circuit, so unlike our toy row it leaves steps with the same output header interchangeable.
 
 ## 11. Post-processing and the registry tag
 
@@ -561,7 +561,7 @@ This chapter took the following steps:
 5. The registry walk moves $W$, $Y$ and $X$ one at a time, using four new commitments and ten claims, and each child's circuit adds one more claim.
 6. The recursive circuit pays a fixed cost for any registry size, while the prover and the decider pay for reading all of the circuits.
 7. Bit reversal gives each circuit a point that does not depend on the size of the registry.
-8. A domain check rules out blended circuits, $k_0 = 1$ rules out bonding polynomials and unassigned points, and a header suffix tells registered circuits apart.
+8. A domain check rules out blended circuits, $k_0 = 1$ rules out bonding polynomials and unassigned points, and a header suffix tells apart circuits whose output headers differ in type.
 9. No verification keys exist, so the transcript depends on the circuits through a registry tag that is sampled after they are published, and the code treats this tag as a temporary measure.
 
 This completes the three linear subprotocols that [chapter 09 listed](./nark.md#_16-what-the-verifier-pays): evaluation claims in chapter 12, revdot products in chapter 14, and wiring here. All of them produce challenges in one field and use them on commitments handled in another, so the [next chapter](./endoscalars.md) looks at how a challenge can cross the curve cycle cheaply.

@@ -102,7 +102,7 @@ A real field has room for larger limbs, which lowers the count per bit. The next
 
 <!-- worked:emul-real -->
 
-Take the same plain design with 4 limbs of 64 bits. One multiplication then uses $16$ limb products, $510$ bits for $r$ and $t$, and $7$ carries of about $67$ bits, for about $995$ gates. A point addition needs three of these, or about $2,985$ gates, which already exceeds the $2,048$ gates that Ragu allows in one circuit. A 255-bit scalar multiplication needs $1,778$ multiplications, or about $1,769,110$ gates, where the native version costs $2,541$. The verifier of Chapter 09 has $32$ such multiplications, which comes to about $56,611,520$ gates.
+Take the same plain design with 4 limbs of 64 bits. One multiplication then uses $16$ limb products, $510$ bits for $r$ and $t$, and $7$ carries of about $67$ bits, for about $995$ gates. A point addition needs three of these, or about $2,985$ gates, which already exceeds the $2,048$ gates that Ragu allows in one circuit. A 255-bit scalar multiplication needs $1,778$ multiplications, or about $1,769,110$ gates, where the native version costs $2,541$. Apart from the MSM for $\hat{G}$, the verifier of Chapter 09 has $32$ such multiplications, which comes to about $56,611,520$ gates.
 
 <!-- /worked:emul-real -->
 
@@ -413,7 +413,7 @@ The argument rests on these assumptions, and it is informal. The discrete log re
 
 ## 12. Cycles in Ragu
 
-The book describes the design as [inspired by CycleFold](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L28-L29). In [CycleFold](https://eprint.iacr.org/2023/1192), the application lives on one curve, and a small circuit on the other curve exists to perform the group operations that the main circuit cannot do natively. Ragu's code matches that picture closely.
+The book describes the design as [inspired by CycleFold](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L28-L29). We could read only the abstract of [CycleFold](https://eprint.iacr.org/2023/1192), which says that the second curve merely represents a single scalar multiplication in a tiny circuit, and that the first curve folds invocations of that circuit. Ragu's code shares the main feature of that picture, because its application lives on one side only. It differs in having several internal circuits on the other side and not one tiny circuit, and this comparison is our own.
 
 ::: warning Reconstructed from code at commit 3219e08, not confirmed by the authors
 - **Names.** The code's **native** side is the primary circuit, over `CircuitField`, with commitments on `HostCurve`. Its **nested** side is the secondary circuit, over `ScalarField`, with commitments on `NestedCurve`. Polynomials on the nested side that hold native commitments are called **bridge** stages. A [`Proof`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/proof/mod.rs#L187-L240) lists these three groups of polynomials, and one call to `fuse` produces all of them.
@@ -458,7 +458,7 @@ All of this applies to the Ragu revision at `3219e08`. Tachyon, which has not ac
 This chapter took the following steps:
 
 1. A commitment's scalars and coordinates lie in different fields, so a circuit over the scalar field can fold values directly but cannot fold points directly.
-2. Emulating the other field with limbs works but multiplies each operation's cost so much that one point addition already exceeds the size of a Ragu circuit.
+2. Emulating the other field with limbs works but multiplies each operation's cost so much that, in our plain design, one point addition already exceeds the size of a Ragu circuit.
 3. A 2-cycle of curves gives each field a curve whose points are native to it. Pallas and Vesta form such a cycle, and an anomalous single curve is not an option.
 4. Each recursive step has two circuits, and each one folds the values of its own accumulator and the points of the other, which it does for the instances of the previous step.
 5. A nested commitment places foreign data behind one point that the transcript's field can absorb.

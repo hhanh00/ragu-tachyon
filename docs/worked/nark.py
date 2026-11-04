@@ -340,6 +340,7 @@ assert sum(row[4] for row in pairs) % Q == c_val
 frag['direct-checks'] = table(['Check', 'Left', 'Right'], [
     ['Recompute $\\v{s}$ from the circuit and $y = 7$', '$' + vec(TOY.s(y)) + '$', 'Sent $\\v{s}$ is identical'],
     ['Commit to the sent $\\v{s}$', f'${show(commit(s_vec))}$', f'$S = {show(S_pt)}$'],
+    ['Compare $\\bar{A}$ with the earlier $\\bar{R}$', f'$\\bar{{A}} = {show(R_pt)}$', f'$\\bar{{R}} = {show(R_pt)}$'],
     ['Commit to the sent $\\v{a}$ with $\\gamma_a = ' + str(GAMMA_R) + '$', f'${show(commit(R_HONEST, GAMMA_R))}$', f'$\\bar{{A}} = {show(R_pt)}$'],
     ['Commit to the sent $\\v{b}$ with $\\gamma_b = ' + str(GAMMA_B) + '$', f'${show(commit(b_vec, GAMMA_B))}$', f'$\\bar{{B}} = {show(B_pt)}$'],
     ['$\\revdot{\\v{a}}{\\v{b}}$', f'${revdot(R_HONEST, b_vec)}$', f'$c = {c_val}$'],
@@ -411,7 +412,7 @@ frag['run'] = table(['Step', 'Party', 'Value or check'], [
     [3, 'Verifier sends', f'$z = {z}$, $y = {y}$'],
     [4, 'Prover sends', f'$S = {show(S_pt)}$, $\\bar{{A}} = {show(R_pt)}$, $\\bar{{B}} = {show(B_pt)}$, $c = {c_val}$'],
     [5, 'Prover sends', f'$\\v{{s}}$, $\\v{{a}}$, $\\v{{b}}$, $\\gamma_a = {GAMMA_R}$, $\\gamma_b = {GAMMA_B}$'],
-    [6, 'Verifier checks', f'Recomputes $\\v{{s}}$ and $S$, recomputes $\\bar{{A}}$ and $\\bar{{B}}$, and finds $\\revdot{{\\v{{a}}}}{{\\v{{b}}}} = {c_val} = c$'],
+    [6, 'Verifier checks', f'Recomputes $\\v{{s}}$ and $S$, checks $\\bar{{A}} = \\bar{{R}}$, recomputes $\\bar{{A}}$ and $\\bar{{B}}$, and finds $\\revdot{{\\v{{a}}}}{{\\v{{b}}}} = {c_val} = c$'],
     [7, 'Verifier sends', f'$x = {x}$'],
     [8, 'Prover sends', f'$a({xz}) = {ev_a}$, $s({x}, {y}) = {ev_s}$, $b({x}) = {ev_b}$'],
     [9, 'Verifier checks', f'${ev_a} + {ev_s} + t({x}, {z}) = {ev_a} + {ev_s} + {t_x} = {ev_b}$'],
@@ -895,7 +896,7 @@ frag['short-costs'] = table(['Verifier step', 'Work for $4n = 2^{13}$', 'Growth'
     ['Split and target checks', 'A few field operations', 'Constant'],
     ['Derive $f(u)$, $P$ and $v$', f'{len(sclaims)} inverses and {len(spolys) + 1} scalar multiplications', 'Constant'],
     ['Combine the $L_j$ and $R_j$', f'${2 * k_big}$ scalar multiplications', 'Logarithmic'],
-    ['Compute $\\hat{b} = g(u)$', f'${k_big}$ squarings and ${k_big}$ factor multiplications', 'Logarithmic'],
+    ['Compute $\\hat{b} = g(u)$', f'${k_big - 1}$ squarings and ${k_big}$ factor multiplications', 'Logarithmic'],
     ['Compute the coefficients of $g$', f'About ${SIZE:,}$ field multiplications', '**Linear**'],
     ['Compute $\\hat{G}$', f'1 MSM of ${SIZE:,}$ scalar multiplications', '**Linear**'],
 ])
@@ -904,6 +905,6 @@ frag['short-costs'] = table(['Verifier step', 'Work for $4n = 2^{13}$', 'Growth'
 domain_min = 8 * (SIZE // 4) - 1
 domain = 2 ** 14
 assert domain >= domain_min and domain // 2 < domain_min
-frag['fft'] = (f'The [book counts](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L176-L180) at least 3 FFTs, over a domain with at least $8n - 1$ points. For $4n = 2^{{13}}$, that is at least ${domain_min:,}$ points, and the next power of two is ${domain:,}$.')
+frag['fft'] = (f'The [book counts](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L176-L196) at least 3 FFTs, over a domain with at least $8n - 1$ points. For $4n = 2^{{13}}$, that is at least ${domain_min:,}$ points, and the next power of two is ${domain:,}$.')
 
 print(json.dumps(frag))

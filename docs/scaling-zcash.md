@@ -5,7 +5,7 @@ Zcash lets people pay each other without publishing who paid whom or how much. T
 Tachyon is a proposal to remove these two limits, and Ragu is the proving system built to support it. This chapter explains the problem and the outline of Tachyon's answer, and it ends with the requirements that answer places on a proof system. It contains no proof machinery. The rest of the site builds that machinery, and the later chapters return to Tachyon in detail.
 
 ::: warning Status of Tachyon
-Tachyon is a proposal, and it has not activated on Zcash mainnet. Its design is still changing, and the sources sometimes disagree with one another. At commit [`7e50254`](https://github.com/tachyon-zcash/tachyon/tree/7e502548db33845dbaacdc0efe905d1a3c45e626), the [network upgrade deployment ZIP](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/zips/network-upgrade-deployment.md) is an empty outline. Statements about Tachyon in this chapter describe that commit, and they may not describe what eventually ships.
+Tachyon is a proposal, and it has not activated on Zcash mainnet. Its design is still changing, and the sources sometimes disagree with one another. At commit [`7e50254`](https://github.com/tachyon-zcash/tachyon/tree/7e502548db33845dbaacdc0efe905d1a3c45e626), the [network upgrade deployment ZIP](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/zips/network-upgrade-deployment.md) is an empty outline. The crate at that commit [builds against a mock of Ragu](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/Cargo.toml#L74-L76), so its proof steps run natively with no real circuits, and we did not find a validator in it. Statements about Tachyon in this chapter describe the design at that commit, and they may not describe what eventually ships.
 :::
 
 ## 1. Hiding payments on a public ledger
@@ -230,6 +230,14 @@ Return to the hypothetical 100 transactions per second. A Tachyon action is eith
 
 For the first 32 days or so the window is the larger of the two, because it records more values per transaction. After that the nullifier set keeps growing while the window stays where it is.
 
+The size of the window depends on the epoch length, which is not settled. The sources give different lengths:
+
+| Epoch length | Tachyon window (peak) | Days until the nullifier set is larger |
+| --- | --- | --- |
+| 1 day (book) | 5.0 GB | 9 |
+| 4,096 blocks (code) | 17.7 GB | 32 |
+| 2 weeks (book) | 69.7 GB | 126 |
+
 <!-- /worked:window -->
 
 The comparison matters for the shape of the two columns. The window is not small at this load, but it stops growing. Doubling the throughput doubles the window, which is a cost a validator can plan for, while in the other column the same doubling steepens a line that never levels off.
@@ -267,7 +275,7 @@ sequenceDiagram
 
 So far, every transaction carries its own proof, and an Orchard proof is the largest part of an Orchard transaction. Aggregation addresses this. An [aggregator](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/aggregation.md#L1-L8) takes the stamps of several transactions and merges their proofs into one that covers all of them. We use the word "merge" as the Tachyon book does, and the Ragu book and code call the same two-into-one operation [`fuse`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/concepts/pcd.md#L100-L104). The original transactions go into the block without their proofs and point to the aggregate instead. Miners are likely to take on this role. Validators still check each transaction's signatures and value balance, and they check every tachygram against the window, but they verify only one proof.
 
-Here is what that does to the on-chain bytes of a transaction. Orchard's sizes come from [ZIP 225](https://zips.z.cash/zip-0225) and Tachyon's from the [bundle format](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md#L160-L190). We leave out binding signatures and small length fields, which are the same or nearly so in each.
+Here is what that does to the on-chain bytes of a transaction. Orchard's sizes come from [ZIP 225](https://zips.z.cash/zip-0225) and Tachyon's from the [bundle format](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md#L160-L190). We leave out binding signatures, value balances, Orchard's anchor and flags, and small length fields, which are small next to the totals and similar in each.
 
 <!-- worked:chain-bytes -->
 
@@ -282,7 +290,13 @@ Here is what that does to the on-chain bytes of a transaction. Orchard's sizes c
 
 <!-- /worked:chain-bytes -->
 
-This comparison is not exact. The Orchard column includes encrypted memos in its action descriptions, while the Tachyon column leaves out its optional memo field and the reference to the aggregate. It also leaves out the aggregate proof, which has a fixed size in the [bundle format](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md#L187), though the sources we read do not state that size. The table shows where the savings come from, and the largest part is removing the per-transaction proof.
+<!-- worked:block-load -->
+
+These totals also show how far the hypothetical 100 transactions per second is from today's chain. At 75 seconds per block, that load needs about 67.7 MB per block with Orchard and 6.24 MB with Tachyon, before counting the aggregate proof. Both exceed the current limit of 2 MB per block, so this load would also require a larger block limit. The pruned window is only one part of what a node may store, too. Keeping the block history at this load would add about 2.6 TB per year for Tachyon, excluding proofs.
+
+<!-- /worked:block-load -->
+
+This comparison is not exact. The Orchard column includes encrypted memos in its action descriptions, while the Tachyon column leaves out its optional memo field and the reference to the aggregate. It also leaves out the aggregate proof, which has a fixed size in the [bundle format](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md#L187), though the real size is not settled. The [chapter on aggregation](./aggregation-and-bundles.md) uses the mock's constant as a placeholder and explains why it probably overstates the proof's share. The table shows where the savings come from, and the largest part is removing the per-transaction proof.
 
 Verification time follows a similar pattern, though aggregation does not win in every case. The Ragu book's [rough estimate](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/analysis.md#L50-L75) puts an aggregate's verification at about 100 ms, and it places the break-even with Orchard's batch verification near 50 transactions. The book marks these as estimates still to be validated with benchmarks, so treat them as a guide to the shape of the trade-off. One aggregate is more expensive to verify than one Orchard proof, and it pays for itself as the number of transactions grows.
 

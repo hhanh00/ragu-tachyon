@@ -360,7 +360,7 @@ def main():
     frag['emul-real'] = (
         f'Take the same plain design with {n_limb} limbs of {w_limb} bits. One multiplication then uses ${n_limb * n_limb}$ limb products, ${2 * 255}$ bits for $r$ and $t$, and ${2 * n_limb - 1}$ carries of about ${carry_bits}$ bits, for about ${real_mul:,}$ gates. '
         f'A point addition needs three of these, or about ${3 * real_mul:,}$ gates, which already exceeds the ${budget:,}$ gates that Ragu allows in one circuit. A 255-bit scalar multiplication needs ${scal_mults:,}$ multiplications, or about ${real_scalar:,}$ gates, where the native version costs ${native_scalar:,}$. '
-        f'The verifier of Chapter 09 has ${verifier_scalars}$ such multiplications, which comes to about ${verifier_scalars * real_scalar:,}$ gates.')
+        f'Apart from the MSM for $\\hat{{G}}$, the verifier of Chapter 09 has ${verifier_scalars}$ such multiplications, which comes to about ${verifier_scalars * real_scalar:,}$ gates.')
 
     # ---- Section 3: the partner curve, and how rare cycles are ----
     A2, B2 = GD[1], GD[4]

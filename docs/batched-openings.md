@@ -240,11 +240,11 @@ The polynomial $f$ needs a weight of its own, distinct from the weight of every 
 ::: warning The Ragu Book and the code differ here
 The [book](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/pcs.md?plain=1#L42-L63) writes $f = \sum_i \alpha^i q_i$ and $p = f + \sum_i \beta^i p_i$ and does not state the range of $i$. The [compression verifier](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/batch/verifier.rs#L67-L92) at commit `3219e08` gives the first claim the highest power of $\alpha$, gives $f$ the highest power of $\beta$, and gives the last polynomial weight 1. This site follows the code. A different order of distinct weights only relabels the inputs, so the book's formula read with $\beta^i$ starting at $i = 1$ is equally good, and that is the form the [Halo 2 book](https://zcash.github.io/halo2/design/proving-system/multipoint-opening.html) uses for its final polynomial.
 
-Reading the book's sum from $i = 0$ would not be safe, since $f$ and $p_0$ would then both have weight 1. We do not suggest the authors intend this reading. The toy curve shows why the index matters:
+Reading the book's sum from $i = 0$ would not be safe, since $f$ and $p_0$ would then both have weight 1. We do not suggest the authors intend this reading, and the code's distinct weights do not have this collision. The collision comes from the $\beta$ sum alone, so the range of the $\alpha$ sum makes no difference to it. The toy curve shows why the index matters:
 
 <!-- worked:collision -->
 
-Keep the false claim $p_1(5) = 21$, and use the sum from $i = 0$ in both places, so that $f$ and $p_0$ both have weight 1 in $p$. The cheater commits to the honest $f = \sum_i \alpha^i q_i$, which at $\alpha = 11$ is $8 + 40X + 42X^2$. At $u = 17$ the derived value misses $f(17)$ by $26$. The cheater then sends $18$ for $p_0(17)$, a shift of $4$. The shift changes the derived value of $f(u)$ and the $p_0$ term of $v$, and the two changes add up to exactly that miss. No power of $\beta$ appears in this equation, so we checked that the forged message passes for all 43 values of $\beta$. The attack works at 39 of the 40 allowed values of $u$, for a total of $1677$ of the $1720$ pairs of challenges. It fails only at $u = 8$, where $1 + 1/(u - x_0) = 0$ modulo 43.
+Keep the false claim $p_1(5) = 21$, and use the sum from $i = 0$ in both places, so that $f$ and $p_0$ both have weight 1 in $p$. The cheater commits to the honest $f = \sum_i \alpha^i q_i$, which at $\alpha = 11$ is $8 + 40X + 42X^2$. At $u = 17$ the derived value misses $f(17)$ by $26$. The cheater then sends $18$ for $p_0(17)$, a shift of $4$. The shift changes the derived value of $f(u)$ and the $p_0$ term of $v$, and the two changes add up to exactly that miss. No power of $\beta$ appears in this equation, so we checked that the forged message passes for all 43 values of $\beta$. The attack works at 39 of the 40 allowed values of $u$, for a total of $1677$ of the $1720$ pairs $(u, \beta)$. This forgery fails only at $u = 8$, where $1 + 1/(u - x_0) = 0$ modulo 43.
 
 <!-- /worked:collision -->
 
@@ -459,7 +459,7 @@ In our run $Z_T(u) = 21$, and the construction gives $L(X) = 11 + 26X + 16X^2 + 
 
 Ragu instead has the prover send the values at $u$ and combines them under $\beta$. This matches the [multipoint opening in Halo 2](https://zcash.github.io/halo2/design/proving-system/multipoint-opening.html), which also forms a combination of quotients, evaluates it at a fresh challenge using the opened polynomials' values, and adds the result to those polynomials under one more challenge. Halo 2 first groups polynomials by their set of query points and interpolates over each set, whereas Ragu gives every claim its own term and needs no interpolation.
 
-This comparison is our own reading of these sources. Neither the Ragu Book nor the code explains why Ragu sends the values instead of using SHPLONK's $L$.
+This comparison is our own reading of these sources, except that we could not retrieve the SHPLONK paper's text when checking this chapter, so the formulas for $h$ and $L$ above are unverified against it. Neither the Ragu Book nor the code explains why Ragu sends the values instead of using SHPLONK's $L$.
 
 ## 13. Batching in Ragu
 

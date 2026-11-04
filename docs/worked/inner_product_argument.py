@@ -405,7 +405,7 @@ frag['order-check'] = (f'The script behind this chapter repeats the comparison f
 ks = 13
 frag['costs'] = '\n'.join([
     '| Task for $n = 2^{13}$ | Operations |', '| --- | --- |',
-    f'| Computing $\\hat{{b}} = g(x)$ with repeated squaring | ${ks}$ squarings and ${ks}$ factor multiplications in $\\F_q$ |',
+    f'| Computing $\\hat{{b}} = g(x)$ with repeated squaring | ${ks - 1}$ squarings and ${ks}$ factor multiplications in $\\F_q$ |',
     f'| Computing $\\v{{s}}$ from the challenges | about ${2 ** ks:,}$ field multiplications |',
     f'| Computing $\\hat{{G}} = \\dot{{\\v{{s}}}}{{\\v{{G}}}}$ | ${2 ** ks:,}$ scalar multiplications, one per generator |',
     f'| Combining the $L_j$ and $R_j$ | ${2 * ks}$ scalar multiplications |',

@@ -6,11 +6,11 @@ There are two routes, and we take them in order. The first is the **quadratic ar
 
 ## 1. What polynomials provide
 
-Suppose two polynomials of degree at most $d$ differ. Their difference is a nonzero polynomial of degree at most $d$, so it has at most $d$ roots, and the two polynomials agree on at most $d$ points. This is the one-variable case of the Schwartz–Zippel lemma from [Statements and Challenges](./statements-and-challenges.md). So a check at one random point says something about every coefficient at once, and a verifier can learn whether two large polynomials are equal without reading either of them.
+Suppose two polynomials of degree at most $d$ differ. Their difference is a nonzero polynomial of degree at most $d$, so it has at most $d$ roots, and the two polynomials agree on at most $d$ points. This is the one-variable case of the Schwartz–Zippel lemma from [Statements and Challenges](./statements-and-challenges.md#_5-testing-polynomials-at-a-random-point). So a check at one random point says something about every coefficient at once, and a verifier can learn whether two large polynomials are equal without reading either of them.
 
 To use this fact, we have to express "all the constraints hold" as an equality of polynomials. Each route does this differently. A QAP assigns each constraint row to its own point of the field, so a true statement makes a polynomial vanish at all of those points. Ragu has already merged its constraints into one scalar equation, so it only has to place that scalar where a verifier can reach it.
 
-Three symbols need care in this chapter. In the arithmetization chapter, $x$ was the secret input, and we keep that meaning when we write "the witness with $x = 3$". Once we reach Ragu's protocol in Section 13, $x$ also names a random evaluation point, as it does in the commitments chapter, and the context will always say which is meant. The random point of the QAP test is called $\tau$. Finally, $\v{w}$ is the R1CS vector, and we write its entries in bold as $\v{w}_\ell$, so that they stay separate from the wires $w_1$ and $w_2$ of the flattened computation.
+Three symbols need care in this chapter. In the arithmetization chapter, $x$ was the secret input, and we keep that meaning when we write "the witness with $x = 3$". Once we reach Ragu's split in Section 12, $x$ also names a random evaluation point, as it does in the commitments chapter, and the context will always say which is meant. The random point of the QAP test is called $\tau$. Finally, $\v{w}$ is the R1CS vector, and we write its entries in bold as $\v{w}_\ell$, so that they stay separate from the wires $w_1$ and $w_2$ of the flattened computation.
 
 ## 2. The R1CS starting point
 
@@ -223,13 +223,15 @@ In $\F_{43}$ the value $\omega = 6$ satisfies $6^3 = 216 = 1$ modulo 43, so its 
 
 <!-- /worked:unity -->
 
-The prover's polynomials are also larger than the circuit, because the product $A(X)B(X)$ has about twice the degree of its factors. The FFTs therefore have to run on a domain about twice the size of $D$.
+The product is also larger than the circuit, because $A(X)B(X)$ has about twice the degree of its factors. Holding $P$ by its values therefore takes a domain about twice the size of $D$.
 
 <!-- worked:scale -->
 
 For a circuit of $m = 2^{16} = 65,536$ rows, $P(X)$ has degree up to $2(m-1) = 131,070$. Representing it requires a domain with more than 131,070 points, and the next power of two is $2^{17} = 131,072$.
 
 <!-- /worked:scale -->
+
+Groth16 provers avoid part of this cost, because $P$ is known to vanish on $D$ and the quotient $h$ has degree below $m$. Evaluating on one shifted copy of $D$, called a coset, is enough to recover $h$, so these provers run their FFTs at size $m$ rather than $2m$. They still have to run several of them, over a field with the required roots of unity.
 
 **The setup requires trust.** Anyone who learns $\tau$ or the other secret values can forge proofs, as Section 7 showed on a small scale. Groth16 also ties its setup to one circuit, so a new circuit needs a new setup. Ragu's [overview](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md) sets out to avoid a trusted setup, and its non-uniform model lets a prover switch among many circuits without verification keys.
 
@@ -393,7 +395,7 @@ sequenceDiagram
     Note over V: Query oracles and check both equations
 ```
 
-From here on $x$ is this random evaluation point, as in the commitments chapter, and the verifier picks it nonzero. The verifier asks the oracles for $r(x)$ and $r(xz)$, then for $c_1(x^{-1})$ and $c_1(0)$, then for $c_2(x)$. It computes $s(x, y)$, $t(x, z)$ and $k(y)$ by itself, because these polynomials are public. Then it checks two equations:
+In the protocol, $x$ is this random evaluation point, as in the commitments chapter, and the verifier picks it nonzero. The verifier asks the oracles for $r(x)$ and $r(xz)$, then for $c_1(x^{-1})$ and $c_1(0)$, then for $c_2(x)$. It computes $s(x, y)$, $t(x, z)$ and $k(y)$ by itself, because these polynomials are public. Then it checks two equations:
 
 $$r(x)\big(r(xz) + s(x, y) + t(x, z)\big) = x^{4n-1} c_1(x^{-1}) + x^{4n} c_2(x),$$
 
@@ -452,7 +454,7 @@ This lie is the easiest to catch, since the error sits on one power of $X$. Any 
 
 <!-- worked:cheat-best -->
 
-The prover can do better by spreading the difference over many powers of $X$. Let $D(X)$ be a polynomial of degree 15 whose coefficient of $X^7$ is 5, which is the amount the true coefficient must change by. Writing $D$ as a multiple of $(X-1)(X-2)\cdots(X-15)$ gives it the 15 roots $1, \ldots, 15$. The prover then splits $r'(X)f'(X) - D(X)$ instead of the true product, and the new $c_1$ has $c_1(0) = 13$, as the target check requires. The split check now compares $r'(x)f'(x)$ with $r'(x)f'(x) - D(x)$, so it passes exactly where $D(x) = 0$. Testing every nonzero $x$ finds 15 passing values out of 42, which is the most a polynomial of degree 15 allows. For $n = 2^{11}$ on a field of about $2^{255}$ elements, the same limit of $8n - 1$ roots gives a probability below $2^{-240}$.
+The prover can do better by spreading the difference over many powers of $X$. Let $\Delta(X)$ be a polynomial of degree 15 whose coefficient of $X^7$ is 5, which is the amount the true coefficient must change by. Writing $\Delta$ as a multiple of $(X-1)(X-2)\cdots(X-15)$ gives it the 15 roots $1, \ldots, 15$. The prover then splits $r'(X)f'(X) - \Delta(X)$ instead of the true product, and the new $c_1$ has $c_1(0) = 13$, as the target check requires. The split check now compares $r'(x)f'(x)$ with $r'(x)f'(x) - \Delta(x)$, so it passes exactly where $\Delta(x) = 0$. Testing every nonzero $x$ finds 15 passing values out of 42, which is the most a polynomial of degree 15 allows. For $n = 2^{11}$ on a field of about $2^{255}$ elements, the same limit of $8n - 1$ roots gives a probability below $2^{-240}$.
 
 <!-- /worked:cheat-best -->
 

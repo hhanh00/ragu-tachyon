@@ -6,11 +6,11 @@ This chapter takes one small computation through the whole process. We start wit
 
 ## 1. What arithmetization produces
 
-Suppose a prover wants to convince a verifier of the following statement:
+We continue with the running example from the [previous chapter](./statements-and-challenges.md#_1-statements-instances-and-witnesses):
 
 > I know a number $x$ such that $x^3 + x + 5 = 35$.
 
-Here 35 is public, and $x$ is secret. A statement of this kind has two parts. The **instance** is the public part, which both parties see. The **witness** is the secret part, which only the prover knows. Arithmetization has to produce a fixed set of equations, determined only by the statement's structure, such that a witness satisfies the equations exactly when the statement is true.
+In the terms of that chapter, 35 is the instance and $x$ is the witness. Arithmetization has to produce a fixed set of equations, determined only by the statement's structure, such that a witness satisfies the equations exactly when the statement is true.
 
 The equations cannot depend on the secret value, because the verifier must know them in advance. A program with an `if` branch therefore has to compute both branches and select one arithmetically. For example, a value $s$ is restricted to a bit by the equation $s(s - 1) = 0$, and the expression $s \cdot p + (1 - s) \cdot q$ selects between $p$ and $q$. Hash functions and signature checks reduce to field equations in the same way, with many more of them.
 
@@ -92,11 +92,11 @@ Try $x = 4$ instead. Filling in the gates gives $\v{a} = (4, 16)$, $\v{b} = (4, 
 
 The verifier now faces $n$ gate equations and $4n$ constraints, and a real circuit has thousands of each. A proof that handled every equation separately would be enormous, so we want to replace them all with one equation that still fails if any of them fails.
 
-Let $e_i = a_i b_i - c_i$ be the error of gate $i$. Adding the errors directly would not work, because errors of $+1$ and $-1$ cancel. Multiplying each error by a different power of a random value $z$ prevents this cancellation, using the [random linear combination](./statements-and-challenges.md#_7-random-linear-combinations) technique from the previous chapter:
+Let $e_i = a_i b_i - c_i$ be the error of gate $i$. The previous chapter's [random linear combination](./statements-and-challenges.md#powers-of-one-challenge) does this job, with the errors as the claims and the powers of a random value $z$ as the weights:
 
 $$\sum_{i=0}^{n-1} z^i e_i = \sum_{i=0}^{n-1} z^i (a_i b_i - c_i).$$
 
-Read this sum as a polynomial in $z$ with the errors as its coefficients. If every gate holds, this is the zero polynomial, so the sum is 0 for every $z$. If any gate fails, it is a nonzero polynomial of degree less than $n$, which has fewer than $n$ roots. The prover must fix the witness before seeing $z$, so a uniformly random $z$ hits a root with probability below $n / |\F_q|$.
+This sum is a polynomial in $z$ with the errors as its coefficients, so it is 0 for every $z$ when all the gates hold. If any gate fails, the bound from that section applies, because the prover must fix the witness before seeing $z$. A uniformly random $z$ then hides the failure with probability below $n / |\F_q|$.
 
 <!-- worked:gate-sum -->
 
@@ -286,7 +286,7 @@ Subtracting the right side from the left side splits the equation into two parts
 
 $$\underbrace{\sum_{i=0}^{n-1} (a_i b_i - c_i) \big( z^{2n-1-i} + z^{2n+i} \big)}_{E_g(z)} + \underbrace{\Big( \revdot{\v{r}}{\v{s}} - \dot{\v{k}}{\v{y^{4n}}} \Big)}_{E_c(y)} = 0.$$
 
-The first part depends only on $z$, and every power of $z$ in it is at least $z^{n}$, since $2n - 1 - i \ge n$ for $i < n$. The second part depends only on $y$. A gate error therefore cannot cancel a constraint error for all values of the challenges, because the two parts vary independently. If either part is nonzero, the whole expression is a nonzero polynomial in $(z, y)$ of degree at most $4n - 1$. The prover has to fix $\v{r}$ before seeing the challenges, so a random pair passes with probability at most $(4n - 1)/|\F_q|$. This relies only on the fact about polynomial roots from Section 5, extended to two variables by the [Schwartz–Zippel lemma](./statements-and-challenges.md#_6-polynomials-in-several-variables).
+The first part depends only on $z$, and every power of $z$ in it is at least $z^{n}$, since $2n - 1 - i \ge n$ for $i < n$. The second part depends only on $y$. A gate error therefore cannot cancel a constraint error for all values of the challenges, because the two parts vary independently. If either part is nonzero, the whole expression is a nonzero polynomial in $(z, y)$ of degree at most $4n - 1$. The prover has to fix $\v{r}$ before seeing the challenges, so a random pair passes with probability at most $(4n - 1)/|\F_q|$. This bound is the two-variable [Schwartz–Zippel lemma](./statements-and-challenges.md#_6-polynomials-in-several-variables) from the previous chapter.
 
 On the toy field we can count the exact number of passing challenges for several dishonest witnesses:
 

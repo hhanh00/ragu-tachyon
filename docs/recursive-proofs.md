@@ -109,7 +109,7 @@ Take the point $P' = (12,\,31)$ on $E'$ and the scalar $23$, written in binary a
 
 <!-- /worked:scalar-mul -->
 
-This count describes our plain construction and not an optimized one. Real circuits lower the cost per scalar multiplication, and the [endoscalars chapter](./endoscalars.md) covers Ragu's main technique. Section 5 shows that this kind of saving does not change the conclusion.
+This count describes our plain construction and not an optimized one. Real circuits lower the cost per scalar multiplication, and the [endoscalars chapter](./endoscalars.md) covers Ragu's main technique. Sections 4 and 6 show that this kind of saving does not change the conclusion.
 
 ### The hash
 
@@ -264,7 +264,7 @@ The requirement from [Chapter 02](./pcd-intro.md#_8-succinctness) can now be sta
 
 There have been two main routes to a verifier like this. Earlier recursive systems [used proofs with a constant-time verifier](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L126-L139), so the verifier could be encoded directly and the circuit converged. The book describes the resulting systems as barely practical, and they needed very large curves, complicated assumptions, and trusted setups. [Chapter 01](./scaling-zcash.md) explained why Tachyon rules out a trusted setup.
 
-The second route came from [Halo](https://eprint.iacr.org/2019/1021). It keeps the linear verifier and observes that Section 5 did not rule out postponing the expensive steps, since a false claim can still be recorded and caught later:
+The second route came from [Halo](https://eprint.iacr.org/2019/1021). We could read only that paper's abstract, so our account of it follows the Ragu Book. Halo keeps the linear verifier, and it relies on something Section 5 did not rule out, which is postponing the expensive steps, since a false claim can still be recorded and caught later:
 
 <!-- worked:drop-g-later -->
 
@@ -378,7 +378,7 @@ This site follows the code, in which initial states belong to the application. A
 :::
 
 ::: warning Reconstructed from code at commit 3219e08, not confirmed by the authors
-Reading the code this way, the examples we already have fit the same pattern. Chapter 02's tally records a range of positions, and its `Entry` step checks each value against the list. The book's [getting-started guide](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/guide/getting_started.md?plain=1#L35-L46) builds a Merkle tree in application headers and steps, which is the calculation above carried out by an application. Tachyon's `FeeSeed` step [leaves its anchor as a free witness](./pcd-intro.md#_7-why-a-false-header-has-no-valid-proof), and validators compare it with the chain. In each case the application chooses what to record and what the verifier compares.
+Reading the code this way, the examples we already have fit the same pattern. Chapter 02's tally records a range of positions, and its `Entry` step checks each value against the list. The book's [getting-started guide](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/guide/getting_started.md?plain=1#L35-L46) builds a Merkle tree in application headers and steps, which is the calculation above carried out by an application. Tachyon's `FeeSeed` step [leaves its anchor as a free witness](./pcd-intro.md#_7-why-a-false-header-has-no-valid-proof), and the Tachyon book says that validators confirm it against the chain. In each case the application chooses what to record and what the verifier compares.
 :::
 
 ## 11. Why cheating fails

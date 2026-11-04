@@ -341,7 +341,7 @@ The base case and the record of initial states follow [chapter 10](./recursive-p
 
 ## 9. Folding schemes
 
-[Nova](https://eprint.iacr.org/2021/370) introduced a related formalization called a **folding scheme**, which it describes as a reduction from checking two instances of a relation to checking one. The book says [the two formalizations are equivalent for all practical purposes](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/index.md?plain=1#L94-L102), and elsewhere it calls folding a [related alternative](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L188-L190) that merges statements without running a proof's verifier during accumulation. The two wordings fit together once we write our scheme in Nova's terms.
+[Nova](https://eprint.iacr.org/2021/370) introduced a related formalization called a **folding scheme**, which its abstract describes as a reduction from checking two instances of a relation to checking one. We could read only that abstract, so this section rests on it and on the book. The book says [the two formalizations are equivalent for all practical purposes](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/index.md?plain=1#L94-L102), and elsewhere it calls folding a [related alternative](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L188-L190) that merges statements without running a proof's verifier during accumulation. The two wordings fit together once we write our scheme as a folding scheme.
 
 Take the relation of Section 3 with $\bar{P}$, $u$, $v$ as instance and $\v{p}$, $\gamma$ as witness. Then Section 5 reduces checking five instances of this relation to checking one instance of the same relation, with a verifier that sees only instances:
 
@@ -354,7 +354,7 @@ Take the relation of Section 3 with $\bar{P}$, $u$, $v$ as instance and $\v{p}$,
 | $\mathsf{pf}$ | Folding proof | $\bar{F}$ and the values at $u$ |
 | $\mathsf{Acc.Decide}$ | Checking the final instance against its witness | The MSM and the evaluation |
 
-So our scheme is a folding scheme for evaluation claims, and the phrase "without any verifier" describes the same thing as a verifier that reads nothing of a proof beyond its instances. What differs is mainly the point of view. Accumulation starts from a proof system and asks what can be postponed, whereas folding starts from a relation and asks how to combine instances of it.
+So our scheme is a folding scheme for evaluation claims, and the book's phrase "without the use of any (S)NARK verifier" describes the same thing as a verifier that reads nothing of a proof beyond its instances. What differs is mainly the point of view. Accumulation starts from a proof system and asks what can be postponed, whereas folding starts from a relation and asks how to combine instances of it.
 
 Not every relation folds as cleanly as this one, and the reason explains why $\mathsf{pf}$ can take different forms. The book says that an accumulation proof [contains the cross terms](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/index.md?plain=1#L81-L83) the verifier needs. Evaluation claims at one point combine linearly and need no such term, which is why our $\mathsf{pf}$ only has to bring the claims to a common point. A relation with a product does not combine linearly. Suppose the claim is $\dot{\v{a}}{\v{b}} = c$, and we fold two instances with a challenge $r$. Multiplying out gives
 
@@ -374,7 +374,7 @@ Take $\v{a}_1 = (2, 5)$, $\v{b}_1 = (7, 3)$ with $c_1 = 29$, and $\v{a}_2 = (4, 
 
 <!-- /worked:cross-term -->
 
-Nova's folding of R1CS carries a term of this kind, and Ragu's revdot claims have the same structure, so [chapter 14](./revdot-folding.md) develops this example into a complete protocol.
+Nova's folding of R1CS is commonly described with a term of this kind, although its abstract does not mention one and we have not checked this against the paper. Ragu's revdot claims have the same structure, so [chapter 14](./revdot-folding.md) develops this example into a complete protocol.
 
 ## 10. Why cheating fails
 
@@ -521,7 +521,7 @@ This chapter took the following steps:
 2. Sorting the verifier's opening and revdot steps shows that every linear one reads a witness vector and every cheap one reads only the instance.
 3. An evaluation claim divides into an instance $(\bar{C}, x, y)$ and a witness $(\v{p}, \gamma)$, and so does an accumulator, which is a claim of the same form.
 4. $\mathsf{Acc.P}$ runs chapter 08's reduction on the old accumulator and the new proof's claims, $\mathsf{Acc.V}$ recomputes the new instance from instances and the accumulation proof, and $\mathsf{Acc.Decide}$ runs one MSM and one evaluation.
-5. The witness keeps a fixed length across any number of folds, and the circuit's work on it is constant in $n$, while the data handed between provers grows to the size of the polynomials.
+5. The witness keeps a fixed length across any number of folds, and the circuit's work on the instance is constant in $n$, while the data handed between provers grows to the size of the polynomials.
 6. Since the witness never enters a circuit, each step can use a NARK, and the opening claims of a whole history rest on one decider.
 7. Written as a reduction between instances of one relation, this scheme is a folding scheme. Relations with products also need cross terms in the accumulation proof.
 8. A false input leads to a false output at all but a few challenges, so it reaches the decider. This depends on the circuit tying each input instance to the previous proof and on the transcript absorbing the accumulator.

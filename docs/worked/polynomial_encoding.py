@@ -451,9 +451,9 @@ assert c1_best[0] == target and len(c2_best) == N
 best_passes = [a for a in range(1, Q) if peval(r_bad, a) * peval(f_bad, a) % Q == split_side(c1_best, c2_best, a)]
 assert best_passes == list(roots) and len(best_passes) == 15
 frag['cheat-best'] = (
-    f'The prover can do better by spreading the difference over many powers of $X$. Let $D(X)$ be a polynomial of degree 15 whose coefficient of $X^7$ is {delta}, which is the amount the true coefficient must change by. '
-    f'Writing $D$ as a multiple of $(X-1)(X-2)\\cdots(X-{roots[-1]})$ gives it the 15 roots $1, \\ldots, {roots[-1]}$. The prover then splits $r\'(X)f\'(X) - D(X)$ instead of the true product, '
-    f'and the new $c_1$ has $c_1(0) = {c1_best[0]}$, as the target check requires. The split check now compares $r\'(x)f\'(x)$ with $r\'(x)f\'(x) - D(x)$, so it passes exactly where $D(x) = 0$. '
+    f'The prover can do better by spreading the difference over many powers of $X$. Let $\\Delta(X)$ be a polynomial of degree 15 whose coefficient of $X^7$ is {delta}, which is the amount the true coefficient must change by. '
+    f'Writing $\\Delta$ as a multiple of $(X-1)(X-2)\\cdots(X-{roots[-1]})$ gives it the 15 roots $1, \\ldots, {roots[-1]}$. The prover then splits $r\'(X)f\'(X) - \\Delta(X)$ instead of the true product, '
+    f'and the new $c_1$ has $c_1(0) = {c1_best[0]}$, as the target check requires. The split check now compares $r\'(x)f\'(x)$ with $r\'(x)f\'(x) - \\Delta(x)$, so it passes exactly where $\\Delta(x) = 0$. '
     f'Testing every nonzero $x$ finds {len(best_passes)} passing values out of {Q - 1}, which is the most a polynomial of degree 15 allows. For $n = 2^{{11}}$ on a field of about $2^{{255}}$ elements, the same limit of $8n - 1$ roots gives a probability below $2^{{-240}}$.')
 
 # A prover who knows x in advance

@@ -12,9 +12,9 @@ Suppose a prover holds a polynomial $p$ and a verifier holds nothing. The two pa
 2. The verifier later picks a point $x$.
 3. The prover sends $y = p(x)$ along with a proof that $y$ is correct for the polynomial behind $C$.
 
-The verifier gets evidence about $p$ from one evaluation because, as Section 9 shows, two different low-degree polynomials rarely agree at a random point. We call the party who holds the polynomial the **prover** and the party who checks claims the **verifier**. This exchange only works if the prover fixes $p$ before seeing $x$, so the commitment must be **binding**: the prover must not be able to open $C$ to a second polynomial. When $p$ contains secrets, the commitment should also be **hiding**, which means $C$ reveals nothing about $p$.
+The verifier gets evidence about $p$ from one evaluation because two different low-degree polynomials rarely agree at a random point, as [Statements and Challenges](./statements-and-challenges.md#_5-testing-polynomials-at-a-random-point) showed. This exchange only works if the prover fixes $p$ before seeing $x$, so the commitment must be **binding**: the prover must not be able to open $C$ to a second polynomial. When $p$ contains secrets, the commitment should also be **hiding**, which means $C$ reveals nothing about $p$.
 
-A hash of the coefficients is binding and short, which makes it a natural first candidate. Hashes have no algebraic structure, however, so the only way to prove something about $p$ from its hash is to run the entire hash computation inside a proof. Ragu's accumulation scheme also needs to combine commitments directly, and the hash of a sum has no relation to the hashes of its parts. Elliptic curve points provide the missing structure, because adding two commitments gives a commitment to the sum. Sections 3 to 5 build this commitment and show why it has both properties. Sections 7 to 9 then connect it to polynomial evaluation.
+A hash of the coefficients is binding and short, which makes it a natural first candidate. Hashes have no algebraic structure, however, so the only way to prove something about $p$ from its hash is to run the entire hash computation inside a proof. Ragu's accumulation scheme also needs to combine commitments directly, and the hash of a sum has no relation to the hashes of its parts. Elliptic curve points provide the missing structure, because adding two commitments gives a commitment to the sum. Sections 3 to 6 build this commitment and show why it has both properties. Sections 7 to 9 then connect it to polynomial evaluation.
 
 ## 2. The toy curve
 
@@ -274,7 +274,8 @@ and the prover claims to know $\v{a}$ satisfying
 
 $$P = \dot{\v{a}}{\v{G}} + \dot{\v{a}}{\v{x^n}} \cdot U.$$
 
-This form works because $P$ is a Pedersen commitment to the $n + 1$ entries $(a_0, \ldots, a_{n-1}, y)$ under the generators $(G_0, \ldots, G_{n-1}, U)$. The binding argument from Section 4 now applies to the longer list. If the last entry is anything other than the true inner product, the prover must know a relation among these generators, including $U$. 
+This form works because $P$ is a Pedersen commitment to the $n + 1$ entries $(a_0, \ldots, a_{n-1}, y)$ under the generators $(G_0, \ldots, G_{n-1}, U)$. The binding argument from Section 4 now applies to the longer list. If the last entry is anything other than the true inner product, the prover must know a relation among these generators, including $U$.
+
 To see why the same vector appears in both facts, read the two terms of the equation together. The vector that multiplies $\v{G}$ is also the vector whose inner product with $\v{x^n}$ multiplies $U$, so one vector has to satisfy both parts. The verifier can compute $P$ from public values alone, because it holds $C$ and $y$.
 
 <!-- worked:claim -->
@@ -301,7 +302,7 @@ Suppose the prover learns $x = 9$ before committing. It can then take $q(X) = p(
 
 <!-- /worked:early-challenge -->
 
-When the commitment comes first, the prover has to fix the polynomial with no knowledge of $x$. Suppose the prover commits to $q$ but wants to pass a check meant for a different polynomial $p$. Both have degree at most $d$, so the difference $p - q$ is a nonzero polynomial of degree at most $d$. Each point where $p$ and $q$ agree is a root of this difference, and such a polynomial has at most $d$ roots, so $p$ and $q$ agree on at most $d$ points. This count is the one-variable case of the [Schwartz–Zippel lemma](./statements-and-challenges.md#_6-polynomials-in-several-variables). A prover who commits to one polynomial and hopes it matches a different one at $x$ has at most a $d / |\F_q|$ chance of success.
+When the commitment comes first, the prover has to fix the polynomial with no knowledge of $x$, so the [random-point test](./statements-and-challenges.md#_5-testing-polynomials-at-a-random-point) from Statements and Challenges applies. A prover who commits to $q$ and hopes it matches a different polynomial $p$ at $x$, with both of degree at most $d$, has at most a $d / |\F_q|$ chance of success.
 
 <!-- worked:agreement -->
 

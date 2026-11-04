@@ -199,6 +199,12 @@ frag['window'] = '\n'.join([
     '',
     f'For the first {crossover_days:.0f} days or so the window is the larger of the two, because it records more values per '
     f'transaction. After that the nullifier set keeps growing while the window stays where it is.',
+    '',
+    'The size of the window depends on the epoch length, which is not settled. The sources give different lengths:',
+    '',
+    '| Epoch length | Tachyon window (peak) | Days until the nullifier set is larger |', '| --- | --- | --- |',
+    *[f'| {name} | {gb(2 * s * tg_bytes_per_s)} | {2 * s * tg_bytes_per_s / nf_bytes_per_s / DAY:.0f} |'
+      for name, s in [('1 day (book)', DAY), (f'{num(EPOCH_BLOCKS)} blocks (code)', EPOCH_SECONDS), ('2 weeks (book)', 14 * DAY)]],
 ])
 
 # --------------------------------------------------------- on-chain bytes
@@ -223,5 +229,15 @@ frag['chain-bytes'] = '\n'.join([
     f'| Proof | ${ORCHARD_PROOF_BASE} + {ORCHARD_PROOF_PER_ACTION} \\cdot {ORCHARD_ACTIONS} = {num(orch_proof)}$ | a share of one aggregate proof |',
     f'| Total without the shared proof | {num(orch_total)} | {num(ty_total)} |',
 ])
+
+MAX_BLOCK_BYTES = 2_000_000  # MAX_BLOCK_SIZE in the Zcash protocol specification
+orch_block = orch_total * TPS * BLOCK_SECONDS
+ty_block = ty_total * TPS * BLOCK_SECONDS
+assert ty_block > MAX_BLOCK_BYTES
+frag['block-load'] = (
+    f'These totals also show how far the hypothetical {TPS} transactions per second is from today\'s chain. At {BLOCK_SECONDS} seconds per block, '
+    f'that load needs about {orch_block / 1e6:.1f} MB per block with Orchard and {ty_block / 1e6:.2f} MB with Tachyon, before counting the aggregate proof. '
+    f'Both exceed the current limit of {MAX_BLOCK_BYTES / 1e6:.0f} MB per block, so this load would also require a larger block limit. '
+    f'The pruned window is only one part of what a node may store, too. Keeping the block history at this load would add about {ty_total * TPS * YEAR / 1e12:.1f} TB per year for Tachyon, excluding proofs.')
 
 print(json.dumps(frag))

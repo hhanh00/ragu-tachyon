@@ -735,7 +735,7 @@ if __name__ == '__main__':
         ('Total, with two curves', f'${total_p}$', f'${total_s}$'),
     ])
     frag['size-total'] = (
-        f'At 32 bytes per point or scalar, with [4 bytes for the circuit index](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/wire/registry.rs#L7-L20) and the [28-byte envelope](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/wire/format.rs#L40), that comes to ${n(compressed)}$ bytes. '
+        f'At 32 bytes per point or scalar, with [4 bytes for the circuit index](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/wire/registry.rs#L7-L20) and the [28-byte envelope](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/wire/format.rs#L41), that comes to ${n(compressed)}$ bytes. '
         f'The [uncompressed encoding](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/wire/polynomial.rs#L1-L10) writes ${n(2 ** rank)}$ coefficients for each of ${NUM_POLYS}$ polynomials, which is ${n(uncompressed_polys)}$ bytes before counting its cached points, so compression shrinks the proof by a factor of about ${uncompressed_polys // compressed:,}$. '
         f'Most of the compressed proof is the instance, with ${inst_points}$ of its ${total_p}$ points. The IPA rounds, the only part that grows with the circuit size, take ${2 * 2 * rank}$ points.')
 

@@ -462,9 +462,21 @@ for t in us:
     if t == u:
         solved_at = (sent[0], delta, gap)
 assert blocked == [(points[0] - 1) % Q] and wins == 39 * Q and solved_at
+# The collision needs only the beta sum to start at 0: starting the alpha sum at 1 leaves the count unchanged.
+shifted_alpha = [alpha * w % Q for w in bookw]
+fshift = lin(*[(w, q_) for w, q_ in zip(shifted_alpha, qs)])
+alpha_one_wins = 0
+for t in us:
+    d_true = sum(wi * (s - y) * inv(t - xi) for wi, s, y, xi in zip(shifted_alpha, true_at[t], cheat_ys, points)) % Q
+    denom = (1 + shifted_alpha[0] * inv(t - points[0])) % Q
+    if denom:
+        sent0 = (true_at[t][0] + (ev(fshift, t) - d_true) * inv(denom)) % Q
+        d_sent = (d_true + shifted_alpha[0] * (sent0 - true_at[t][0]) * inv(t - points[0])) % Q
+        alpha_one_wins += Q * ((d_sent + sent0) % Q == (ev(fshift, t) + true_at[t][0]) % Q)
+assert alpha_one_wins == wins
 frag['collision'] = (f'Keep the false claim $p_1({points[1]}) = {bad_y}$, and use the sum from $i = 0$ in both places, so that $f$ and $p_0$ both have weight 1 in $p$. The cheater commits to the honest $f = \\sum_i \\alpha^i q_i$, which at $\\alpha = {alpha}$ is ${poly(fbook)}$. '
                      f'At $u = {u}$ the derived value misses $f({u})$ by ${solved_at[2]}$. The cheater then sends ${solved_at[0]}$ for $p_0({u})$, a shift of ${solved_at[1]}$. The shift changes the derived value of $f(u)$ and the $p_0$ term of $v$, and the two changes add up to exactly that miss. '
-                     f'No power of $\\beta$ appears in this equation, so we checked that the forged message passes for all 43 values of $\\beta$. The attack works at 39 of the 40 allowed values of $u$, for a total of ${wins}$ of the ${40 * Q}$ pairs of challenges. It fails only at $u = {blocked[0]}$, where $1 + 1/(u - x_0) = 0$ modulo 43.')
+                     f'No power of $\\beta$ appears in this equation, so we checked that the forged message passes for all 43 values of $\\beta$. The attack works at 39 of the 40 allowed values of $u$, for a total of ${wins}$ of the ${40 * Q}$ pairs $(u, \\beta)$. This forgery fails only at $u = {blocked[0]}$, where $1 + 1/(u - x_0) = 0$ modulo 43.')
 
 # Section 12: the SHPLONK form.
 ZT = 1

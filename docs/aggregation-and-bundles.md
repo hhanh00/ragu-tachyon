@@ -139,11 +139,11 @@ Suppose a bundle claims a value balance of 4 while the committed values still gi
 
 <!-- /worked:binding-cheat -->
 
-This rests on the assumption that the discrete log between the two generators is unknown. The real generators are [shared with Orchard](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/authorization.md?plain=1#L128) and come from hashing to the curve.
+This rests on the assumption that the discrete log between the two generators is unknown. The real generators are [shared with Orchard](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/authorization.md?plain=1#L128) and come from hashing to the curve, and a [book footnote](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/authorization.md?plain=1#L130) suggests considering a separate personalization.
 
 ### The fee change note
 
-Later, a prover picks $\mathsf{fee} \leq \mathsf{maxfee}$. The unused part of the reservation has to stay in the pool, so the proof creates a [**fee change note**](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L64-L68) $(\mathsf{pk}, \mathsf{maxfee} - \mathsf{fee}, \psi, \mathsf{rcm})$, which differs from the max fee note only in its value. It is published only as its [note commitment](./notes-and-nullifiers.md#_4-notes-and-commitments) $\mathsf{cm}_{\mathsf{chg}}$, which is a tachygram. A fee equal to the maximum leaves a change note of value zero, and that note still publishes its tachygram, so the tachygram count reveals nothing about the fee. Bundle X in our table is this case.
+Later, a prover picks $\mathsf{fee} \leq \mathsf{maxfee}$. The unused part of the reservation has to stay in the pool, so the proof creates a [**fee change note**](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L64-L68) $(\mathsf{pk}, \mathsf{maxfee} - \mathsf{fee}, \psi, \mathsf{rcm})$, which differs from the max fee note only in its value. It is published only as its [note commitment](./notes-and-nullifiers.md#_4-notes-and-commitments) $\mathsf{cm}_{\mathsf{chg}}$, which is a tachygram. A fee equal to the maximum leaves a change note of value zero, and that note still publishes its tachygram, so the tachygram count does not show whether any change came back. The fee itself is public in the trailer. Bundle X in our table is this case.
 
 We can now find what a bundle [contributes to its transaction](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L144-L148). The pool loses the spends and gains the outputs and the change:
 

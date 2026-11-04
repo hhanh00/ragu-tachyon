@@ -431,7 +431,7 @@ This also gives a compact statement of the verifier's costs. The expression $\ha
 
 | Task for $n = 2^{13}$ | Operations |
 | --- | --- |
-| Computing $\hat{b} = g(x)$ with repeated squaring | $13$ squarings and $13$ factor multiplications in $\F_q$ |
+| Computing $\hat{b} = g(x)$ with repeated squaring | $12$ squarings and $13$ factor multiplications in $\F_q$ |
 | Computing $\v{s}$ from the challenges | about $8,192$ field multiplications |
 | Computing $\hat{G} = \dot{\v{s}}{\v{G}}$ | $8,192$ scalar multiplications, one per generator |
 | Combining the $L_j$ and $R_j$ | $26$ scalar multiplications |

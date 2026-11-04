@@ -5,7 +5,7 @@ The [chapter on recursive proofs](./recursive-proofs.md) sets up the goal of a p
 The technique does not make that computation cheaper. It postpones the computation, and it lets many postponed computations collapse into one. A prover states the output as a claim, each recursive step merges the new claim with the old one using a random spot check, and one party does the expensive work once, at the very end. The technique comes from [Halo](https://eprint.iacr.org/2019/1021), and [Bünz, Chiesa, Mishra and Spooner](https://eprint.iacr.org/2020/499) later gave it foundations under the name **accumulation scheme**.
 
 ::: warning Reconstructed from code at commit 3219e08, not confirmed by the authors
-The merge protocol in this chapter is our own assembly. We built it from the [Ragu Book's description of Halo](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L162-L168), the [Halo 2 book's recursion page](https://zcash.github.io/halo2/background/recursion.html), and the argument in [chapter 07](./inner-product-argument.md), and we checked its algebra with the script behind this page. It teaches the idea, and it may differ in detail from the protocols in the two papers. Ragu does not run it, as Section 11 explains, because Ragu's recursion uses a later variant.
+The merge protocol in this chapter is our own assembly. We built it from the [Ragu Book's description of Halo](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L162-L168), the [Halo 2 book's recursion page](https://zcash.github.io/halo2/background/recursion.html), and the argument in [chapter 07](./inner-product-argument.md), and we checked its algebra with the script behind this page. It teaches the idea, and it may differ in detail from the protocols in the two papers, of which we could read only the abstracts. Ragu does not run it, as Section 11 explains, because Ragu's recursion uses a later variant.
 :::
 
 ::: tip Terminology
@@ -265,7 +265,7 @@ Proof-carrying data has a tree in place of a chain, so a step with two children 
 
 <!-- worked:three -->
 
-Merging claims 1, 2 and 4 in one step with the same challenges gives $v_M = 17$ and $C_M = (6,\,8)$. The final check passes, and the output point is $(22,\,7)$. The output point depends only on $\v{u}_M$, so it matches the two-claim merge above, and the inputs affect the proof only through $C_M$, $v_M$ and the cross terms.
+Merging claims 1, 2 and 4 in one step with the same challenges gives $v_M = 17$ and $C_M = (6,\,8)$. The final check passes, and the output point is $(22,\,7)$. The output point depends only on $\v{u}_M$, so it matches the two-claim merge above, and the inputs affect the proof only through $C_M$, $v_M$, the cross terms and the final scalar.
 
 <!-- /worked:three -->
 
@@ -277,7 +277,7 @@ The verifier's side of a merge is now small, and the prover takes on the linear 
 
 | Work for one merge of two claims, $n = 2^{13}$ | Who | Amount |
 | --- | --- | --- |
-| Evaluate $g_1$ and $g_2$ at $x_M$ | Verifier | $13$ squarings and $26$ factor multiplications |
+| Evaluate $g_1$ and $g_2$ at $x_M$ | Verifier | $12$ squarings and $26$ factor multiplications |
 | Compute $C_M$ | Verifier | $1$ scalar multiplication |
 | Combine the $L_j$ and $R_j$ | Verifier | $26$ scalar multiplications |
 | Evaluate $g_M$ at $x_M$ | Verifier | $13$ factor multiplications, reusing the squarings |
@@ -361,7 +361,7 @@ Take the point $\hat{G}_1 + 6 \cdot G_0 + 6 \cdot U = (27,\,1)$, so that the pro
 
 <!-- /worked:hidden -->
 
-This particular false point does not by itself let a prover pass a false value at the original evaluation point, since the extra $G_0$ term and the extra $U$ term shift the chapter 07 gap by amounts that cancel. It still breaks the reasoning above, which needs a passing merge to mean that the input claim is literally true. The weight $\tau$ restores that link at the cost of one more challenge.
+This particular false point does not by itself let an honestly folding prover pass a false value in chapter 07's final check, because the supplied point would add a multiple of $G_0$ to the right side, and nothing on the left side matches it. It still breaks the reasoning above, which needs a passing merge to mean that the input claim is literally true. The weight $\tau$ restores that link at the cost of one more challenge.
 
 ### Assumptions
 

@@ -1,19 +1,83 @@
 # Glossary
 
-Each entry gives a one-line reminder and links to the chapter that teaches the term. Entries marked as planned link to stubs.
+Each entry gives a one-line reminder and links to the chapter that teaches the term.
 
-- **Accumulator:** a running object that carries deferred checks from one recursive step to the next. Planned for [Accumulation](./accumulation.md).
+- **Accumulation proof:** the prover's message that lets a verifier check one accumulation step. See [Split Accumulation](./split-accumulation.md#the-accumulation-prover).
+- **Accumulator:** a running object that carries deferred checks from one recursive step to the next. See [Accumulation](./accumulation.md#_7-keeping-a-running-accumulator).
+- **Action set indicator:** a value used to find out which actions a stamp covers. See [Aggregation and Bundles](./aggregation-and-bundles.md#_8-finding-out-what-a-stamp-covers).
+- **Anchor:** a hash-chain value that commits to the Tachyon pool state. See [Pool State and Anchors](./pool-state.md#_7-crossing-epoch-boundaries).
+- **Anomalous curve:** a curve whose number of points equals its field size, which cycles have to avoid. See [Curve Cycles](./curve-cycles.md#_3-a-curve-for-each-field).
+- **Atomic accumulation:** accumulation in which the accumulator alone is enough to verify each step. See [Accumulation](./accumulation.md#_9-atomic-accumulation).
+- **Autonome, aggregate, adjunct:** the three states of a Tachyon bundle: complete proof, merged proof, and stripped input to a merged proof. See [Aggregation and Bundles](./aggregation-and-bundles.md#_1-what-aggregation-removes-and-what-it-keeps).
+- **Base case:** the start of a recursive chain, where no earlier proof exists. See [Recursive Proofs](./recursive-proofs.md#_9-the-base-case).
+- **Batched opening:** a reduction of many polynomial evaluation claims to one. See [Batched Openings](./batched-openings.md#_7-beta-batching).
 - **Binding:** the property that a prover cannot open one commitment to two different values. See [Polynomial Commitments](./polynomial-commitments.md#_4-why-a-prover-cannot-change-the-vector).
-- **Endoscalar:** a short challenge that the curve's endomorphism makes cheap to apply on either side of the cycle. Planned for [Endoscalars](./endoscalars.md).
+- **Binding signature:** the signature that enforces a bundle's value balance through homomorphic value commitments. See [The Proof Tree](./proof-tree.md#the-binding-signature).
+- **Bonding polynomial:** the wiring polynomial of a circuit with constraints only, satisfying $s(X, 0) = 0$. See [Wiring and the Registry](./wiring-and-registry.md#a-domain-point-with-no-circuit).
+- **Bucket:** a group of an epoch's tachygrams that share a quadratic-residue profile. See [Oblivious Sync](./oblivious-sync.md#_11-routing-an-epoch-into-buckets).
+- **Compression:** replacing a large proof's polynomials with commitments and openings. See [Recursion in Ragu](./ragu-recursion.md#_8-from-a-large-proof-to-a-short-one).
+- **Consensus window:** the two epochs that validators check for duplicate tachygrams. See [Pool State and Anchors](./pool-state.md#_11-the-consensus-window).
+- **Cross term (IPA):** the off-diagonal points $L$ and $R$ sent in each halving round. See [The Inner Product Argument](./inner-product-argument.md#_2-halving-produces-cross-terms).
+- **Curve cycle (2-cycle):** two curves in which each curve's order equals the other's field size. See [Curve Cycles](./curve-cycles.md#_3-a-curve-for-each-field).
+- **Decider:** the party or step that runs a deferred check. See [Accumulation](./accumulation.md#_3-deciding-a-claim).
+- **Deferred operation:** work that one circuit hands to the circuit on the other curve. See [Curve Cycles](./curve-cycles.md#_8-deferred-operations).
+- **Endomorphism:** a map from a curve to itself that respects addition, and acts on $j=0$ curves as multiplication by an eigenvalue. See [Endoscalars](./endoscalars.md#_2-the-curve-s-endomorphism).
+- **Endoscalar:** a short challenge that the curve's endomorphism makes cheap to apply. See [Endoscalars](./endoscalars.md).
+- **Epoch nullifier:** the value a note publishes for a given epoch. See [Notes, Nullifiers, and Tachygrams](./notes-and-nullifiers.md#_6-deriving-a-note-s-nullifiers).
+- **Error matrix:** the matrix of all revdot products between claim vectors, whose diagonal holds the claimed values. See [Revdot Folding](./revdot-folding.md#_4-two-challenges-and-the-error-matrix).
+- **Evidence tree:** a tree that retains one proof for all of an epoch's buckets. See [Oblivious Sync](./oblivious-sync.md#_13-composing-segments-and-keeping-evidence).
+- **Exclusion proof:** a proof that a nullifier is absent from closed epochs. See [Scaling Zcash](./scaling-zcash.md#_8-evolving-nullifiers).
+- **Faerie gold:** an attack in which a sender makes two notes that cannot both be spent. See [Notes, Nullifiers, and Tachygrams](./notes-and-nullifiers.md#_9-reusing-a-trapdoor).
+- **Fiat–Shamir transform:** replacing a verifier's random challenges with a hash of the transcript. See [Statements and Challenges](./statements-and-challenges.md#_8-removing-the-verifier-with-fiat–shamir).
+- **Folding:** halving a claim with a random challenge. See [The Inner Product Argument](./inner-product-argument.md#_4-one-round-of-folding).
+- **Folding scheme:** a reduction of several instances of a relation to one, with no verifier run inside. See [Split Accumulation](./split-accumulation.md#_9-folding-schemes).
+- **Fuse:** Ragu's operation that produces a node's proof from its children. See [An Introduction to Proof-Carrying Data](./pcd-intro.md#_9-fusion-in-ragu).
 - **Gate:** one multiplication check $a_i b_i = c_i$ on the witness. See [Arithmetization](./arithmetization.md#_3-gates).
+- **Grinding:** retrying offline until a hash-derived challenge favors the prover. See [Statements and Challenges](./statements-and-challenges.md#_10-repeated-trials).
+- **Header:** a node's public claim in proof-carrying data. See [An Introduction to Proof-Carrying Data](./pcd-intro.md#_3-headers).
 - **Hiding:** the property that a commitment reveals nothing about the committed value. See [Polynomial Commitments](./polynomial-commitments.md#_6-hiding-the-vector).
-- **Inner product argument (IPA):** a short proof of a claim about the inner product of committed vectors. Planned for [The Inner Product Argument](./inner-product-argument.md).
+- **Hoisting:** sharing products between gadget steps to save gates. See [Endoscalars](./endoscalars.md#sharing-the-products).
+- **Incrementally verifiable computation (IVC):** a proof that covers a whole chain of steps. See [Recursive Proofs](./recursive-proofs.md#_1-a-chain-of-steps).
+- **Indexed factor:** the cubic encoding of a pair of epoch and nullifier, used to build multisets. See [Oblivious Sync](./oblivious-sync.md#_4-putting-the-epoch-into-the-factor).
+- **Inner product argument (IPA):** a short proof of a claim about the inner product of committed vectors. See [The Inner Product Argument](./inner-product-argument.md).
+- **Instance:** the public part of a statement. See [Statements and Challenges](./statements-and-challenges.md#_1-statements-instances-and-witnesses).
+- **Master key:** a per-note key derived with Poseidon, from which the note's nullifiers come. See [Notes, Nullifiers, and Tachygrams](./notes-and-nullifiers.md#_6-deriving-a-note-s-nullifiers).
+- **Max fee note, fee change note:** the values that let a bundle's fee be chosen after signing. See [Aggregation and Bundles](./aggregation-and-bundles.md#_3-fees-chosen-after-signing).
+- **Multi-scalar multiplication (MSM):** a sum of many scalar multiples of points, which dominates IPA verification. See [The Inner Product Argument](./inner-product-argument.md#_7-the-verifier-s-linear-cost).
+- **NARK:** a non-interactive proof with a constant-size instance and a linear-size witness. See [The Complete Proof](./nark.md#_12-the-proof-s-two-parts).
+- **Nested commitment:** a commitment to the coordinates of points from the other curve. See [Curve Cycles](./curve-cycles.md#_7-committing-to-coordinates).
+- **Non-native arithmetic:** emulating one field's arithmetic inside a circuit over another field. See [Curve Cycles](./curve-cycles.md#_2-emulating-the-other-field).
+- **Nullifier:** a value published on spend to stop double spends. See [Scaling Zcash](./scaling-zcash.md#_3-nullifiers).
+- **Payment key:** a hash of the keys $\mathsf{ak}$ and $\mathsf{nk}$ that a note commits to. See [Notes, Nullifiers, and Tachygrams](./notes-and-nullifiers.md#_3-the-payment-key).
 - **Pedersen vector commitment:** the point $\dot{\v{a}}{\v{G}}$, optionally with a blinding term. See [Polynomial Commitments](./polynomial-commitments.md#_3-committing-to-a-vector).
 - **Polynomial commitment scheme (PCS):** a commitment to a polynomial, together with a way to prove its evaluations. See [Polynomial Commitments](./polynomial-commitments.md).
-- **Proof-carrying data (PCD):** a computation structured as a tree of steps, where each step's data carries a proof of all the work behind it. Planned for [An Introduction to Proof-Carrying Data](./pcd-intro.md).
-- **QAP (quadratic arithmetic program):** a polynomial form of R1CS in which the constraints hold when one polynomial divides another. Planned for [QAP and Polynomial Encoding](./polynomial-encoding.md).
+- **Polynomial IOP:** a protocol in which the verifier may query polynomial oracles. See [QAP and Polynomial Encoding](./polynomial-encoding.md#_13-polynomial-oracles).
+- **Post-processing:** Halo's technique for supporting many circuits without verification keys. See [Wiring and the Registry](./wiring-and-registry.md#_11-post-processing-and-the-registry-tag).
+- **Proof-carrying data (PCD):** a computation structured as a tree of steps, where each step's data carries a proof of all the work behind it. See [An Introduction to Proof-Carrying Data](./pcd-intro.md).
+- **QAP (quadratic arithmetic program):** a polynomial form of R1CS in which the constraints hold when one polynomial divides another. See [QAP and Polynomial Encoding](./polynomial-encoding.md#_5-the-vanishing-polynomial-and-the-quotient).
+- **Quotient fold:** Ragu's fuse-time reduction of revdot claims using Lagrange weights and a quotient. See [Revdot Folding](./revdot-folding.md#_10-the-quotient-fold-in-ragu-s-fuse).
+- **Quotient polynomial:** $(p(X) - y)/(X - x)$, which exists exactly when $p(x) = y$. See [Batched Openings](./batched-openings.md#_3-writing-a-claim-as-a-division).
 - **R1CS (rank-1 constraint system):** constraints of the form $A\v{w} \circ B\v{w} = C\v{w}$. See [Arithmetization](./arithmetization.md#_14-comparison-with-r1cs-and-plonk).
+- **Random linear combination:** merging several claims with random weights. See [Statements and Challenges](./statements-and-challenges.md#_7-random-linear-combinations).
+- **Random oracle:** an idealized hash function whose outputs behave as independent random values. See [Statements and Challenges](./statements-and-challenges.md#_11-poseidon-and-the-random-oracle-assumption).
+- **Registry polynomial:** a polynomial that interpolates many circuits' wiring over a domain. See [Wiring and the Registry](./wiring-and-registry.md#_5-a-polynomial-for-many-circuits).
+- **Revdot claim:** an instance $(\bar{A}, \bar{B}, c)$ with witness vectors whose revdot product is $c$. See [Revdot Folding](./revdot-folding.md#_1-the-claim-that-remains).
 - **Revdot product:** the inner product of one vector with the reversal of another, written $\revdot{\v{a}}{\v{b}}$. See [Arithmetization](./arithmetization.md#_7-reading-one-coefficient-of-a-product).
-- **Split accumulation:** accumulation in which the verifier handles only public instances, while the prover keeps a separate witness. Planned for [Split Accumulation](./split-accumulation.md).
+- **Schwartz–Zippel lemma:** a nonzero low-degree polynomial is zero at a random point with probability at most $d/|\F|$. See [Statements and Challenges](./statements-and-challenges.md#_6-polynomials-in-several-variables).
+- **Soundness:** the property that false statements rarely pass verification. See [Statements and Challenges](./statements-and-challenges.md#_2-completeness-and-soundness).
+- **Spendable:** a proof that certifies a note's position in the pool's history. See [The Proof Tree](./proof-tree.md#_4-bootstrapping-a-spendable).
+- **Split accumulation:** accumulation in which the verifier handles only public instances, while the prover keeps a separate witness. See [Split Accumulation](./split-accumulation.md#_4-an-accumulator-with-two-parts).
+- **Stage mask:** a gate-free revdot claim that a stage polynomial's forbidden wires are zero. See [Staging](./staging.md#_5-the-stage-mask).
+- **Stage polynomial:** a separately committed part of a circuit's trace. See [Staging](./staging.md#_2-splitting-a-trace).
+- **Stamp:** the proof-bearing part of a Tachyon bundle, containing tachygrams, an anchor, and a proof. See [An Introduction to Proof-Carrying Data](./pcd-intro.md#_11-aggregation-in-tachyon).
+- **Step:** the rule relating a node's input headers to its output header. See [An Introduction to Proof-Carrying Data](./pcd-intro.md#_4-steps).
 - **Structured vector:** a vector arranged so that the revdot product pairs each gate's $a$ and $b$ wires. See [Arithmetization](./arithmetization.md#_8-arranging-the-witness).
+- **Succinct verification:** in-circuit verifier cost that grows more slowly than the circuit. See [Recursive Proofs](./recursive-proofs.md#_7-what-succinct-verification-has-to-mean).
+- **Sync service:** an untrusted party that proves nullifier absence without learning which note it serves. See [Oblivious Sync](./oblivious-sync.md#_2-two-branches-that-share-no-secrets).
+- **Tachygram:** an opaque field element published for each action, either a note commitment or a nullifier. See [Notes, Nullifiers, and Tachygrams](./notes-and-nullifiers.md#_11-tachygrams-and-output-padding).
+- **Transcript bridging:** using challenges from one curve's transcript in the circuits on both curves. See [Endoscalars](./endoscalars.md#_11-transcript-bridging).
+- **Trial decryption:** a wallet's attempt to decrypt every output to find its own. See [Scaling Zcash](./scaling-zcash.md#_5-why-wallets-download-everything).
+- **Unified instance:** the shared public values of Ragu's internal circuits. See [Recursion in Ragu](./ragu-recursion.md#_5-public-inputs).
+- **Vanishing polynomial:** the polynomial that is zero on every point of a domain. See [QAP and Polynomial Encoding](./polynomial-encoding.md#_5-the-vanishing-polynomial-and-the-quotient).
+- **Verification key:** circuit-specific data that many systems require and Ragu avoids. See [Wiring and the Registry](./wiring-and-registry.md#_11-post-processing-and-the-registry-tag).
 - **Witness:** the secret values that satisfy a circuit, also called the trace. See [Arithmetization](./arithmetization.md#_3-gates).

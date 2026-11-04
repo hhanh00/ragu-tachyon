@@ -63,7 +63,7 @@ The protocol from the [polynomial encoding chapter](./polynomial-encoding.md#_13
 
 <!-- worked:fft -->
 
-The [book counts](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L176-L180) at least 3 FFTs, over a domain with at least $8n - 1$ points. For $4n = 2^{13}$, that is at least $16,383$ points, and the next power of two is $16,384$.
+The [book counts](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L176-L196) at least 3 FFTs, over a domain with at least $8n - 1$ points. For $4n = 2^{13}$, that is at least $16,383$ points, and the next power of two is $16,384$.
 
 <!-- /worked:fft -->
 
@@ -124,6 +124,7 @@ The verifier could compute $S$ alone, so sending it may look pointless as well. 
 The prover now sends the three vectors $\v{s}$, $\v{a}$ and $\v{b}$, along with the blinding factors $\gamma_a$ and $\gamma_b$. This is the step that makes the proof long. In return, the verifier's checks need no cryptographic argument, since it can recompute everything it was told:
 
 - It computes $\v{s}$ from the circuit and $y$, and compares. The book calls this the **wiring consistency** protocol.
+- It checks that $\bar{A} = \bar{R}$, because in this standalone protocol the [book defines](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L219-L220) $\bar{A}$ to be $\bar{R}$. The book's verifier steps do not list this comparison, so we state it. Without it, a prover could pick a new $\v{a}$ after seeing $z$ and $y$, and the early commitment $\bar{R}$ would constrain nothing.
 - It recomputes $S$, $\bar{A}$ and $\bar{B}$ from the vectors, which shows that the vectors are the ones the prover committed to.
 - It computes $\revdot{\v{a}}{\v{b}}$ and compares it with $c$. The book calls this the **revdot product** protocol.
 
@@ -133,13 +134,14 @@ The prover now sends the three vectors $\v{s}$, $\v{a}$ and $\v{b}$, along with 
 | --- | --- | --- |
 | Recompute $\v{s}$ from the circuit and $y = 7$ | $(0, 0, 6, 42, 37, 7, 42, 36)$ | Sent $\v{s}$ is identical |
 | Commit to the sent $\v{s}$ | $(7,\,6)$ | $S = (7,\,6)$ |
+| Compare $\bar{A}$ with the earlier $\bar{R}$ | $\bar{A} = (22,\,24)$ | $\bar{R} = (22,\,24)$ |
 | Commit to the sent $\v{a}$ with $\gamma_a = 17$ | $(22,\,24)$ | $\bar{A} = (22,\,24)$ |
 | Commit to the sent $\v{b}$ with $\gamma_b = 29$ | $(1,\,29)$ | $\bar{B} = (1,\,29)$ |
 | $\revdot{\v{a}}{\v{b}}$ | $13$ | $c = 13$ |
 
 <!-- /worked:direct-checks -->
 
-The order of the messages matters here even though the check looks like arithmetic on public data. The prover sent $\bar{R}$ before it knew $z$ and $y$, and the recomputation of $\bar{A}$ shows that the vector $\v{a}$ is the one behind that early commitment.
+The order of the messages matters here even though the check looks like arithmetic on public data. The prover sent $\bar{R}$ before it knew $z$ and $y$, and the comparison $\bar{A} = \bar{R}$ together with the recomputation of $\bar{A}$ shows that the vector $\v{a}$ is the one behind that early commitment.
 
 ## 7. Tying b back to the trace
 
@@ -270,7 +272,7 @@ sequenceDiagram
     V->>P: z, y
     P->>V: S, A, B, c
     P->>V: s, a, b and their blinding factors
-    Note over V: Recompute s and the commitments, check revdot(a, b) = c
+    Note over V: Recompute s and the commitments, check A = R and revdot(a, b) = c
     V->>P: x
     P->>V: a(xz), s(x, y), b(x)
     Note over V: Check b(x) = a(xz) + s(x, y) + t(x, z)
@@ -296,7 +298,7 @@ The complete run on the toy curve is:
 | 3 | Verifier sends | $z = 5$, $y = 7$ |
 | 4 | Prover sends | $S = (7,\,6)$, $\bar{A} = (22,\,24)$, $\bar{B} = (1,\,29)$, $c = 13$ |
 | 5 | Prover sends | $\v{s}$, $\v{a}$, $\v{b}$, $\gamma_a = 17$, $\gamma_b = 29$ |
-| 6 | Verifier checks | Recomputes $\v{s}$ and $S$, recomputes $\bar{A}$ and $\bar{B}$, and finds $\revdot{\v{a}}{\v{b}} = 13 = c$ |
+| 6 | Verifier checks | Recomputes $\v{s}$ and $S$, checks $\bar{A} = \bar{R}$, recomputes $\bar{A}$ and $\bar{B}$, and finds $\revdot{\v{a}}{\v{b}} = 13 = c$ |
 | 7 | Verifier sends | $x = 9$ |
 | 8 | Prover sends | $a(2) = 9$, $s(9, 7) = 23$, $b(9) = 35$ |
 | 9 | Verifier checks | $9 + 23 + t(9, 5) = 9 + 23 + 3 = 35$ |
@@ -321,7 +323,7 @@ We ran the whole protocol for all $43^2 = 1849$ pairs $(z, y)$ at two values of 
 
 ## 11. Removing the interaction
 
-The N in NARK means non-interactive, and the book treats this step as [a direct replacement of each challenge with a hash](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L205-L206). The [Fiat–Shamir section of chapter 03](./statements-and-challenges.md#_8-removing-the-verifier-with-fiat–shamir) explains the transform, and the only thing this protocol adds is the list of what goes into the transcript. Each challenge must depend on every message that it tests, so the list follows the table above. The vectors $\v{s}$, $\v{a}$, $\v{b}$ and $\v{p}$ do not need to be absorbed, because the commitments already fix them.
+The N in NARK means non-interactive, and the book treats this step as [a direct replacement of each challenge with a hash](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L205-L206). The [Fiat–Shamir section of chapter 03](./statements-and-challenges.md#_8-removing-the-verifier-with-fiat–shamir) explains the transform, and the only thing this protocol adds is the list of what goes into the transcript. Each challenge must depend on every message that it tests, so the list follows the table above. The vectors $\v{s}$, $\v{a}$, $\v{b}$ and $\v{p}$ do not need to be absorbed, because the commitments already fix them, and $\bar{A}$ does not either, because it must equal the absorbed $\bar{R}$.
 
 Here is a full run using the toy Poseidon sponge from [chapter 03](./statements-and-challenges.md#a-toy-poseidon), starting from the tag $(7, 29)$. The same witness and blinding factors now produce different challenges, so all the later values change:
 
@@ -649,7 +651,7 @@ The verifier has not improved as much as the proof has. Here is its work:
 | Split and target checks | A few field operations | Constant |
 | Derive $f(u)$, $P$ and $v$ | 5 inverses and 4 scalar multiplications | Constant |
 | Combine the $L_j$ and $R_j$ | $26$ scalar multiplications | Logarithmic |
-| Compute $\hat{b} = g(u)$ | $13$ squarings and $13$ factor multiplications | Logarithmic |
+| Compute $\hat{b} = g(u)$ | $12$ squarings and $13$ factor multiplications | Logarithmic |
 | Compute the coefficients of $g$ | About $8,192$ field multiplications | **Linear** |
 | Compute $\hat{G}$ | 1 MSM of $8,192$ scalar multiplications | **Linear** |
 

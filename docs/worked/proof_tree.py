@@ -740,7 +740,7 @@ FAMILY = [
     ('stamp', 'Moving and combining stamps', 'wallet and aggregator; `StampUnmerge` aggregator only', 'Sections 11 and 12'),
     ('span', 'Anchor spans', 'sync service, aggregator; wallet possible', 'Section 8'),
     ('unspent', 'Absence segments', 'sync service; wallet possible', 'Section 5'),
-    ('summary', 'Stamp summaries', 'sync service; wallet possible', '[chapter 21](./oblivious-sync.md)'),
+    ('summary', 'Stamp summaries', 'sync service; wallet possible', 'named only here; [chapter 21](./oblivious-sync.md) treats a run of stamps as one intake'),
     ('qr', 'Routing into buckets', 'sync service; wallet possible', '[chapter 21](./oblivious-sync.md)'),
     ('tree', 'Evidence trees', 'sync service; wallet possible', '[chapter 21](./oblivious-sync.md)'),
 ]
@@ -775,7 +775,7 @@ assert all(a in {r[0] for r in ROSTER} for a, _ in NODES)
 frag['node-count'] = (
     f'Counting only what the graph shows, this one spend and one output take {len(NODES)} nodes, of which the wallet runs '
     f'{wallet_nodes} and the sync service {sync_nodes}. The buckets add more, on the service side, and chapter 21 '
-    f'counts those. The published result is one proof, whose header a validator can rebuild.')
+    f'describes the steps that build them. The published result is one proof, whose header a validator can rebuild.')
 
 # ------------------------------------------------------------- the threaded fields
 frag['thread'] = '\n'.join([

@@ -568,7 +568,7 @@ At $\mu = 20$ the cheater needs $Q(20) = 30$, and one linear equation in the two
 
 <!-- worked:q-bound -->
 
-The code's comments give each layer a failure bound of $(2m - 2)/|S|$ for a challenge uniform on a set $S$, and they put the nested challenges at $|S| = 2^{143}$. For $m = 14$ this is $26/2^{143}$, which is below $2^{-138}$.
+The code's comments give each layer a failure bound of $(2m - 2)/|S|$ for a challenge uniform on a set $S$, and they put the nested challenges at $|S| = 2^{143}$. The largest reduction on the nested side has $m = 10$, which gives $18/2^{143}$, and that is below $2^{-138}$.
 
 <!-- /worked:q-bound -->
 
@@ -630,7 +630,7 @@ Ok(target.add(dr, &correction))
 - **Both curves.** [One set of challenges drives both sides' folds](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/extensions/endoscalar.md?plain=1#L205-L208), as [chapter 13 described](./curve-cycles.md#_9-sharing-one-set-of-challenges) for the other challenges, and the [endoscalars chapter](./endoscalars.md) gives the lift.
 :::
 
-All of this describes the Ragu revision at `3219e08`. Tachyon, which has not activated on mainnet and whose design is still changing, depends on this design through a [different Ragu revision](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/Cargo.toml#L83).
+All of this describes the Ragu revision at `3219e08`. Tachyon, which has not activated on mainnet and whose design is still changing, pins a [different Ragu revision](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/Cargo.toml#L83) and [runs its steps against a mock](./proof-tree.md) of Ragu, so nothing at its pinned commit executes this fold.
 
 ## 11. Compression and the forms of the fold
 

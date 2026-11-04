@@ -385,14 +385,14 @@ m3 = merge(Curve, three, x_m, alpha, tau, u_m)
 assert m3['accepted'] and decide(Curve, m3['g_hat'], u_m)
 frag['three'] = (
     f'Merging claims 1, 2 and 4 in one step with the same challenges gives $v_M = {m3["v"]}$ and $C_M = {show(m3["C"])}$. The final check passes, and the output point is ${show(m3["g_hat"])}$. '
-    f'The output point depends only on $\\v{{u}}_M$, so it matches the two-claim merge above, and the inputs affect the proof only through $C_M$, $v_M$ and the cross terms.'
+    f'The output point depends only on $\\v{{u}}_M$, so it matches the two-claim merge above, and the inputs affect the proof only through $C_M$, $v_M$, the cross terms and the final scalar.'
 )
 assert m3['g_hat'] == Ghat_m
 
 # ------------------------------------------------------------------ costs of a step
 frag['costs'] = '\n'.join([
     f'| Work for one merge of two claims, $n = 2^{{{k_real}}}$ | Who | Amount |', '| --- | --- | --- |',
-    f'| Evaluate $g_1$ and $g_2$ at $x_M$ | Verifier | ${k_real}$ squarings and ${2 * k_real}$ factor multiplications |',
+    f'| Evaluate $g_1$ and $g_2$ at $x_M$ | Verifier | ${k_real - 1}$ squarings and ${2 * k_real}$ factor multiplications |',
     f'| Compute $C_M$ | Verifier | $1$ scalar multiplication |',
     f'| Combine the $L_j$ and $R_j$ | Verifier | ${2 * k_real}$ scalar multiplications |',
     f'| Evaluate $g_M$ at $x_M$ | Verifier | ${k_real}$ factor multiplications, reusing the squarings |',
@@ -537,6 +537,12 @@ assert fixed_ok and tau_ok == [1]
 gap_true = (0 - poly_eval(coeffs1, x1)) % Q
 gap_hidden = (eps - poly_eval(hidden_poly, x1)) % Q
 assert gap_true == gap_hidden == (-bhat1) % Q
+# Honest folding with any stated value cannot use this point in chapter 07's final check,
+# because its G_0 term has no counterpart on the left side.
+rounds_h, a_h, b_h, _ = ipa_prove(Formal, a1, x1, u1)
+for y_any in range(Q):
+    start_h = Formal.add(msm(Formal, a1, Formal.G), Formal.mul(y_any, Formal.U))
+    assert left_side(Formal, start_h, rounds_h, u1) != right_side(Formal, a_h, hidden_pt_f, b_h)
 hidden_pt = add(add(Ghat1, mul(eps, G[0])), mul(eps, U))
 assert hidden_pt != late_pt
 nondegenerate(hidden_pt)

@@ -531,7 +531,7 @@ In the standard profile, the native side has $33$ internal circuits, of which $2
 <!-- /worked:code-count -->
 :::
 
-The warnings in this chapter list where the book and the code differ. The [chapter on recursion in Ragu](./ragu-recursion.md) walks through what these circuits compute. All of this applies to the Ragu revision at `3219e08`. Tachyon, which has not activated on mainnet and whose design is still changing, depends on staging through a [different Ragu revision](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/Cargo.toml#L83).
+The warnings in this chapter list where the book and the code differ. The [chapter on recursion in Ragu](./ragu-recursion.md) walks through what these circuits compute. All of this applies to the Ragu revision at `3219e08`. Tachyon, which has not activated on mainnet and whose design is still changing, pins a [different Ragu revision](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/Cargo.toml#L83) and [runs its steps against a mock](./proof-tree.md) of Ragu, so nothing at its pinned commit executes these stages.
 
 ## 16. Where this chapter leaves us
 

@@ -18,4 +18,4 @@ class ToyCurvePoints(Scene):
         marked = [(f'G{i}', a, BLUE) for i, a in enumerate(G)] + [('H', H, PURPLE), ('U', U, ORANGE)]
         for name, a, color in marked:
             at = ax.c2p(*a)
-            self.add(Dot(at, radius=0.1, color=color), label(name, at[0] + 0.32, at[1] + 0.2, 24, color))
+            self.add(Dot(at, radius=0.1, color=color), label(name, at[0] - 0.05, at[1] + 0.32, 24, color))

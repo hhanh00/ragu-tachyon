@@ -22,7 +22,7 @@ A PCD system should provide the following properties, each answering one of the 
 2. **Extension.** Anyone holding a finished node can use it as an input to a new node, and nobody repeats the earlier proving work.
 3. **Succinctness.** The proof's size and the cost of checking it do not grow with the size of the tree.
 
-Tachyon's aggregation is our running example. In Tachyon, a wallet proves that its transaction follows the rules and publishes the result as a **stamp**. An **aggregator** combines stamps from independent wallets into a single stamp, and validators check that one stamp in place of the separate ones. Tachyon has not activated on mainnet and its design is still changing, so everything this chapter says about it describes the [Tachyon repository](https://github.com/tachyon-zcash/tachyon/tree/7e502548db33845dbaacdc0efe905d1a3c45e626) at commit `7e50254`.
+Tachyon's aggregation is our running example. In Tachyon, a wallet proves that its transaction follows the rules and publishes the result as a **stamp**. An **aggregator** combines stamps from independent wallets into a single stamp, and validators check that one stamp in place of the separate ones. Tachyon has not activated on mainnet and its design is still changing, so everything this chapter says about it describes the [Tachyon repository](https://github.com/tachyon-zcash/tachyon/tree/7e502548db33845dbaacdc0efe905d1a3c45e626) at commit `7e50254`. That crate builds against a mock of Ragu, so when we say that a Tachyon step checks something or that a proof fails, we mean what the design expects. At this commit the [step bodies run natively](./proof-tree.md), with no real circuits, and we did not find a validator in the crate.
 
 ## 2. A toy computation
 
@@ -205,7 +205,9 @@ The argument rests on three assumptions:
 2. The steps are correct, in the sense of Section 4, so a step with true input headers can only output a true header.
 3. The verifier compares the final header with what it wants to know.
 
-Suppose a prover holds an accepted proof for a false header. By assumption 1, the statement from Section 6 is true, so a declared step accepted some input headers and produced this one, and those inputs have valid proofs. By assumption 2, the inputs cannot all be true, or the output would be true as well. So at least one input is a false header with a valid proof, and the same reasoning applies to it. Each repetition moves one level down the tree. The descent eventually reaches a step with no inputs, such as `Entry`, whose check rejects a false entry directly. No false header can therefore have a valid proof.
+Suppose a prover holds an accepted proof for a false header. By assumption 1, the statement from Section 6 is true, so a declared step accepted some input headers and produced this one, and those inputs have valid proofs. By assumption 2, the inputs cannot all be true, or the output would be true as well. So at least one input is a false header with a valid proof, and the same reasoning applies to it. Each repetition moves one level down the tree. The descent eventually reaches a step with no inputs, such as `Entry`, whose check rejects a false entry directly. A prover therefore cannot obtain a valid proof of a false header.
+
+This descent is informal in one respect. Soundness makes accepted proofs of false statements infeasible to find, but such proofs can still exist, so "those inputs have valid proofs" does not by itself show that anyone holds them. The argument really needs a prover who produces a proof to know the child proofs as well. That is the **knowledge soundness** of the [next chapter](./statements-and-challenges.md#_2-completeness-and-soundness), and the [chapter on recursive proofs](./recursive-proofs.md) returns to this point.
 
 Here is what each natural attempt to cheat runs into on the toy tree:
 
@@ -307,7 +309,7 @@ The two modes raise two questions on which the sources do not yet agree. The fir
 
 **Ragu code at `3219e08`:** the [profile comments](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/profile.rs#L10-L15) describe the intended design. An aggregator's circuits would verify a wallet's compressed proof inside the circuit, so that the proof enters as witness data and not as a child, and an internal [`Decompress` step](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/step/internal/decompress.rs#L1-L5) would output its header. Those circuits have [not landed yet](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/profile.rs#L720-L736), and until they do the `Aggregator` profile declares nothing.
 
-**Tachyon code at `7e50254`:** a [stamp holds a `ragu::Proof`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/mod.rs#L745) and merges by fusing it. We found no proof compression in the crate.
+**Tachyon code at `7e50254`:** a [stamp holds a `ragu::Proof`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/mod.rs#L745) from the mock of Ragu and merges by fusing it. We found no proof compression in the crate, and its [README](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/README.md?plain=1#L49-L54) lists stamp compression as stubbed.
 
 This site follows the Ragu code. A compressed proof cannot be fused today, decompression is planned, and our examples merge stamps while they are uncompressed.
 :::
@@ -408,7 +410,7 @@ A step does not have to make its header cover more. Blocks keep arriving while a
 
 <!-- worked:stamp-unmerge -->
 
-Suppose a block includes X on its own while the aggregator is still working. The merged stamp holds 12 tachygrams, and publishing it now would repeat those of X. `StampUnmerge` takes the merged stamp and the stamp of X and produces a stamp with 9 tachygrams and 6 action digests, which covers A, Y and Z. Its header states less than its input did, which is permitted, because a step only has to establish the relation it declares between its inputs and its output.
+Suppose a block includes X on its own while the aggregator is still working. The merged stamp holds 12 tachygrams, and publishing it now would repeat those of X. `StampUnmerge` takes the merged stamp and a stamp of X lifted to the same anchor, and it produces a stamp with 9 tachygrams and 6 action digests, which covers A, Y and Z. Its header states less than its input did, which is permitted, because a step only has to establish the relation it declares between its inputs and its output.
 
 <!-- /worked:stamp-unmerge -->
 

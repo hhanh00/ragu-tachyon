@@ -270,7 +270,7 @@ This site follows the code.
 
 ## 8. Why one opening per epoch needs buckets
 
-The binding is settled, so we turn to what the service proves. A nullifier is absent from an epoch exactly when the [epoch polynomial](./pool-state.md#_4-combining-and-dividing-sets) $e(X)$ is nonzero there. Anyone can show that $e$ is the product of the stamp polynomials absorbed into the anchor chain, and the work is paid once and reused for every query. The obstacle is the degree of $e$, because opening a commitment with Ragu's [linear-time verifier](./inner-product-argument.md) costs time in proportion to it.
+With the binding in place, we turn to what the service proves. A nullifier is absent from an epoch exactly when the [epoch polynomial](./pool-state.md#_4-combining-and-dividing-sets) $e(X)$ is nonzero there. Anyone can show that $e$ is the product of the stamp polynomials absorbed into the anchor chain, and the work is paid once and reused for every query. The obstacle is the degree of $e$, because opening a commitment with Ragu's [linear-time verifier](./inner-product-argument.md) costs time in proportion to it.
 
 <!-- worked:scale -->
 
@@ -543,7 +543,7 @@ This site follows the code.
 | sees when a wallet asks, and for which range | the deep dive leaves [timing and range selection to wallets](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L2451-L2453) |
 | does not learn $\mathsf{cm}$, $\psi$, $\mathsf{mk}$, $\mathsf{nk}$, or the note's value | [no step it runs touches them](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L108) |
 | cannot compute any nullifier beyond the list | it has [values and no key](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L453-L456), assuming Poseidon acts as a pseudorandom function |
-| cannot tell a real request from a decoy | nothing it receives [is bound to a note](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L259-L262) |
+| cannot tell from the values alone whether a request is real or a decoy | nothing it receives [is bound to a note](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L259-L262) |
 | does not learn the eventual spend anchor | [the wallet lifts and spends alone](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L2451-L2452) |
 
 The service can compare its list with everything published, so the wallet must never delegate a value that it will later publish.
@@ -567,7 +567,7 @@ The table covers what the service's inputs reveal. What a proof itself reveals i
 ::: warning The sources differ on what the service holds
 **Nullifier analysis:** the threat model says that the service [can derive nullifiers for a finite range](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nf-analysis.md?plain=1#L92), and its attempts say that it [receives a PCD proof attesting them](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nf-analysis.md?plain=1#L379-L380) in one place and [blindly trusts the list](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nf-analysis.md?plain=1#L147-L150) in another.
 
-**Deep dive and code at `7e50254`:** the service receives [values and a range with no note-binding evidence](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L259-L262). [`QrUnspentInit`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L763-L773) takes the value as a free witness and consumes no proof from the wallet.
+**Deep dive and code at `7e50254`:** the service receives [values and a range with no note-binding evidence](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L259-L262). [`QrUnspentInit`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L763-L773) takes the value as a free witness and consumes no proof from the wallet. A [doc comment](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/master.rs#L26-L27) still says that a delegate receives "proven value windows," which this step does not take.
 
 The [proof tree page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L403) also lists an `ArbitraryUnspent` segment among proofs that stay inside a wallet and need no rerandomization, while its own [roles section](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L108) has the service build it. Those two statements fit only if the wallet runs the steps itself, so we treat rerandomization of a service's segment as unsettled.
 
@@ -601,6 +601,6 @@ This chapter took the following steps:
 5. An epoch's polynomial is too large to open, so builders route its tachygrams into buckets by a profile of quadratic-residue bits that any value can compute for itself.
 6. A polynomial identity attests all of one side's members at once, and each descent attests the sibling, so a child cannot lack a member of its own class.
 7. Sealing makes each bucket cover the whole epoch, and an opening at a value with a matching profile proves absence for that epoch. Segments then compose across epochs, and an evidence tree lets a builder retain one proof.
-8. The service sees values, epochs, and timing. It learns nothing about the note as long as those values are never published, and the policies that would hide the remaining patterns are unspecified at this commit.
+8. The service sees values, epochs, and timing. It learns no field of the note as long as those values are never published, although a range and its timing can still hint at the note's age, and the policies that would hide such patterns are unspecified at this commit.
 
 All of this describes one commit of a proposal that has not activated, whose service ZIP is empty, and whose steps still run against a mock of Ragu. We have now seen most of the proof steps one at a time, with several chapters in between. The [next chapter](./proof-tree.md) puts them in lifecycle order as PCD steps, from deriving nullifiers through bootstrapping, maintaining, and spending, and says who runs each.

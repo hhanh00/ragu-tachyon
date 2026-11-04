@@ -145,7 +145,7 @@ const chapterCount = groups.filter(g => !g.appendix).reduce((n, g) => n + g.item
           <p class="section-label">Contents</p>
           <h2 id="curriculum-title">Chapters</h2>
         </div>
-        <p>Read in order, or jump directly to the idea you need. Only Chapters 04 and 06 are drafted so far.</p>
+        <p>Read in order, or jump directly to the idea you need.</p>
       </div>
 
       <div class="stages">

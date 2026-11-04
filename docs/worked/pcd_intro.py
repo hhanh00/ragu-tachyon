@@ -302,7 +302,7 @@ def fragments():
     assert sorted(q_tgs) == sorted(bundles['A']['tachygrams'] + bundles['Y']['tachygrams'] + bundles['Z']['tachygrams'])
     frag['stamp-unmerge'] = (
         f'Suppose a block includes X on its own while the aggregator is still working. The merged stamp holds {len(m3["tachygrams"])} tachygrams, and publishing it now would repeat those of X. '
-        f'`StampUnmerge` takes the merged stamp and the stamp of X and produces a stamp with {len(q_tgs)} tachygrams and {len(q_actions)} action digests, which covers A, Y and Z. Its header states less than its input did, which '
+        f'`StampUnmerge` takes the merged stamp and a stamp of X lifted to the same anchor, and it produces a stamp with {len(q_tgs)} tachygrams and {len(q_actions)} action digests, which covers A, Y and Z. Its header states less than its input did, which '
         'is permitted, because a step only has to establish the relation it declares between its inputs and its output.'
     )
 

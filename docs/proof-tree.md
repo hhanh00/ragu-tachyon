@@ -318,7 +318,7 @@ The step then derives the pair from $\mathsf{mk}$ at the lineage's epoch and the
 
 $$\mathsf{cv} = [v]\mathcal{V} + [\mathsf{rcv}]\mathcal{R},$$
 
-with $v$ positive for a spend and negative for an output, and a fresh random trapdoor $\mathsf{rcv}$.
+with $v$ positive for a spend and negative for an output, and a fresh random trapdoor $\mathsf{rcv}$. A [book footnote](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/authorization.md?plain=1#L126) says that this sampling may later change.
 
 <!-- worked:value-gens -->
 
@@ -458,7 +458,7 @@ These steps [prove a local relation](https://github.com/tachyon-zcash/tachyon/bl
 
 ## 10. Authorization outside the proof
 
-Three things bind a bundle, and only one of them is the proof. The [authorization page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/authorization.md?plain=1#L3) lists per-action signatures, value commitments, and a binding signature, and each covers a gap that the proof leaves open.
+A bundle also needs authorization that the proof does not provide. The [authorization page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/authorization.md?plain=1#L3) lists three layers, namely per-action signatures, value commitments, and a binding signature, and each covers a gap that the proof leaves open.
 
 ### Action signatures
 
@@ -620,12 +620,12 @@ graph BT
 
 <!-- worked:node-count -->
 
-Counting only what the graph shows, this one spend and one output take 23 nodes, of which the wallet runs 14 and the sync service 9. The buckets add more, on the service side, and chapter 21 counts those. The published result is one proof, whose header a validator can rebuild.
+Counting only what the graph shows, this one spend and one output take 23 nodes, of which the wallet runs 14 and the sync service 9. The buckets add more, on the service side, and chapter 21 describes the steps that build them. The published result is one proof, whose header a validator can rebuild.
 
 <!-- /worked:node-count -->
 
 ::: warning Reconstructed from code at commit 7e50254, not confirmed by the authors
-The book draws a [similar tree](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L405-L479), and the crate's test helper [`spendable_at`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/tests/integration/fixtures.rs#L1557-L1580) takes the same route to a spendable. The exact mix of fuses and lifts here, the two sets of spans, and the assignment of spans to the sync service are our choices. The book allows a wallet or an aggregator to build spans as well.
+The book draws a [similar tree](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L405-L479), and the crate's test helper [`spendable_at`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/tests/integration/fixtures.rs#L1557-L1580) takes the same route to a spendable. The exact mix of fuses and lifts here, the two sets of spans, and the assignment of spans and of epoch 3's segment to the sync service are our choices. The book allows a wallet or an aggregator to build spans as well, and the deep dive has the wallet [prove the creation epoch's exclusion itself](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L1255-L1258).
 :::
 
 Following the fields shows where each commitment stops and where each anchor moves:
@@ -662,7 +662,7 @@ The whole registered set divides into families:
 | Moving and combining stamps (3) | `StampMerge`, `StampLift`, `StampUnmerge` | wallet and aggregator; `StampUnmerge` aggregator only | Sections 11 and 12 |
 | Anchor spans (2) | `AnchorSpanSeed`, `AnchorSpanFuse` | sync service, aggregator; wallet possible | Section 8 |
 | Absence segments (3) | `QrUnspentInit`, `UnspentFuse`, `UnspentLift` | sync service; wallet possible | Section 5 |
-| Stamp summaries (2) | `SummarySeed`, `SummaryAdvance` | sync service; wallet possible | [chapter 21](./oblivious-sync.md) |
+| Stamp summaries (2) | `SummarySeed`, `SummaryAdvance` | sync service; wallet possible | named only here; [chapter 21](./oblivious-sync.md) treats a run of stamps as one intake |
 | Routing into buckets (7) | `QrSummaryIntake`, `QrStampIntakeSeed`, `QrEmptyIntakeSeed`, `QrIntakeMerge`, `QrIntakeSplit`, `QrSideDescend`, `QrBucketSeal` | sync service; wallet possible | [chapter 21](./oblivious-sync.md) |
 | Evidence trees (6) | `EvidenceTreeLeafPair`, `EvidenceTreePairFuse`, `EvidenceTreeFuse`, `EvidenceTreeCap`, `EvidenceTreeDescend`, `EvidenceTreeOpen` | sync service; wallet possible | [chapter 21](./oblivious-sync.md) |
 

@@ -137,7 +137,7 @@ Keep $R = (28,\,10)$. The prover answers $c = 16$ with $s = 6$ and answers $c' =
 
 <!-- /worked:schnorr-extract -->
 
-This gives us knowledge soundness in an informal sense. A prover who answers more than one challenge for a given $R$ can compute $a$, and anyone who cannot compute $a$ is limited to one challenge out of 43, which on a real curve is one out of about $2^{255}$. The argument assumes that discrete log is hard. On the toy curve anyone can solve discrete log by counting, so these numbers show the mechanism and offer no security.
+This gives us knowledge soundness in an informal sense. A prover who answers more than one challenge for a given $R$ can compute $a$, and anyone who cannot compute $a$ is limited to one challenge out of 43, which on a Pasta curve is one out of about $2^{254}$. The argument assumes that discrete log is hard. On the toy curve anyone can solve discrete log by counting, so these numbers show the mechanism and offer no security.
 
 ### What the verifier learns
 
@@ -607,7 +607,7 @@ The argument of Section 8 treats the hash as a **random oracle**, an imaginary f
 
 This assumption is stronger than collision resistance. A Pedersen commitment, for example, is collision resistant under the discrete log assumption, yet it would make a poor source of challenges. Its output moves predictably when its input changes, as the [homomorphism](./polynomial-commitments.md#_5-adding-commitments) shows, and a prover could exploit that structure to steer a challenge. A random oracle has no structure of this kind.
 
-No real hash function is a random oracle, because a real hash has a short public description that anyone can analyze. The assumption is therefore a modeling choice with known limits. [Goldwasser and Tauman](https://eprint.iacr.org/2003/034) built an identification scheme that is secure with a random oracle but whose Fiat–Shamir version is insecure under every concrete hash. More recently, [Khovratovich, Rothblum, and Soukhanov](https://eprint.iacr.org/2025/118) gave a practical attack on a GKR-based argument made non-interactive with a concrete hash, producing accepting proofs of false statements. Neither result targets Ragu, and both show that the assumption needs scrutiny for each protocol. Confidence in Poseidon specifically comes from public cryptanalysis rather than from a proof.
+No real hash function is a random oracle, because a real hash has a short public description that anyone can analyze. The assumption is therefore a modeling choice with known limits. [Goldwasser and Tauman](https://eprint.iacr.org/2003/034) built a secure identification scheme whose Fiat–Shamir signature version is secure with a random oracle but insecure under every concrete hash. More recently, [Khovratovich, Rothblum, and Soukhanov](https://eprint.iacr.org/2025/118) gave a practical attack on a GKR-based argument made non-interactive with a concrete hash, producing accepting proofs of false statements. Neither result targets Ragu, and both show that the assumption needs scrutiny for each protocol. Confidence in Poseidon specifically comes from public cryptanalysis rather than from a proof.
 
 ### Assumptions behind the protocols
 
@@ -639,7 +639,7 @@ Ragu's transcript has the structure described above, with a few differences that
 | The $f$ bridge commitment | $u$ |
 | The eval bridge commitment | `pre_beta` |
 
-The later chapters explain what each commitment and challenge does. Here we need only the pattern, which is the one in Section 8. The word "bridge" reflects that these commitments are recorded in a form the transcript's field can absorb, which the chapters on [curve cycles](./curve-cycles.md) and [endoscalars](./endoscalars.md) explain.
+The later chapters explain what each commitment and challenge does. Here we need only the pattern, which is the one in Section 8. We read the word "bridge" as reflecting that these commitments are recorded in a form the transcript's field can absorb, which the chapters on [curve cycles](./curve-cycles.md) and [endoscalars](./endoscalars.md) explain.
 :::
 
 The in-circuit cost explains one further choice. Each recursive step has to recompute these challenges inside a circuit, and Ragu divides that work [across two internal circuits](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/recursion/index.md?plain=1#L59-L80), `hashes_1` and `hashes_2`, by saving the sponge state between them. The [chapter on recursion in Ragu](./ragu-recursion.md) returns to this split.

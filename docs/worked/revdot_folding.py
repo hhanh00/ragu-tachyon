@@ -889,7 +889,7 @@ frag['q-nested'] = (
     f'By the same count, the nested side\'s $(M, N) = (8, 10)$ has room for ${8 * 10}$ claims, commits to ${10 * 7 + 9}$ coefficients, and uses {quotient_gates(*NESTED)} multiplication gates for its scalar folds.')
 frag['q-bound'] = (
     f'The code\'s comments give each layer a failure bound of $(2m - 2)/|S|$ for a challenge uniform on a set $S$, and they put the nested challenges at $|S| = 2^{{143}}$. '
-    f'For $m = 14$ this is ${2 * 14 - 2}/2^{{143}}$, which is below $2^{{-{int(143 - math.log2(26))}}}$.')
+    f'The largest reduction on the nested side has $m = 10$, which gives ${2 * 10 - 2}/2^{{143}}$, and that is below $2^{{-{int(143 - math.log2(18))}}}$.')
 
 # ---------------------------------------------------------------- Section 11
 # The weights of the book, its other chapter, and the compression code are one family.

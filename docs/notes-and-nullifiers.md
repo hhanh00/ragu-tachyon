@@ -66,14 +66,14 @@ Two facts about this hash shape the rest of the design. First, $\mathsf{pk}$ is 
 
 Second, the hash binds $\mathsf{nk}$ to the note's owner field, and Section 8 shows that this is what stops a spender from inventing a second nullifier sequence.
 
-The wallet can also separate proving from signing. The [**proof authorizing key**](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/proof.rs#L13-L37) $\mathsf{pak} = (\mathsf{ak}, \mathsf{nk})$ gives a device what it needs to build proofs for all of the wallet's notes, and it cannot sign. A hardware wallet can therefore hold $\mathsf{ask}$ while another device does the proving. The next table lists what each key allows.
+The wallet can also separate proving from signing. The [**proof authorizing key**](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/proof.rs#L13-L37) $\mathsf{pak} = (\mathsf{ak}, \mathsf{nk})$ gives a device what it needs to build proofs for every note paid to the matching payment key, and it cannot sign. A hardware wallet can therefore hold $\mathsf{ask}$ while another device does the proving. The [key hierarchy page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/keys.md?plain=1#L115) and a [code comment](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/proof.rs#L15-L17) call $\mathsf{nk}$ wallet-wide, so that one $\mathsf{pak}$ covers all of a wallet's notes. That does not fit a fresh $(\mathsf{ak}, \mathsf{nk})$ pair per sender, and the sources do not reconcile the two. The next table lists what each key allows, with the per-sender reading.
 
 | Key | Secret? | What its holder can do |
 | --- | --- | --- |
 | $\mathsf{sk}$ | yes | everything below |
 | $\mathsf{ask}$ | yes | sign for spends, after randomizing (Section 5) |
 | $\mathsf{nk}$ | yes | compute nullifiers given a note's $\psi$, and so see when the note is spent |
-| $\mathsf{pak} = (\mathsf{ak}, \mathsf{nk})$ | yes | build proofs for every note of this wallet, without signing |
+| $\mathsf{pak} = (\mathsf{ak}, \mathsf{nk})$ | yes | build proofs for every note paid to this $\mathsf{pk}$, without signing |
 | $\mathsf{pk}$ | shared with senders | receive notes, with no other ability |
 
 ::: warning Book and code: narrower delegation
@@ -127,7 +127,7 @@ A random $\mathsf{rcm}$ is what lets the commitment hide two notes with the same
 
 ## 5. Randomizing the signing key for each action
 
-A signature has to be checkable by everyone, so its verification key must be public. If that key were $\mathsf{ak}$, then every spend by one wallet would carry the same public key, and an observer could link them all. Spend authorization therefore [works as in Orchard](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L165-L175). Each action picks a scalar $\alpha$ and signs with a randomized key,
+A signature has to be checkable by everyone, so its verification key must be public. If that key were $\mathsf{ak}$, then every spend under that key would carry the same public key, and an observer could link them all. Spend authorization therefore [works as in Orchard](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L165-L175). Each action picks a scalar $\alpha$ and signs with a randomized key,
 
 $$\mathsf{rsk} = \mathsf{ask} + \alpha, \qquad \mathsf{rk} = \mathsf{ak} + [\alpha]\mathcal{G} = [\mathsf{ask} + \alpha]\mathcal{G}.$$
 
@@ -171,7 +171,7 @@ The first stage combines the two secrets that make a nullifier belong to this ow
 
 $$\mathsf{mk} = \mathsf{Poseidon}_{\texttt{Tachyon-NfMaster}}(\psi,\ \mathsf{nk}).$$
 
-The sender knows $\psi$ and not $\mathsf{nk}$, and the wallet holds $\mathsf{nk}$ for many notes, so only the owner of this specific note has both. Doing this once also keeps $\mathsf{nk}$ out of later steps. In the proof tree, [`NoteSeed`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/delegation.rs#L101-L114) computes $\mathsf{mk}$ and passes it on, and $\mathsf{nk}$ never leaves that step. Our note gives:
+The sender knows $\psi$ and not $\mathsf{nk}$, and the wallet holds $\mathsf{nk}$ for many notes, so only the owner of this specific note has both. Doing this once also keeps $\mathsf{nk}$ out of later headers. In the proof tree, [`NoteSeed`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/delegation.rs#L101-L114) computes $\mathsf{mk}$ and passes it on, and no later header carries $\mathsf{nk}$, although [`SpendAction`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L202-L205) witnesses $\mathsf{pak}$ again to check the payment key. Our note gives:
 
 <!-- worked:master-key -->
 
