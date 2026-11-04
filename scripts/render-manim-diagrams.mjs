@@ -9,10 +9,12 @@ const root = path.join(__dirname, '..')
 const manimDir = path.join(root, 'docs', 'manim')
 const venvManim = path.join(root, '.manim-venv', 'bin', 'manim')
 
-const diagrams = [
-  { source: 'revdot_pairing.py', scene: 'RevdotPairing', output: 'revdot-pairing.png', page: 'arithmetization' },
-  { source: 'toy_curve_points.py', scene: 'ToyCurvePoints', output: 'toy-curve-points.png', page: 'polynomial-commitments' },
-]
+// docs/manim/foo-bar.diagrams.json lists the scenes for docs/foo-bar.md as
+// [{ source, scene, output, resolution? }].
+const diagrams = fs.readdirSync(manimDir)
+  .filter((file) => file.endsWith('.diagrams.json'))
+  .flatMap((file) => JSON.parse(fs.readFileSync(path.join(manimDir, file), 'utf8'))
+    .map((entry) => ({ ...entry, page: file.replace('.diagrams.json', '') })))
 
 const args = process.argv.slice(2)
 if (args.length && (args.length !== 2 || args[0] !== '--page')) {

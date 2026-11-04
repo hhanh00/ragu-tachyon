@@ -7,15 +7,23 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const docsDir = path.join(__dirname, '..', 'docs')
 const workedDir = path.join(docsDir, 'worked')
 
-// Each script prints a JSON map of fragment names to Markdown. A page holds a
-// fragment between <!-- worked:name --> and <!-- /worked:name --> markers.
-const examples = [
-  { source: 'arithmetization.py', page: 'arithmetization.md' },
-  { source: 'polynomial_commitments.py', page: 'polynomial-commitments.md' },
-  { source: 'appendix_curves.py', page: 'appendix-curves.md' },
-]
+// docs/worked/foo_bar.py belongs to docs/foo-bar.md. Each script prints a JSON
+// map of fragment names to Markdown, and the page holds each fragment between
+// <!-- worked:name --> and <!-- /worked:name --> markers.
+const args = process.argv.slice(2)
+const check = args.includes('--check')
+const pageIndex = args.indexOf('--page')
+const only = pageIndex >= 0 ? args[pageIndex + 1] : null
 
-const check = process.argv.includes('--check')
+const examples = fs.readdirSync(workedDir)
+  .filter((file) => file.endsWith('.py') && file !== 'toy_curve.py')
+  .map((source) => ({ source, page: `${source.slice(0, -3).replace(/_/g, '-')}.md` }))
+  .filter(({ page }) => !only || page === `${only}.md`)
+if (only && !examples.length) {
+  console.error(`No worked example for page: ${only}`)
+  process.exit(1)
+}
+
 let stale = 0
 for (const { source, page } of examples) {
   const result = spawnSync('python3', [path.join(workedDir, source)], {
