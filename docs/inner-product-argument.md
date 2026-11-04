@@ -149,7 +149,7 @@ sequenceDiagram
 
 ## 5. A complete run on the toy curve
 
-For $n = 4$ the argument takes $k = \log_2 n = 2$ rounds. We number rounds in the order they happen, write $\v{a}^{(j)}$ for the vector after round $j$, and start from $\v{a}^{(0)} = \v{a}$, $\v{b}^{(0)} = \v{b}$, $\v{G}^{(0)} = \v{G}$ and $P^{(0)} = P$. The challenges below are picked by hand so that the numbers avoid accidental coincidences. Fiat–Shamir, covered in [Statements and Challenges](./statements-and-challenges.md#_8-removing-the-verifier-with-fiat-shamir), would derive them from a transcript in a real proof.
+For $n = 4$ the argument takes $k = \log_2 n = 2$ rounds. We number rounds in the order they happen, write $\v{a}^{(j)}$ for the vector after round $j$, and start from $\v{a}^{(0)} = \v{a}$, $\v{b}^{(0)} = \v{b}$, $\v{G}^{(0)} = \v{G}$ and $P^{(0)} = P$. The challenges below are picked by hand so that the numbers avoid accidental coincidences. Fiat–Shamir, covered in [Statements and Challenges](./statements-and-challenges.md#_8-removing-the-verifier-with-fiat–shamir), would derive them from a transcript in a real proof.
 
 ### Round 1
 

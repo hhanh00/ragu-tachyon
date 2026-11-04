@@ -1,0 +1,7 @@
+[
+  {
+    "source": "recursive_proofs.py",
+    "scene": "VerifierNesting",
+    "output": "verifier-nesting.png"
+  }
+]
