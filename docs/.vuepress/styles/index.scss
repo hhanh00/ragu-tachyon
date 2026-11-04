@@ -1,0 +1,9 @@
+// With the raised mobile breakpoint (see palette.scss), the desktop navbar
+// starts at 1100px. Tighten the gaps between link groups in the 1100–1400px
+// band so the shortened labels fit without the row overflowing. Keep this
+// band in sync with $MQMobile in palette.scss.
+@media (min-width: 1100px) and (max-width: 1399px) {
+  .vp-navbar-items-wrapper .vp-navbar-item {
+    margin-inline-start: 1.1rem;
+  }
+}

@@ -1,0 +1,6 @@
+// Raise the theme's mobile breakpoint: the navbar link row only fits the
+// viewport from ~1100px upward, so below that the links move into the
+// hamburger sidebar (dropdowns switch to their collapsible mobile mode).
+// This single variable drives both the CSS media queries and the JS
+// device-status detection, so the whole responsive stack flips together.
+$MQMobile: 1099px;

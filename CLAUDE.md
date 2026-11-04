@@ -1,0 +1,8 @@
+Avoid agentless passive constructions. ("The solution requires promoting coefficients to operators.") Give sentences a real subject and active verb — either the thing being acted on ("promoting the coefficients to operators solves this") or direct address to the reader ("promote the coefficients to operators"). Don't hide actions behind abstractions like "the solution" or "the theory requires."
+No rhetorical-question section headers. ("Which picture suits quantum fields?", "What objects are being constructed?") Use plain declarative headers instead ("Choosing a picture," "Building the fields").
+Avoid aphoristic one-liners used for dramatic effect. ("The split is bookkeeping, not physics, but relativity has a strong preference.") If a punchy line like this appears, follow it immediately with a plain-language explanation rather than letting it stand alone as a flourish.
+Limit colon/dash-heavy clipped sentence structure. Vary sentence length and connect ideas with ordinary transitions ("because," "so," "which means") instead of chaining fragments with dashes and colons.
+Cut redundant restatement. When two sections explain the same point in different phrasing, merge them into one or remove the duplicate — don't keep both just because each phrasing sounds nice.
+Avoid labels implying the material is self-evidently easy. ("The Basic Operation," "simply," "of course," "trivially.") Let the reader judge difficulty themselves.
+Motivate before asserting. Walk through why a step is taken before declaring the result, rather than announcing the conclusion and justifying it afterward.
+Keep a consistent, plain expository tone throughout. Write as if explaining to a capable peer, not performing for an audience or demonstrating command of the material.

@@ -1,0 +1,11 @@
+node_modules/
+docs/.vuepress/dist/
+docs/.vuepress/.cache/
+docs/.vuepress/.temp/
+.manim-venv/
+.DS_Store
+docs/manim/media/
+media/
+__pycache__/
+.claude/settings.json
+*.code-workspace
