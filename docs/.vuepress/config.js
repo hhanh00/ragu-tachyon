@@ -25,6 +25,7 @@ export default {
         text: 'The Problem',
         children: [
           { text: 'Scaling Zcash', link: '/scaling-zcash.html' },
+          { text: 'An Introduction to Proof-Carrying Data', link: '/pcd-intro.html' },
         ],
       },
       {
@@ -42,7 +43,7 @@ export default {
       {
         text: 'Recursion',
         children: [
-          { text: 'Recursive Proofs and PCD', link: '/recursive-proofs.html' },
+          { text: 'Recursive Proofs', link: '/recursive-proofs.html' },
           { text: 'Accumulation', link: '/accumulation.html' },
           { text: 'Split Accumulation', link: '/split-accumulation.html' },
           { text: 'Curve Cycles', link: '/curve-cycles.html' },
@@ -81,6 +82,7 @@ export default {
     // Reading order for the Prev/Next footer links on each page.
     sidebar: [
       { text: 'Scaling Zcash', link: '/scaling-zcash.html' },
+      { text: 'An Introduction to Proof-Carrying Data', link: '/pcd-intro.html' },
       { text: 'Statements and Challenges', link: '/statements-and-challenges.html' },
       { text: 'Arithmetization', link: '/arithmetization.html' },
       { text: 'Polynomial Encoding', link: '/polynomial-encoding.html' },
@@ -88,7 +90,7 @@ export default {
       { text: 'The Inner Product Argument', link: '/inner-product-argument.html' },
       { text: 'Batched Openings', link: '/batched-openings.html' },
       { text: 'The Complete Proof', link: '/nark.html' },
-      { text: 'Recursive Proofs and PCD', link: '/recursive-proofs.html' },
+      { text: 'Recursive Proofs', link: '/recursive-proofs.html' },
       { text: 'Accumulation', link: '/accumulation.html' },
       { text: 'Split Accumulation', link: '/split-accumulation.html' },
       { text: 'Curve Cycles', link: '/curve-cycles.html' },

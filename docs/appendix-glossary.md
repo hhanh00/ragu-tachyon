@@ -9,4 +9,5 @@ Each entry gives a one-line reminder and links to the chapter that teaches the t
 - **Inner product argument (IPA):** a short proof of a claim about the inner product of committed vectors. Planned for [The Inner Product Argument](./inner-product-argument.md).
 - **Pedersen vector commitment:** the point $\dot{\v{a}}{\v{G}}$, optionally with a blinding term. See [Polynomial Commitments](./polynomial-commitments.md#_3-committing-to-a-vector).
 - **Polynomial commitment scheme (PCS):** a commitment to a polynomial, together with a way to prove its evaluations. See [Polynomial Commitments](./polynomial-commitments.md).
+- **Proof-carrying data (PCD):** a computation structured as a tree of steps, where each step's data carries a proof of all the work behind it. Planned for [An Introduction to Proof-Carrying Data](./pcd-intro.md).
 - **Split accumulation:** accumulation in which the verifier handles only public instances, while the prover keeps a separate witness. Planned for [Split Accumulation](./split-accumulation.md).
