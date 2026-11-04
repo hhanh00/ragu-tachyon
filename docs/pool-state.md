@@ -411,7 +411,7 @@ The value $19$ from stamp C is therefore rejected if a stamp republishes it in e
 
 <!-- /worked:retained-note -->
 
-The [deep dive's case analysis](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L1385-L1399) can be checked by enumeration. [Chapter 1](./scaling-zcash.md) removed one rule at a time and counted the double spends that got through. Here we keep all the rules, and for each pair of spends we name the rule that stops the second one. The first spend targets epoch 5, the note is older than every epoch in the table, and each spend lands in its target epoch or the next.
+The [deep dive's case analysis](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L1385-L1399) can be checked by enumeration. [Chapter 1](./scaling-zcash.md) split the second spend into two cases and walked through one example. Here we go through each pair of spends and name the rule that stops the second one. The first spend targets epoch 5, the note is older than every epoch in the table, and each spend lands in its target epoch or the next.
 
 <!-- worked:double-spend -->
 

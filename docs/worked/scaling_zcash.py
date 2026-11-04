@@ -115,7 +115,7 @@ frag['toy-evolving'] = '\n'.join(
     + [f'| {e} | `{v}` |' for e, v in series])
 
 
-# -------------------------------------------- double-spend enumeration
+# ------------------------------------------- double-spend walk-through
 def nf(e):
     return ('nf', e)
 
@@ -136,53 +136,43 @@ def second_spend_accepted(t1, a1, t2, a2, pair, window, exclusion):
     return not any(c in retained for c in candidate)
 
 
-def scenarios(top=6):
-    for t1 in range(1, top + 1):
-        for a1 in (t1, t1 + 1):
-            for t2 in range(1, top + 1):
-                for a2 in (t2, t2 + 1):
-                    if a2 >= a1:
-                        yield t1, a1, t2, a2
+# The first spend of the prose example targets epoch 7 and lands in epoch 8.
+FIRST_TARGET, FIRST_ACCEPTED = 7, 8
+walk = []
+for t2, a2 in [(7, 8), (8, 8), (8, 9), (9, 9), (9, 10)]:
+    by_window = not second_spend_accepted(FIRST_TARGET, FIRST_ACCEPTED, t2, a2, pair=True, window=2, exclusion=False)
+    by_proof = not second_spend_accepted(FIRST_TARGET, FIRST_ACCEPTED, t2, a2, pair=True, window=0, exclusion=True)
+    assert by_window != by_proof
+    assert by_proof == (t2 > FIRST_ACCEPTED)
+    assert by_proof or nf(FIRST_ACCEPTED) in (nf(t2), nf(t2 + 1))
+    stop = (f'the exclusion proof, which would have to show $\\mathsf{{nf}}_{{{FIRST_ACCEPTED}}}$ absent from epoch {FIRST_ACCEPTED}'
+            if by_proof else
+            f'validators, who still hold $\\mathsf{{nf}}_{{{FIRST_ACCEPTED}}}$ from epoch {FIRST_ACCEPTED}')
+    walk.append(f'| {t2} | {a2} | $\\mathsf{{nf}}_{{{t2}}}$, $\\mathsf{{nf}}_{{{t2 + 1}}}$ | {stop} |')
 
-
-cases = list(scenarios())
-TOTAL = len(cases)
-
-
-def uncaught(**rule):
-    return [c for c in cases if second_spend_accepted(*c, **rule)]
-
-
-full = uncaught(pair=True, window=2, exclusion=True)
-single = uncaught(pair=False, window=2, exclusion=True)
-short = uncaught(pair=True, window=1, exclusion=True)
-no_excl = uncaught(pair=True, window=2, exclusion=False)
-no_win = uncaught(pair=True, window=0, exclusion=True)
-assert not full
-assert single and short and no_excl and no_win
-# The specific failures quoted in the chapter.
-assert (5, 6, 6, 6) in single
-assert (5, 5, 5, 6) in short
-assert (2, 2, 5, 5) in no_excl
-assert (5, 5, 5, 5) in no_win
-
-frag['enumeration'] = '\n'.join([
-    f'The script behind this chapter enumerates every pair of spends of one note created in epoch 0, with targets in '
-    f'epochs 1 to 6 and each spend accepted during its target epoch or the next, which gives {TOTAL} scenarios. It models '
-    f'nullifiers as labels and applies the rules above to the second spend. Each row below changes one rule.',
+frag['double-spend-walk'] = '\n'.join([
+    f'Take the note in the figure, and suppose its first spend targets epoch {FIRST_TARGET} and lands in epoch '
+    f'{FIRST_ACCEPTED}. It publishes $\\mathsf{{nf}}_{{{FIRST_TARGET}}}$ and $\\mathsf{{nf}}_{{{FIRST_TARGET + 1}}}$, so '
+    f'$a = {FIRST_ACCEPTED}$. The table lists the second spends with targets up to epoch {FIRST_ACCEPTED + 1}, and any later '
+    f'target fails in the same way as target {FIRST_ACCEPTED + 1}.',
     '',
-    '| Rule set | Double spends accepted | Example that gets through |', '| --- | --- | --- |',
-    f'| Pair of nullifiers, two-epoch window, exclusion proof | {len(full)} of {TOTAL} | none |',
-    f'| Publish only $\\mathsf{{nf}}_e$ | {len(single)} of {TOTAL} | target 5 accepted in epoch 6, then target 6 |',
-    f'| Keep only the current epoch | {len(short)} of {TOTAL} | target 5 accepted in epoch 5, then target 5 accepted in epoch 6 |',
-    f'| No exclusion proof | {len(no_excl)} of {TOTAL} | target 2, then target 5 three epochs later |',
-    f'| No retained window | {len(no_win)} of {TOTAL} | target 5 twice in epoch 5 |',
+    '| Second target | Accepted in | Publishes | What stops it |', '| --- | --- | --- | --- |',
+    *walk,
 ])
 
 # ---------------------------------------------------------- bounded window
 TACHYON_ACTIONS = SPENDS + OUTPUTS
 TG_PER_TX = 2 * TACHYON_ACTIONS + 1
 assert TG_PER_TX == 9
+frag['chain-tachygrams'] = '\n'.join([
+    f'Take a transaction with {SPENDS} spends and {OUTPUTS} outputs, and count what its stamp lists:',
+    '',
+    '| Source | Tachygrams | Count |', '| --- | --- | --- |',
+    f'| {SPENDS} spends | two nullifiers each | {2 * SPENDS} |',
+    f'| {OUTPUTS} outputs | a note commitment and a padding value each | {2 * OUTPUTS} |',
+    '| Fee change note | one value for the bundle | 1 |',
+    f'| Total | | {TG_PER_TX} |',
+])
 tg_rate = TPS * TG_PER_TX
 tg_bytes_per_s = tg_rate * NF_BYTES
 window_peak = 2 * EPOCH_SECONDS * tg_bytes_per_s

@@ -191,25 +191,29 @@ A timing problem forces one more detail. A transaction built for epoch $e$ may s
 
 ![A timeline of epochs 2 to 8. The exclusion proof covers epochs 3 to 6, showing each epoch's own nullifier absent. Validators retain epochs 6 and 7 and have pruned the earlier ones. The spend publishes the nullifiers for epochs 7 and 8.](./manim/epoch-coverage.png)
 
-Suppose the owner of this note tries to spend it twice. Depending on the timing, the second spend fails in one of two ways. If it targets a much later epoch, its exclusion proof must cover the epoch in which one of the first spend's nullifiers appeared, and it cannot, because the value it must show absent is present. If the two spends target nearby epochs, they share a nullifier, and the validators find it in their retained window. The proof pins each published nullifier to the note and the epoch, so the spender has no freedom to choose fresh values. This argument assumes that the proofs cannot be forged and that $\mathsf{PRF}$ behaves as a pseudorandom function.
+Suppose the owner of this note tries to spend it twice, and call the spend that the chain accepts first the first spend. The proof pins each published nullifier to the note and the epoch, so the owner cannot disguise the second spend by publishing fresh values. The owner can only choose the second spend's target epoch and when to submit it.
 
-We can check that these rules leave no gap by counting cases, and by removing each rule to see that it is needed.
+The argument depends on what the pair of nullifiers guarantees. A spend lands in its target epoch or the next one, and it publishes the nullifiers of both, so it always publishes the nullifier of the epoch that accepts it. Let $a$ be the epoch that accepts the first spend, which means $\mathsf{nf}_a$ now sits in epoch $a$'s data. The second spend's target is either later than $a$ or not, and each case fails for a different reason.
 
-<!-- worked:enumeration -->
+If the target is later than $a$, the exclusion proof must cover epoch $a$, because it covers every closed epoch before the target. The proof would have to show that $\mathsf{nf}_a$ is absent from epoch $a$'s data, which is false, so the owner cannot produce it.
 
-The script behind this chapter enumerates every pair of spends of one note created in epoch 0, with targets in epochs 1 to 6 and each spend accepted during its target epoch or the next, which gives 83 scenarios. It models nullifiers as labels and applies the rules above to the second spend. Each row below changes one rule.
+If the target is not later than $a$, the exclusion proof stops short of epoch $a$, so the validators have to catch the spend. The second spend lands in epoch $a$ or later, and a spend lands at most one epoch after its target, so its target is $a - 1$ or $a$. Both targets give a pair that includes $\mathsf{nf}_a$. The spend also lands in epoch $a$ or $a + 1$, and validators still retain epoch $a$ at either point, so they find the repeated value and reject the spend.
 
-| Rule set | Double spends accepted | Example that gets through |
-| --- | --- | --- |
-| Pair of nullifiers, two-epoch window, exclusion proof | 0 of 83 | none |
-| Publish only $\mathsf{nf}_e$ | 35 of 83 | target 5 accepted in epoch 6, then target 6 |
-| Keep only the current epoch | 11 of 83 | target 5 accepted in epoch 5, then target 5 accepted in epoch 6 |
-| No exclusion proof | 45 of 83 | target 2, then target 5 three epochs later |
-| No retained window | 33 of 83 | target 5 twice in epoch 5 |
+<!-- worked:double-spend-walk -->
 
-<!-- /worked:enumeration -->
+Take the note in the figure, and suppose its first spend targets epoch 7 and lands in epoch 8. It publishes $\mathsf{nf}_{7}$ and $\mathsf{nf}_{8}$, so $a = 8$. The table lists the second spends with targets up to epoch 9, and any later target fails in the same way as target 9.
 
-This small model only covers the logic of the rules, and it does not touch the cryptography. [Chapter 19](./notes-and-nullifiers.md) and [chapter 20](./pool-state.md) give the full treatment, including how a proof can refer to history that validators no longer hold.
+| Second target | Accepted in | Publishes | What stops it |
+| --- | --- | --- | --- |
+| 7 | 8 | $\mathsf{nf}_{7}$, $\mathsf{nf}_{8}$ | validators, who still hold $\mathsf{nf}_{8}$ from epoch 8 |
+| 8 | 8 | $\mathsf{nf}_{8}$, $\mathsf{nf}_{9}$ | validators, who still hold $\mathsf{nf}_{8}$ from epoch 8 |
+| 8 | 9 | $\mathsf{nf}_{8}$, $\mathsf{nf}_{9}$ | validators, who still hold $\mathsf{nf}_{8}$ from epoch 8 |
+| 9 | 9 | $\mathsf{nf}_{9}$, $\mathsf{nf}_{10}$ | the exclusion proof, which would have to show $\mathsf{nf}_{8}$ absent from epoch 8 |
+| 9 | 10 | $\mathsf{nf}_{9}$, $\mathsf{nf}_{10}$ | the exclusion proof, which would have to show $\mathsf{nf}_{8}$ absent from epoch 8 |
+
+<!-- /worked:double-spend-walk -->
+
+This argument assumes that the proofs cannot be forged and that $\mathsf{PRF}$ behaves as a pseudorandom function. [Chapter 19](./notes-and-nullifiers.md) and [chapter 20](./pool-state.md) give the full treatment, including how a proof can refer to history that validators no longer hold.
 
 ## 10. What validators store now
 
@@ -246,9 +250,37 @@ Validators do not forget everything. They still keep the **anchor chain**, a has
 
 Someone must also keep the pruned data, or nobody could build exclusion proofs against it. A post in the [forum thread](https://forum.zcashcommunity.com/t/scaling-zcash-tachyon-ragu/50789) acknowledges that this leaves a data availability problem, and we treat the question of who stores old history as unsettled.
 
+### The data on the chain
+
+The next sections refer to an epoch's history, so we should say what that history consists of. A block holds transactions, and the Tachyon part of a transaction is a **bundle**. The [bundle format](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md#L160-L190) divides a bundle into a body and a stamp, and validators use each part differently:
+
+| Part | What it contains | What validators do with it |
+| --- | --- | --- |
+| Body | the net value balance, each action's value commitment and randomized signing key, the max fee commitment, the signatures, and an optional memo | check the signatures and the value balance |
+| Stamp | the tachygram list, the anchor, a commitment to the list, the proof, and a few values that go with them | verify the proof, compare the tachygrams against the window, and advance the anchor chain |
+
+Unlike an Orchard action, a Tachyon action carries no note ciphertext. Nothing in the table names a note or its owner, and the tachygrams carry no labels saying which kind each one is.
+
+<!-- worked:chain-tachygrams -->
+
+Take a transaction with 2 spends and 2 outputs, and count what its stamp lists:
+
+| Source | Tachygrams | Count |
+| --- | --- | --- |
+| 2 spends | two nullifiers each | 4 |
+| 2 outputs | a note commitment and a padding value each | 4 |
+| Fee change note | one value for the bundle | 1 |
+| Total | | 9 |
+
+<!-- /worked:chain-tachygrams -->
+
+Section 12 adds one complication. A transaction can give up its stamp and point to another transaction's stamp, and that stamp's list then includes its tachygrams. Tachygrams therefore always sit in stamps, although not every bundle has a stamp of its own.
+
+An epoch's history is therefore the tachygram lists of all the stamps in that epoch's blocks. Validators hold this data for two epochs and then prune it, and it is the data that the service in the next section has to read.
+
 ## 11. Outsourcing the exclusion proof
 
-Exclusion proofs still require someone to read all the history of each epoch. Tachyon lets a wallet delegate this reading to an **oblivious syncing service**, which is untrusted and sees very little.
+Exclusion proofs still require someone to read every tachygram of each epoch being tested. Tachyon lets a wallet delegate this reading to an **oblivious syncing service**, which is untrusted and sees very little.
 
 The service [receives opaque pairs](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md#L1255-L1270) of an epoch number and a value. For each pair, it proves that the value is absent from that epoch's history, and it returns the proof. It never learns the note or its commitment, and it cannot compute any nullifier beyond the list it was given. Nothing even shows that the values come from a real note, so a wallet can mix in decoys. Once the proof returns, the wallet separately proves that the values the service tested are the nullifiers of its note. This second step is what attaches the anonymous work to a real note, and it needs the note's secrets, so the wallet performs it.
 
@@ -299,6 +331,40 @@ These totals also show how far the hypothetical 100 transactions per second is f
 This comparison is not exact. The Orchard column includes encrypted memos in its action descriptions, while the Tachyon column leaves out its optional memo field and the reference to the aggregate. It also leaves out the aggregate proof, which has a fixed size in the [bundle format](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md#L187), though the real size is not settled. The [chapter on aggregation](./aggregation-and-bundles.md) uses the mock's constant as a placeholder and explains why it probably overstates the proof's share. The table shows where the savings come from, and the largest part is removing the per-transaction proof.
 
 Verification time follows a similar pattern, though aggregation does not win in every case. The Ragu book's [rough estimate](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/analysis.md#L50-L75) puts an aggregate's verification at about 100 ms, and it places the break-even with Orchard's batch verification near 50 transactions. The book marks these as estimates still to be validated with benchmarks, so treat them as a guide to the shape of the trade-off. One aggregate is more expensive to verify than one Orchard proof, and it pays for itself as the number of transactions grows.
+
+### Who reads what
+
+All the participants have now appeared, so we can put them on one map that shows where each kind of data goes. Reconstructed from the book and code at commit `7e50254`, not confirmed by the authors. The book's [network roles page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/network_roles/overview.md) names the mempool, aggregator, and miner, and the deep dive adds the sync service. The archive is our label for a role that nobody has been assigned yet.
+
+```mermaid
+flowchart TD
+    Sender["Sending wallet"] -- "note contents, through a payment protocol" --> Wallet["Receiving wallet"]
+    Wallet -- "opaque (epoch, value) pairs" --> Service["Sync service"]
+    Service -- "absence proofs" --> Wallet
+    Wallet -- "transaction with its stamp" --> Mempool
+    Mempool -- "stamps to merge" --> Aggregator
+    Aggregator -- "aggregate" --> Mempool
+    Mempool -- "transactions and aggregates" --> Miner
+    Miner -- "new block" --> Chain["Blocks"]
+    Chain -- "bodies and stamps" --> Validators["Validators"]
+    Chain -- "what was mined" --> Aggregator
+    Chain -- "creation stamp and anchors" --> Wallet
+    Chain -- "every stamp" --> Archive["Archive of old epochs (unsettled)"]
+    Archive -- "tachygrams of the tested epochs" --> Service
+```
+
+The table lists what each participant reads and what it can ignore.
+
+| Participant | What it reads | What it can ignore |
+| --- | --- | --- |
+| Wallet | its note's contents from the sender, the tachygrams of the note's creation stamp and the anchor just before it, recent anchors, and the service's absence proofs | other people's notes, and the tachygrams of the epochs that it delegates |
+| Sync service | the opaque pairs from wallets, and all the tachygrams of each epoch it tests | the note, its commitment, and the wallet's keys |
+| Aggregator | the transactions and aggregates in the mempool, recent anchors, and each new block's action descriptors, fees, and tachygrams | epochs older than the ones its working aggregate depends on |
+| Miner | the transactions and aggregates in the mempool, plus the window and the anchor chain | old tachygrams, which it no longer needs in order to accept a block |
+| Validator | each new block's bodies and stamps, plus the window and the anchor chain | tachygrams older than the window |
+| Archive | every stamp in every block, so that old epochs stay available | the contents of notes, which it cannot read anyway |
+
+Parts of this picture are less settled than the table makes them look. The [proof tree](./proof-tree.md) needs the wallet to hold its creation stamp's data, but the sources we read do not say how a wallet finds that stamp or fetches it privately. Chapter 21 explains what the service proves, but we found no description of where it gets old epochs, which is the data availability question from Section 10. A payment protocol may also add its own participants, such as the memo retrieval servers in the warning under Section 7.
 
 ## 13. What this requires from a proof system
 
