@@ -12,7 +12,7 @@ The crate does contain the proof steps, but it [builds Ragu with its `mock` feat
 
 ## 1. The work a spend needs
 
-Take the running note of [chapter 19](./notes-and-nullifiers.md#_6-deriving-a-notes-nullifiers), created in epoch 3 and spent with target epoch 7. Here is what its spend requires, with the same stand-in nullifiers:
+Take the running note of [chapter 19](./notes-and-nullifiers.md#_6-deriving-a-note-s-nullifiers), created in epoch 3 and spent with target epoch 7. Here is what its spend requires, with the same stand-in nullifiers:
 
 <!-- worked:job -->
 
