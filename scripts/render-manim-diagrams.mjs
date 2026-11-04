@@ -9,12 +9,9 @@ const root = path.join(__dirname, '..')
 const manimDir = path.join(root, 'docs', 'manim')
 const venvManim = path.join(root, '.manim-venv', 'bin', 'manim')
 
-const diagrams = []
-
-if (!diagrams.length) {
-  console.log('No diagrams registered.')
-  process.exit(0)
-}
+const diagrams = [
+  { source: 'toy_curve_points.py', scene: 'ToyCurvePoints', output: 'toy-curve-points.png', page: 'polynomial-commitments' },
+]
 
 const args = process.argv.slice(2)
 if (args.length && (args.length !== 2 || args[0] !== '--page')) {

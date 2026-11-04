@@ -22,29 +22,91 @@ export default {
     navbar: [
       { text: 'Home', link: '/' },
       {
-        text: 'Part One',
+        text: 'The Problem',
         children: [
-          { text: 'Chapter One', link: '/chapter-one.html' },
-          { text: 'Chapter Two', link: '/chapter-two.html' },
+          { text: 'Scaling Zcash', link: '/scaling-zcash.html' },
+          { text: 'Statements and Challenges', link: '/statements-and-challenges.html' },
+        ],
+      },
+      {
+        text: 'Commitments',
+        children: [
+          { text: 'Polynomial Commitments', link: '/polynomial-commitments.html' },
+          { text: 'The Inner Product Argument', link: '/inner-product-argument.html' },
+          { text: 'Batched Openings', link: '/batched-openings.html' },
+        ],
+      },
+      {
+        text: 'Recursion',
+        children: [
+          { text: 'Recursive Proofs and PCD', link: '/recursive-proofs.html' },
+          { text: 'Accumulation', link: '/accumulation.html' },
+          { text: 'Split Accumulation', link: '/split-accumulation.html' },
+          { text: 'Curve Cycles', link: '/curve-cycles.html' },
+        ],
+      },
+      {
+        text: 'Ragu',
+        children: [
+          { text: 'Arithmetization', link: '/arithmetization.html' },
+          { text: 'The NARK', link: '/nark.html' },
+          { text: 'Revdot Folding', link: '/revdot-folding.html' },
+          { text: 'Wiring and the Registry', link: '/wiring-and-registry.html' },
+          { text: 'Endoscalars', link: '/endoscalars.html' },
+          { text: 'Staging', link: '/staging.html' },
+          { text: 'Recursion in Ragu', link: '/ragu-recursion.html' },
+        ],
+      },
+      {
+        text: 'Tachyon',
+        children: [
+          { text: 'Notes, Nullifiers, and Tachygrams', link: '/notes-and-nullifiers.html' },
+          { text: 'Pool State and Anchors', link: '/pool-state.html' },
+          { text: 'Oblivious Sync', link: '/oblivious-sync.html' },
+          { text: 'The Proof Tree', link: '/proof-tree.html' },
+          { text: 'Aggregation and Bundles', link: '/aggregation-and-bundles.html' },
         ],
       },
       { text: 'Final Recap', link: '/recap.html' },
       {
         text: 'Appendix',
         children: [
-          { text: 'Appendix One', link: '/appendix-one.html' },
+          { text: 'Notation', link: '/appendix-notation.html' },
+          { text: 'Glossary', link: '/appendix-glossary.html' },
+          { text: 'Curves', link: '/appendix-curves.html' },
         ],
       },
     ],
     // Reading order for the Prev/Next footer links on each page.
     sidebar: [
-      { text: 'Chapter One', link: '/chapter-one.html' },
-      { text: 'Chapter Two', link: '/chapter-two.html' },
+      { text: 'Scaling Zcash', link: '/scaling-zcash.html' },
+      { text: 'Statements and Challenges', link: '/statements-and-challenges.html' },
+      { text: 'Polynomial Commitments', link: '/polynomial-commitments.html' },
+      { text: 'The Inner Product Argument', link: '/inner-product-argument.html' },
+      { text: 'Batched Openings', link: '/batched-openings.html' },
+      { text: 'Recursive Proofs and PCD', link: '/recursive-proofs.html' },
+      { text: 'Accumulation', link: '/accumulation.html' },
+      { text: 'Split Accumulation', link: '/split-accumulation.html' },
+      { text: 'Curve Cycles', link: '/curve-cycles.html' },
+      { text: 'Arithmetization', link: '/arithmetization.html' },
+      { text: 'The NARK', link: '/nark.html' },
+      { text: 'Revdot Folding', link: '/revdot-folding.html' },
+      { text: 'Wiring and the Registry', link: '/wiring-and-registry.html' },
+      { text: 'Endoscalars', link: '/endoscalars.html' },
+      { text: 'Staging', link: '/staging.html' },
+      { text: 'Recursion in Ragu', link: '/ragu-recursion.html' },
+      { text: 'Notes, Nullifiers, and Tachygrams', link: '/notes-and-nullifiers.html' },
+      { text: 'Pool State and Anchors', link: '/pool-state.html' },
+      { text: 'Oblivious Sync', link: '/oblivious-sync.html' },
+      { text: 'The Proof Tree', link: '/proof-tree.html' },
+      { text: 'Aggregation and Bundles', link: '/aggregation-and-bundles.html' },
       { text: 'Final Recap', link: '/recap.html' },
       {
         text: 'Appendix',
         children: [
-          { text: 'Appendix One', link: '/appendix-one.html' },
+          { text: 'Notation', link: '/appendix-notation.html' },
+          { text: 'Glossary', link: '/appendix-glossary.html' },
+          { text: 'Curves', link: '/appendix-curves.html' },
         ],
       },
     ],
@@ -52,7 +114,17 @@ export default {
 
   plugins: [
     markdownChartPlugin({ mermaid: true }),
-    markdownMathPlugin({ type: 'katex', output: 'html' }),
+    markdownMathPlugin({
+      type: 'katex',
+      output: 'html',
+      // The same shorthand the Ragu Book uses.
+      macros: {
+        '\\v': '\\mathbf{#1}',
+        '\\F': '\\mathbb{F}',
+        '\\G': '\\mathbb{G}',
+        '\\dot': '\\langle #1,\\,#2 \\rangle',
+      },
+    }),
     slimsearchPlugin({
       indexContent: true,
       // Suggestions start a separate worker on page load. Keep the full-text
