@@ -1,0 +1,7 @@
+[
+  {
+    "source": "batched_openings.py",
+    "scene": "BatchedClaims",
+    "output": "batched-claims.png"
+  }
+]
