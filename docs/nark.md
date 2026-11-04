@@ -1,6 +1,6 @@
-# The NARK
+# The Complete Proof
 
-This chapter is a stub. It will cover the decomposition trick, the polynomial IOP, and the compilation into a NARK.
+This chapter is a stub. It will cover how arithmetization, polynomial encoding, commitments, and openings combine into one complete non-succinct proof, called a NARK, and where its verification cost remains.
 
 Primary sources:
 

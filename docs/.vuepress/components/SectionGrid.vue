@@ -3,24 +3,27 @@ const groups = [
   {
     number: '01',
     name: 'The Problem',
-    desc: 'Zcash\'s scaling constraints and the basic vocabulary of proofs.',
+    desc: 'Trace the costs that shape the proof system.',
     color: '#2563eb',
     soft: '#dbeafe',
     items: [
       { number: '01', title: 'Scaling Zcash', desc: 'Trace state growth and wallet sync costs to the design of nullifiers and in-band notes.', link: '/scaling-zcash.html', symbol: 'Δ' },
-      { number: '02', title: 'Statements and Challenges', desc: 'Define statements and witnesses, then use random challenges to catch false claims.', link: '/statements-and-challenges.html', symbol: 'r' },
     ],
   },
   {
     number: '02',
-    name: 'Commitments',
-    desc: 'Commit to polynomials, then prove their evaluations with a short argument.',
+    name: 'The Structure of a Proof',
+    desc: 'Follow one statement through arithmetization, polynomial encoding, commitments, and openings.',
     color: '#7c3aed',
     soft: '#ede9fe',
     items: [
-      { number: '03', title: 'Polynomial Commitments', desc: 'Build Pedersen commitments and turn a polynomial evaluation into an inner product claim.', link: '/polynomial-commitments.html', symbol: 'C' },
-      { number: '04', title: 'The Inner Product Argument', desc: 'Halve an inner product claim round by round and locate the linear verifier cost.', link: '/inner-product-argument.html', symbol: 'L, R' },
-      { number: '05', title: 'Batched Openings', desc: 'Reduce many evaluation claims to one using quotient polynomials.', link: '/batched-openings.html', symbol: 'α, β' },
+      { number: '02', title: 'Statements and Challenges', desc: 'Define statements and witnesses, then use random challenges to catch false claims.', link: '/statements-and-challenges.html', symbol: 'r' },
+      { number: '03', title: 'Arithmetization', desc: 'Express a computation as constraints, ending in one revdot equation, with a short comparison to R1CS and PLONK.', link: '/arithmetization.html', symbol: '⟨r, r̂⟩' },
+      { number: '04', title: 'Polynomial Encoding', desc: 'Turn the single constraint into a polynomial identity that a random point can test.', link: '/polynomial-encoding.html', symbol: 'c(X)' },
+      { number: '05', title: 'Polynomial Commitments', desc: 'Build Pedersen commitments and turn a polynomial evaluation into an inner product claim.', link: '/polynomial-commitments.html', symbol: 'C' },
+      { number: '06', title: 'The Inner Product Argument', desc: 'Halve an inner product claim round by round and locate the linear verifier cost.', link: '/inner-product-argument.html', symbol: 'L, R' },
+      { number: '07', title: 'Batched Openings', desc: 'Reduce many evaluation claims to one using quotient polynomials.', link: '/batched-openings.html', symbol: 'α, β' },
+      { number: '08', title: 'The Complete Proof', desc: 'Assemble every earlier step into one proof, without recursion yet.', link: '/nark.html', symbol: 'r(X)' },
     ],
   },
   {
@@ -30,26 +33,24 @@ const groups = [
     color: '#059669',
     soft: '#d1fae5',
     items: [
-      { number: '06', title: 'Recursive Proofs and PCD', desc: 'Prove the verification of earlier proofs across chains and trees of computation.', link: '/recursive-proofs.html', symbol: 'π' },
-      { number: '07', title: 'Accumulation', desc: 'Defer the expensive IPA check and merge deferred claims, following Halo.', link: '/accumulation.html', symbol: 'acc' },
-      { number: '08', title: 'Split Accumulation', desc: 'Fold public instances separately from witnesses, so a NARK is enough.', link: '/split-accumulation.html', symbol: 'acc.V' },
-      { number: '09', title: 'Curve Cycles', desc: 'Use the Pasta cycle to keep group and field arithmetic native on each side.', link: '/curve-cycles.html', symbol: '𝔽p, 𝔽q' },
+      { number: '09', title: 'Recursive Proofs and PCD', desc: 'Prove the verification of earlier proofs across chains and trees of computation.', link: '/recursive-proofs.html', symbol: 'π' },
+      { number: '10', title: 'Accumulation', desc: 'Defer the expensive IPA check and merge deferred claims, following Halo.', link: '/accumulation.html', symbol: 'acc' },
+      { number: '11', title: 'Split Accumulation', desc: 'Fold public instances separately from witnesses, so a NARK is enough.', link: '/split-accumulation.html', symbol: 'acc.V' },
+      { number: '12', title: 'Curve Cycles', desc: 'Use the Pasta cycle to keep group and field arithmetic native on each side.', link: '/curve-cycles.html', symbol: '𝔽p, 𝔽q' },
     ],
   },
   {
     number: '04',
     name: 'Ragu',
-    desc: 'Follow Ragu\'s own construction from circuits to compressed proofs.',
+    desc: 'Study the parts of the recursive construction specific to Ragu.',
     color: '#d97706',
     soft: '#fef3c7',
     items: [
-      { number: '10', title: 'Arithmetization', desc: 'Express a circuit as one revdot constraint, with a short comparison to R1CS and PLONK.', link: '/arithmetization.html', symbol: '⟨r, r̂⟩' },
-      { number: '11', title: 'The NARK', desc: 'Turn the revdot constraint into polynomial checks and a non-succinct proof.', link: '/nark.html', symbol: 'r(X)' },
-      { number: '12', title: 'Revdot Folding', desc: 'Reduce many revdot claims to one with a two-layer protocol.', link: '/revdot-folding.html', symbol: 'k(Y)' },
-      { number: '13', title: 'Wiring and the Registry', desc: 'Check wiring consistency across many circuits without verification keys.', link: '/wiring-and-registry.html', symbol: 's(X,Y)' },
-      { number: '14', title: 'Endoscalars', desc: 'Share challenges across the cycle and reduce scalar multiplication costs.', link: '/endoscalars.html', symbol: 'ζ' },
-      { number: '15', title: 'Staging', desc: 'Commit to a circuit trace in stages and keep inputs consistent between circuits.', link: '/staging.html', symbol: 'stage' },
-      { number: '16', title: 'Recursion in Ragu', desc: 'Assemble internal circuits, public inputs, and compression into a full PCD step.', link: '/ragu-recursion.html', symbol: 'fuse' },
+      { number: '13', title: 'Revdot Folding', desc: 'Reduce many revdot claims to one with a two-layer protocol.', link: '/revdot-folding.html', symbol: 'k(Y)' },
+      { number: '14', title: 'Wiring and the Registry', desc: 'Check wiring consistency across many circuits without verification keys.', link: '/wiring-and-registry.html', symbol: 's(X,Y)' },
+      { number: '15', title: 'Endoscalars', desc: 'Share challenges across the cycle and reduce scalar multiplication costs.', link: '/endoscalars.html', symbol: 'ζ' },
+      { number: '16', title: 'Staging', desc: 'Commit to a circuit trace in stages and keep inputs consistent between circuits.', link: '/staging.html', symbol: 'stage' },
+      { number: '17', title: 'Recursion in Ragu', desc: 'Assemble internal circuits, public inputs, and compression into a full PCD step.', link: '/ragu-recursion.html', symbol: 'fuse' },
     ],
   },
   {
@@ -59,11 +60,11 @@ const groups = [
     color: '#db2777',
     soft: '#fce7f3',
     items: [
-      { number: '17', title: 'Notes, Nullifiers, and Tachygrams', desc: 'Follow a note from its key hierarchy to the values it publishes.', link: '/notes-and-nullifiers.html', symbol: 'nf' },
-      { number: '18', title: 'Pool State and Anchors', desc: 'Commit to the pool with a Poseidon hash chain over stamps and epochs.', link: '/pool-state.html', symbol: 'anchor' },
-      { number: '19', title: 'Oblivious Sync', desc: 'Delegate proofs of nullifier absence without revealing the note.', link: '/oblivious-sync.html', symbol: 'Δ(X)' },
-      { number: '20', title: 'The Proof Tree', desc: 'Walk through each proof step from note creation to a spend.', link: '/proof-tree.html', symbol: 'step' },
-      { number: '21', title: 'Aggregation and Bundles', desc: 'Merge stamps across transactions and study the resulting on-chain format.', link: '/aggregation-and-bundles.html', symbol: 'stamp' },
+      { number: '18', title: 'Notes, Nullifiers, and Tachygrams', desc: 'Follow a note from its key hierarchy to the values it publishes.', link: '/notes-and-nullifiers.html', symbol: 'nf' },
+      { number: '19', title: 'Pool State and Anchors', desc: 'Commit to the pool with a Poseidon hash chain over stamps and epochs.', link: '/pool-state.html', symbol: 'anchor' },
+      { number: '20', title: 'Oblivious Sync', desc: 'Delegate proofs of nullifier absence without revealing the note.', link: '/oblivious-sync.html', symbol: 'Δ(X)' },
+      { number: '21', title: 'The Proof Tree', desc: 'Walk through each proof step from note creation to a spend.', link: '/proof-tree.html', symbol: 'step' },
+      { number: '22', title: 'Aggregation and Bundles', desc: 'Merge stamps across transactions and study the resulting on-chain format.', link: '/aggregation-and-bundles.html', symbol: 'stamp' },
     ],
   },
   {
@@ -73,7 +74,7 @@ const groups = [
     color: '#0f766e',
     soft: '#ccfbf1',
     items: [
-      { number: '22', title: 'Final Recap', desc: 'Trace one Tachyon spend through every layer of the system.', link: '/recap.html', symbol: 'Σ', final: true },
+      { number: '23', title: 'Final Recap', desc: 'Trace one Tachyon spend through every layer of the system.', link: '/recap.html', symbol: 'Σ', final: true },
     ],
   },
   {
@@ -143,7 +144,7 @@ const chapterCount = groups.filter(g => !g.appendix).reduce((n, g) => n + g.item
           <p class="section-label">Contents</p>
           <h2 id="curriculum-title">Chapters</h2>
         </div>
-        <p>Read in order, or jump directly to the idea you need. Only Chapter 03 is drafted so far.</p>
+        <p>Read in order, or jump directly to the idea you need. Only Chapter 05 is drafted so far.</p>
       </div>
 
       <div class="stages">

@@ -25,15 +25,18 @@ export default {
         text: 'The Problem',
         children: [
           { text: 'Scaling Zcash', link: '/scaling-zcash.html' },
-          { text: 'Statements and Challenges', link: '/statements-and-challenges.html' },
         ],
       },
       {
-        text: 'Commitments',
+        text: 'Proof Structure',
         children: [
+          { text: 'Statements and Challenges', link: '/statements-and-challenges.html' },
+          { text: 'Arithmetization', link: '/arithmetization.html' },
+          { text: 'Polynomial Encoding', link: '/polynomial-encoding.html' },
           { text: 'Polynomial Commitments', link: '/polynomial-commitments.html' },
           { text: 'The Inner Product Argument', link: '/inner-product-argument.html' },
           { text: 'Batched Openings', link: '/batched-openings.html' },
+          { text: 'The Complete Proof', link: '/nark.html' },
         ],
       },
       {
@@ -48,8 +51,6 @@ export default {
       {
         text: 'Ragu',
         children: [
-          { text: 'Arithmetization', link: '/arithmetization.html' },
-          { text: 'The NARK', link: '/nark.html' },
           { text: 'Revdot Folding', link: '/revdot-folding.html' },
           { text: 'Wiring and the Registry', link: '/wiring-and-registry.html' },
           { text: 'Endoscalars', link: '/endoscalars.html' },
@@ -81,15 +82,16 @@ export default {
     sidebar: [
       { text: 'Scaling Zcash', link: '/scaling-zcash.html' },
       { text: 'Statements and Challenges', link: '/statements-and-challenges.html' },
+      { text: 'Arithmetization', link: '/arithmetization.html' },
+      { text: 'Polynomial Encoding', link: '/polynomial-encoding.html' },
       { text: 'Polynomial Commitments', link: '/polynomial-commitments.html' },
       { text: 'The Inner Product Argument', link: '/inner-product-argument.html' },
       { text: 'Batched Openings', link: '/batched-openings.html' },
+      { text: 'The Complete Proof', link: '/nark.html' },
       { text: 'Recursive Proofs and PCD', link: '/recursive-proofs.html' },
       { text: 'Accumulation', link: '/accumulation.html' },
       { text: 'Split Accumulation', link: '/split-accumulation.html' },
       { text: 'Curve Cycles', link: '/curve-cycles.html' },
-      { text: 'Arithmetization', link: '/arithmetization.html' },
-      { text: 'The NARK', link: '/nark.html' },
       { text: 'Revdot Folding', link: '/revdot-folding.html' },
       { text: 'Wiring and the Registry', link: '/wiring-and-registry.html' },
       { text: 'Endoscalars', link: '/endoscalars.html' },

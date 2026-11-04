@@ -1,6 +1,6 @@
 # Arithmetization
 
-This chapter is a stub. It will cover Ragu's Bootle16 constraint system, gates, consolidated constraints, and a short comparison with R1CS and PLONK.
+This chapter is a stub. It will cover how a computation becomes a set of field constraints: Ragu's Bootle16 constraint system, gates, consolidated constraints, and a short comparison with R1CS and PLONK.
 
 Primary sources:
 
