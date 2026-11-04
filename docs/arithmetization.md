@@ -92,7 +92,7 @@ Try $x = 4$ instead. Filling in the gates gives $\v{a} = (4, 16)$, $\v{b} = (4, 
 
 The verifier now faces $n$ gate equations and $4n$ constraints, and a real circuit has thousands of each. A proof that handled every equation separately would be enormous, so we want to replace them all with one equation that still fails if any of them fails.
 
-Let $e_i = a_i b_i - c_i$ be the error of gate $i$. Adding the errors directly would not work, because errors of $+1$ and $-1$ cancel. Multiplying each error by a different power of a random value $z$ prevents this cancellation:
+Let $e_i = a_i b_i - c_i$ be the error of gate $i$. Adding the errors directly would not work, because errors of $+1$ and $-1$ cancel. Multiplying each error by a different power of a random value $z$ prevents this cancellation, using the [random linear combination](./statements-and-challenges.md#_7-random-linear-combinations) technique from the previous chapter:
 
 $$\sum_{i=0}^{n-1} z^i e_i = \sum_{i=0}^{n-1} z^i (a_i b_i - c_i).$$
 
@@ -286,7 +286,7 @@ Subtracting the right side from the left side splits the equation into two parts
 
 $$\underbrace{\sum_{i=0}^{n-1} (a_i b_i - c_i) \big( z^{2n-1-i} + z^{2n+i} \big)}_{E_g(z)} + \underbrace{\Big( \revdot{\v{r}}{\v{s}} - \dot{\v{k}}{\v{y^{4n}}} \Big)}_{E_c(y)} = 0.$$
 
-The first part depends only on $z$, and every power of $z$ in it is at least $z^{n}$, since $2n - 1 - i \ge n$ for $i < n$. The second part depends only on $y$. A gate error therefore cannot cancel a constraint error for all values of the challenges, because the two parts vary independently. If either part is nonzero, the whole expression is a nonzero polynomial in $(z, y)$ of degree at most $4n - 1$. The prover has to fix $\v{r}$ before seeing the challenges, so a random pair passes with probability at most $(4n - 1)/|\F_q|$. This relies only on the fact about polynomial roots from Section 5, extended to two variables by the Schwartz–Zippel lemma.
+The first part depends only on $z$, and every power of $z$ in it is at least $z^{n}$, since $2n - 1 - i \ge n$ for $i < n$. The second part depends only on $y$. A gate error therefore cannot cancel a constraint error for all values of the challenges, because the two parts vary independently. If either part is nonzero, the whole expression is a nonzero polynomial in $(z, y)$ of degree at most $4n - 1$. The prover has to fix $\v{r}$ before seeing the challenges, so a random pair passes with probability at most $(4n - 1)/|\F_q|$. This relies only on the fact about polynomial roots from Section 5, extended to two variables by the [Schwartz–Zippel lemma](./statements-and-challenges.md#_6-polynomials-in-several-variables).
 
 On the toy field we can count the exact number of passing challenges for several dishonest witnesses:
 

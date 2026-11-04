@@ -1,0 +1,12 @@
+[
+  {
+    "source": "statements_and_challenges.py",
+    "scene": "ZeroGrid",
+    "output": "statements-zero-grid.png"
+  },
+  {
+    "source": "statements_and_challenges.py",
+    "scene": "SpongeFlow",
+    "output": "statements-sponge-flow.png"
+  }
+]

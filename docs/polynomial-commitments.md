@@ -301,7 +301,7 @@ Suppose the prover learns $x = 9$ before committing. It can then take $q(X) = p(
 
 <!-- /worked:early-challenge -->
 
-When the commitment comes first, the prover has to fix the polynomial with no knowledge of $x$. Suppose the prover commits to $q$ but wants to pass a check meant for a different polynomial $p$. Both have degree at most $d$, so the difference $p - q$ is a nonzero polynomial of degree at most $d$. Each point where $p$ and $q$ agree is a root of this difference, and such a polynomial has at most $d$ roots, so $p$ and $q$ agree on at most $d$ points. This count is the one-variable case of the **Schwartz–Zippel lemma**. A prover who commits to one polynomial and hopes it matches a different one at $x$ has at most a $d / |\F_q|$ chance of success.
+When the commitment comes first, the prover has to fix the polynomial with no knowledge of $x$. Suppose the prover commits to $q$ but wants to pass a check meant for a different polynomial $p$. Both have degree at most $d$, so the difference $p - q$ is a nonzero polynomial of degree at most $d$. Each point where $p$ and $q$ agree is a root of this difference, and such a polynomial has at most $d$ roots, so $p$ and $q$ agree on at most $d$ points. This count is the one-variable case of the [Schwartz–Zippel lemma](./statements-and-challenges.md#_6-polynomials-in-several-variables). A prover who commits to one polynomial and hopes it matches a different one at $x$ has at most a $d / |\F_q|$ chance of success.
 
 <!-- worked:agreement -->
 

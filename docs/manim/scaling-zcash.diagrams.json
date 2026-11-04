@@ -1,0 +1,7 @@
+[
+  {
+    "source": "scaling_zcash.py",
+    "scene": "EpochCoverage",
+    "output": "epoch-coverage.png"
+  }
+]
