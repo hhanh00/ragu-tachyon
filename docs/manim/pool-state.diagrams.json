@@ -1,0 +1,12 @@
+[
+  {
+    "source": "pool_state.py",
+    "scene": "AnchorChain",
+    "output": "pool-state-chain.png"
+  },
+  {
+    "source": "pool_state.py",
+    "scene": "ConsensusWindow",
+    "output": "pool-state-window.png"
+  }
+]

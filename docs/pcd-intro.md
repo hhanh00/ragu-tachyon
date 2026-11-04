@@ -421,10 +421,13 @@ Stamps sit at the top of a larger tree, and different parties run the nodes belo
 ```mermaid
 graph BT
     NS["NoteSeed (wallet)"] -->|NoteSecret| ND["NullifierDerive (wallet)"]
-    ND -->|NoteNullifiers| SI["SpendableInit (wallet)"]
+    ND -->|NoteNullifiers| UB0["UnspentBind (wallet)"]
+    QR0["QrUnspentInit (sync service)"] -->|ArbitraryUnspent| UB0
+    UB0 -->|NoteUnspent| QS["QrSpendableInit (wallet)"]
+    QB["QrBucketSeal (sync service)"] -->|QrBucket| QS
+    QS -->|NoteSpendable| SL["SpendableLift (wallet)"]
     ND -->|NoteNullifiers| UB["UnspentBind (wallet)"]
     QR["QrUnspentInit (sync service)"] -->|ArbitraryUnspent| UB
-    SI -->|NoteSpendable| SL["SpendableLift (wallet)"]
     UB -->|NoteUnspent| SL
     SL -->|NoteSpendable| SB["SpendBind (wallet)"]
     NS -->|NoteSecret| SB

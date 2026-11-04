@@ -1,0 +1,7 @@
+[
+  {
+    "source": "aggregation_and_bundles.py",
+    "scene": "WireFormat",
+    "output": "bundle-wire-format.png"
+  }
+]
