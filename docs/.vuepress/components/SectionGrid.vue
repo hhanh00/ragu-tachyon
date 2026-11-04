@@ -20,7 +20,7 @@ const groups = [
     items: [
       { number: '03', title: 'Statements and Challenges', desc: 'Define statements and witnesses, then use random challenges to catch false claims.', link: '/statements-and-challenges.html', symbol: 'r' },
       { number: '04', title: 'Arithmetization', desc: 'Express a computation as constraints, ending in one revdot equation, with a short comparison to R1CS and PLONK.', link: '/arithmetization.html', symbol: '⟨r, r̂⟩' },
-      { number: '05', title: 'Polynomial Encoding', desc: 'Turn the single constraint into a polynomial identity that a random point can test.', link: '/polynomial-encoding.html', symbol: 'c(X)' },
+      { number: '05', title: 'QAP and Polynomial Encoding', desc: 'Learn the standard QAP reduction, then see how Ragu reaches a polynomial check without it.', link: '/polynomial-encoding.html', symbol: 'h(X)' },
       { number: '06', title: 'Polynomial Commitments', desc: 'Build Pedersen commitments and turn a polynomial evaluation into an inner product claim.', link: '/polynomial-commitments.html', symbol: 'C' },
       { number: '07', title: 'The Inner Product Argument', desc: 'Halve an inner product claim round by round and locate the linear verifier cost.', link: '/inner-product-argument.html', symbol: 'L, R' },
       { number: '08', title: 'Batched Openings', desc: 'Reduce many evaluation claims to one using quotient polynomials.', link: '/batched-openings.html', symbol: 'α, β' },
@@ -145,7 +145,7 @@ const chapterCount = groups.filter(g => !g.appendix).reduce((n, g) => n + g.item
           <p class="section-label">Contents</p>
           <h2 id="curriculum-title">Chapters</h2>
         </div>
-        <p>Read in order, or jump directly to the idea you need. Only Chapter 06 is drafted so far.</p>
+        <p>Read in order, or jump directly to the idea you need. Only Chapters 04 and 06 are drafted so far.</p>
       </div>
 
       <div class="stages">

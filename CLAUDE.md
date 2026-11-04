@@ -17,7 +17,7 @@ Go well beyond the Ragu Book in detail, with little coverage of programming or A
 
 Pace chapters generously, and treat the first draft of the polynomial commitments chapter as the upper limit of density. Show the intermediate step between equations, follow each new idea with a numeric example, and say why a step is needed before taking it. Add length through missing steps and examples rather than restatement.
 
-Introduce proof-carrying data as the goal right after the motivation chapter. Then teach the structure of a complete proof before recursion, in this order: arithmetization, polynomial encoding, commitments, openings.
+Introduce proof-carrying data as the goal right after the motivation chapter. Then teach the structure of a complete proof before recursion, in this order: arithmetization, polynomial encoding (the standard QAP reduction first, then Ragu's alternative), commitments, openings.
 
 Each protocol chapter needs a step-by-step derivation with no skipped algebra, a numeric run on the shared toy curve, and an informal explanation of why cheating fails. State assumptions, but leave out security proofs, reductions, and formal definitions of soundness.
 

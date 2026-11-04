@@ -10,6 +10,7 @@ const manimDir = path.join(root, 'docs', 'manim')
 const venvManim = path.join(root, '.manim-venv', 'bin', 'manim')
 
 const diagrams = [
+  { source: 'revdot_pairing.py', scene: 'RevdotPairing', output: 'revdot-pairing.png', page: 'arithmetization' },
   { source: 'toy_curve_points.py', scene: 'ToyCurvePoints', output: 'toy-curve-points.png', page: 'polynomial-commitments' },
 ]
 

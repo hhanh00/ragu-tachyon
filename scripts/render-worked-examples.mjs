@@ -10,6 +10,7 @@ const workedDir = path.join(docsDir, 'worked')
 // Each script prints a JSON map of fragment names to Markdown. A page holds a
 // fragment between <!-- worked:name --> and <!-- /worked:name --> markers.
 const examples = [
+  { source: 'arithmetization.py', page: 'arithmetization.md' },
   { source: 'polynomial_commitments.py', page: 'polynomial-commitments.md' },
   { source: 'appendix_curves.py', page: 'appendix-curves.md' },
 ]

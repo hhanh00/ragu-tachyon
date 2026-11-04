@@ -33,7 +33,7 @@ export default {
         children: [
           { text: 'Statements and Challenges', link: '/statements-and-challenges.html' },
           { text: 'Arithmetization', link: '/arithmetization.html' },
-          { text: 'Polynomial Encoding', link: '/polynomial-encoding.html' },
+          { text: 'QAP and Polynomial Encoding', link: '/polynomial-encoding.html' },
           { text: 'Polynomial Commitments', link: '/polynomial-commitments.html' },
           { text: 'The Inner Product Argument', link: '/inner-product-argument.html' },
           { text: 'Batched Openings', link: '/batched-openings.html' },
@@ -85,7 +85,7 @@ export default {
       { text: 'An Introduction to Proof-Carrying Data', link: '/pcd-intro.html' },
       { text: 'Statements and Challenges', link: '/statements-and-challenges.html' },
       { text: 'Arithmetization', link: '/arithmetization.html' },
-      { text: 'Polynomial Encoding', link: '/polynomial-encoding.html' },
+      { text: 'QAP and Polynomial Encoding', link: '/polynomial-encoding.html' },
       { text: 'Polynomial Commitments', link: '/polynomial-commitments.html' },
       { text: 'The Inner Product Argument', link: '/inner-product-argument.html' },
       { text: 'Batched Openings', link: '/batched-openings.html' },
@@ -127,6 +127,8 @@ export default {
         '\\F': '\\mathbb{F}',
         '\\G': '\\mathbb{G}',
         '\\dot': '\\langle #1,\\,#2 \\rangle',
+        '\\rv': '\\hat{\\mathbf{#1}}',
+        '\\revdot': '\\langle\\!\\langle #1,\\,#2 \\rangle\\!\\rangle',
       },
     }),
     slimsearchPlugin({

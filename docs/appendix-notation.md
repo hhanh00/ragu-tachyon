@@ -15,3 +15,7 @@ This table lists the symbols used so far. Later chapters will add to it.
 | $\dot{\v{a}}{\v{G}}$ | The multi-scalar multiplication $\sum_i a_i \cdot G_i$ |
 | $\v{x^n}$ | The power vector $(1, x, x^2, \ldots, x^{n-1})$ |
 | $\bar{C}$ | A hiding commitment, which includes a blinding factor |
+| $\v{a} \circ \v{b}$ | The entrywise product of two vectors |
+| $\v{a} \| \v{b}$ | The concatenation of two vectors |
+| $\rv{a}$ | The vector $\v{a}$ with its entries in reverse order |
+| $\revdot{\v{a}}{\v{b}}$ | The revdot product $\dot{\v{a}}{\rv{b}}$ |
