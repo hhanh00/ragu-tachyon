@@ -186,7 +186,7 @@ The cheater has more freedom than this, because the other three wires of gate 1 
 
 <!-- worked:mask-bound -->
 
-For $n = 4$ the mask has degree at most $4n - 1 = 15$ in $y$, so the bound is $15/43 \approx 0.349$ and the best rate we found is $5/43 \approx 0.116$, counting $y = 0$. On a field of about $2^{254}$ elements with $4n = 2^{13}$, the same bound falls below $2^{-240}$.
+For $n = 4$ the mask has degree at most $4n - 1 = 15$ in $y$, so the bound is $15/43 \approx 0.349$ and the best rate we found is $5/43 \approx 0.116$, which counts the $4$ nonzero roots of the best gate-satisfying choice plus $y = 0$. On a field of about $2^{254}$ elements with $4n = 2^{13}$, the same bound falls below $2^{-240}$.
 
 <!-- /worked:mask-bound -->
 

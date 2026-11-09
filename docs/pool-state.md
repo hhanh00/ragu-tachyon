@@ -227,7 +227,7 @@ The single fold from $\mathsf{final}(e)$ to $\mathsf{entry}(e+1)$ is the **cross
 
 ![The anchor chain across two boundaries. Boundary digests join final(e-1) to entry(e) and final(e) to entry(e+1), and stamp folds run from entry(e) through a1 to final(e). Brackets mark the three epochs.](./manim/pool-state-chain.png)
 
-Here is a complete run. The code's epochs have 4096 blocks, and we use 4 so that three epochs fit on the page. Blocks not listed carry no stamp. Epoch 0 has three stamps, with two of them in block 2. Epoch 1 is empty, and epoch 2 has two stamps.
+Here is a complete run. The code's epochs have 4096 blocks, and we use 4 so that several epochs fit on the page. Blocks not listed carry no stamp. Epoch 0 has three stamps, with two of them in block 2. Epoch 1 is empty, epoch 2 has two stamps, and the table ends with the first stamp of epoch 3.
 
 <!-- worked:chain -->
 

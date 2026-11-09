@@ -737,7 +737,7 @@ FAMILY = [
     ('spendable', 'Holding a spendable', 'wallet', 'Sections 4 and 5'),
     ('action', 'Spends, outputs, merging', 'wallet', 'Sections 6 to 8'),
     ('fee', 'Applying the fee', 'wallet; `FeeSeed` also aggregator', 'Section 9'),
-    ('stamp', 'Moving and combining stamps', 'wallet and aggregator; `StampUnmerge` aggregator only', 'Sections 11 and 12'),
+    ('stamp', 'Moving and combining stamps', 'wallet and aggregator; `StampLift` also possible for the sync service; `StampUnmerge` aggregator only', 'Sections 11 and 12'),
     ('span', 'Anchor spans', 'sync service, aggregator; wallet possible', 'Section 8'),
     ('unspent', 'Absence segments', 'sync service; wallet possible', 'Section 5'),
     ('summary', 'Stamp summaries', 'sync service; wallet possible', 'named only here; [chapter 21](./oblivious-sync.md) treats a run of stamps as one intake'),

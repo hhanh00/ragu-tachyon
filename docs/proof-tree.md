@@ -659,7 +659,7 @@ The whole registered set divides into families:
 | Holding a spendable (4) | `SpendableInit`, `QrSpendableInit`, `UnspentBind`, `SpendableLift` | wallet | Sections 4 and 5 |
 | Spends, outputs, merging (6) | `SpendBind`, `SpendAction`, `OutputBind`, `OutputAction`, `ActionMerge`, `ActionLift` | wallet | Sections 6 to 8 |
 | Applying the fee (2) | `FeeFuse`, `FeeSeed` | wallet; `FeeSeed` also aggregator | Section 9 |
-| Moving and combining stamps (3) | `StampMerge`, `StampLift`, `StampUnmerge` | wallet and aggregator; `StampUnmerge` aggregator only | Sections 11 and 12 |
+| Moving and combining stamps (3) | `StampMerge`, `StampLift`, `StampUnmerge` | wallet and aggregator; `StampLift` also possible for the sync service; `StampUnmerge` aggregator only | Sections 11 and 12 |
 | Anchor spans (2) | `AnchorSpanSeed`, `AnchorSpanFuse` | sync service, aggregator; wallet possible | Section 8 |
 | Absence segments (3) | `QrUnspentInit`, `UnspentFuse`, `UnspentLift` | sync service; wallet possible | Section 5 |
 | Stamp summaries (2) | `SummarySeed`, `SummaryAdvance` | sync service; wallet possible | named only here; [chapter 21](./oblivious-sync.md) treats a run of stamps as one intake |

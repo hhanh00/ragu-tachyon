@@ -344,7 +344,7 @@ frag['mask-best'] = (
     f'The cheater has more freedom than this, because the other three wires of gate 1 are also forbidden entries, and it can fill them in the hope of building roots. The product becomes $y^9 + e\\,y + f\\,y^6 + g\\,y^{{14}}$, where $e$, $f$ and $g$ are the entries it adds to $d_1$, $b_1$ and $c_1$. '
     f'Trying all ${count_free:,}$ choices, the best one has ${best_free}$ nonzero roots, out of the 42 nonzero values of $y$. Only ${count_gates:,}$ of the choices also leave gate 1 satisfied, as the circuit needs, and the best of those has ${best_gates}$ nonzero roots, at $(e, f, g) = {gate_examples}$.')
 assert (4 * N - 1) == 15
-frag['mask-bound'] = (f'For $n = 4$ the mask has degree at most $4n - 1 = 15$ in $y$, so the bound is $15/43 \\approx {15 / 43:.3f}$ and the best rate we found is ${best_gates + 1}/43 \\approx {(best_gates + 1) / 43:.3f}$, counting $y = 0$. On a field of about $2^{{254}}$ elements with $4n = 2^{{13}}$, the same bound falls below $2^{{-240}}$.')
+frag['mask-bound'] = (f'For $n = 4$ the mask has degree at most $4n - 1 = 15$ in $y$, so the bound is $15/43 \\approx {15 / 43:.3f}$ and the best rate we found is ${best_gates + 1}/43 \\approx {(best_gates + 1) / 43:.3f}$, which counts the ${best_gates}$ nonzero roots of the best gate-satisfying choice plus $y = 0$. On a field of about $2^{{254}}$ elements with $4n = 2^{{13}}$, the same bound falls below $2^{{-240}}$.')
 
 # ---- Section 6: closed form ----
 for (g_, c_) in [(1, 1), (2, 2), (2, 1), (3, 1)]:
