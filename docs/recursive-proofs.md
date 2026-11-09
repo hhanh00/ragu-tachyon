@@ -260,7 +260,7 @@ The settled size in this table, $2^{17}$, is well above Ragu's limit of $2^{11}$
 
 ## 7. What succinct verification has to mean
 
-The requirement from [Chapter 02](./pcd-intro.md#_8-succinctness) can now be stated precisely. The number of gates in the part of the verifier that runs inside the circuit must grow slower than the circuit it verifies. This concerns the in-circuit work and not the length of the proof. Ragu's proofs [stay large while they are being fused](./pcd-intro.md#_10-uncompressed-and-compressed-proofs), and this is allowed, provided that the circuit does not read all of a proof's contents.
+The requirement from [Chapter 02](./pcd-intro.md#_8-succinctness) can now be stated precisely. The number of gates in the part of the verifier that runs inside the circuit must grow slower than the circuit it verifies. This concerns the in-circuit work and not the length of the proof. Ragu's proofs [stay large while they are being fused](./pcd-intro.md#proof-size-and-hiding-in-ragu), and this is allowed, provided that the circuit does not read all of a proof's contents.
 
 There have been two main routes to a verifier like this. Earlier recursive systems [used proofs with a constant-time verifier](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L126-L139), so the verifier could be encoded directly and the circuit converged. The book describes the resulting systems as barely practical, and they needed very large curves, complicated assumptions, and trusted setups. [Chapter 01](./scaling-zcash.md) explained why Tachyon rules out a trusted setup.
 
@@ -300,7 +300,7 @@ With the linear steps, level 1 already needs $2^{17}$ gates, where the chain nee
 
 So a second input is a small price once the verifier is sublinear, and it makes the linear case worse. With a tree, accumulation has to do slightly more work as well, because a node holds two incoming accumulators and [merges both](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/index.md?plain=1#L232-L239) into one.
 
-Ragu takes this form for every node. As [Chapter 02 explained](./pcd-intro.md#every-node-has-two-inputs), a chain step declares a unit header for its right input, so a chain is a lopsided tree, and each node verifies two proofs whether or not both inputs carry data. For the 8-entry tally, this gives:
+Ragu takes this form for every node. As [Chapter 02 said](./pcd-intro.md#fusing-in-ragu), a step that needs fewer than two inputs fills the others with the unit header `()`. Supporting chains, leaves, and joins as separate cases would mean a separate mechanism for each, so Ragu gives every node two inputs instead. A chain step declares a unit header for its right input, so a chain is a lopsided tree, and each node verifies two proofs whether or not both inputs carry data. For the 8-entry tally, this gives:
 
 <!-- worked:tree-shapes -->
 
@@ -333,7 +333,18 @@ The level-0 proof from Chapter 09 has no check on its start at all. Its public i
 
 ### The base case in Ragu
 
-Ragu does not place a skip in each step's circuit. [Chapter 02 described](./pcd-intro.md#the-base-case) its arrangement, in which a single internal `Bootstrap` step takes synthesized proofs and produces a unit proof that attests nothing, and every leaf uses that proof as an ordinary child. Two more details of the code explain how narrow this is. The condition is computed from the [input suffixes](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/header.rs#L146-L154), and no application step can declare the reserved `Dummy` suffix. What the condition releases is the final check on the folded value $c$, in the [`collapse` circuit](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/collapse.rs#L278-L286) and in its [counterpart on the nested side](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/nested/circuits/collapse.rs#L234-L241). The application has no flag to set. A leaf's truth comes from the checks in the application's own step and from the verifier's final comparison, as in the third design.
+Ragu does not place a skip in each step's circuit. It performs the skip in exactly one internal step, called the bootstrap step. That step declares a private header type named `Dummy` for both inputs, takes two synthesized proofs that would not verify on their own, skips their claims, and outputs a valid proof of the unit header that attests nothing. Application code [cannot declare `Dummy`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/header.rs#L15-L27), so no application step can skip its children's checks. The [`seed` operation](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/lib.rs#L627-L648) then starts a leaf by fusing a step with this bootstrap proof as both children, and it enforces those children's claims in the ordinary way. For the tally's `Entry` step this looks as follows:
+
+```mermaid
+graph BT
+    D1["Dummy proof"] --> B["Bootstrap step"]
+    D2["Dummy proof"] --> B
+    B -->|"proof of ()"| E["Entry step"]
+    B -->|"proof of ()"| E
+    E --> H["Header (i, i + 1, v)"]
+```
+
+Two more details of the code explain how narrow this is. The condition is computed from the [input suffixes](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/header.rs#L146-L154), and no application step can declare the reserved `Dummy` suffix. What the condition releases is the final check on the folded value $c$, in the [`collapse` circuit](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/collapse.rs#L278-L286) and in its [counterpart on the nested side](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/nested/circuits/collapse.rs#L234-L241). The application has no flag to set. A leaf's truth comes from the checks in the application's own step and from the verifier's final comparison, as in the third design.
 
 ::: warning The Ragu Book's two descriptions differ, and the code matches one
 **Book, [accumulation chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/index.md?plain=1#L125-L138):** at $i = 0$, the accumulators take a placeholder value, the previous instance is one that satisfies its checks by construction, and the fuse circuit skips the rest of its work.
@@ -341,6 +352,10 @@ Ragu does not place a skip in each step's circuit. [Chapter 02 described](./pcd-
 **Book, [PCD chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/concepts/pcd.md?plain=1#L106-L117), and code at `3219e08`:** the base case lives in one internal step. Its [dummy proofs do not verify on their own](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/proof/mod.rs#L1021-L1030), [`finalize` runs it once](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/lib.rs#L507-L516) when the application is set up, and the circuits still run with the final check on $c$ relaxed on each side of the cycle, as far as we can read them. Each later leaf is an ordinary fuse whose child claims are enforced.
 
 This site follows the code. We read the accumulation chapter's version as a simplified account for teaching IVC.
+:::
+
+::: warning Reconstructed from code at commit 7e50254, not confirmed by the authors
+The Tachyon book says a step accepts ["up to two PCD inputs"](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L4), and its table of steps marks some inputs as empty. The Ragu Book says every node has exactly two. The Tachyon code shows that these descriptions refer to the same thing. For example, [`FeeFuse`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L521-L527) declares `type Right = ();`, and the [call that proves it](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/mod.rs#L666-L678) passes the bootstrap proof as the right child. This site says that every node has two inputs, and treats an empty slot in the Tachyon table as a unit input. The Tachyon crate [pins a different Ragu revision](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/Cargo.toml#L83), `0725b52`, whose interfaces differ in detail from those at `3219e08`.
 :::
 
 ## 10. Tracking initial states
@@ -378,7 +393,7 @@ This site follows the code, in which initial states belong to the application. A
 :::
 
 ::: warning Reconstructed from code at commit 3219e08, not confirmed by the authors
-Reading the code this way, the examples we already have fit the same pattern. Chapter 02's tally records a range of positions, and its `Entry` step checks each value against the list. The book's [getting-started guide](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/guide/getting_started.md?plain=1#L35-L46) builds a Merkle tree in application headers and steps, which is the calculation above carried out by an application. Tachyon's `FeeSeed` step [leaves its anchor as a free witness](./pcd-intro.md#_7-why-a-false-header-has-no-valid-proof), and the Tachyon book says that validators confirm it against the chain. In each case the application chooses what to record and what the verifier compares.
+Reading the code this way, the examples we already have fit the same pattern. Chapter 02's tally records a range of positions, and its `Entry` step checks each value against the list. The book's [getting-started guide](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/guide/getting_started.md?plain=1#L35-L46) builds a Merkle tree in application headers and steps, which is the calculation above carried out by an application. Tachyon's `FeeSeed` step [leaves its anchor as a free witness](./proof-tree.md#_9-applying-the-fee), and the Tachyon book says that validators confirm it against the chain. In each case the application chooses what to record and what the verifier compares.
 :::
 
 ## 11. Why cheating fails
@@ -427,7 +442,7 @@ Here, $F$ is the `step`, and $(z_L, \pi_L)$ and $(z_R, \pi_R)$ are `left` and `r
 - **No single verifier circuit.** With at most $2^{11}$ gates per circuit, the verifier cannot fit in one. Ragu [divides its work among internal circuits](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/recursion/index.md?plain=1#L19-L34), and the [application circuit](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/_01_application.rs#L37-L44) holds only the step. So a Ragu proof is really a set of claims about several circuits, and [revdot folding](./revdot-folding.md) explains how they combine. The book's [accumulation chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/index.md?plain=1#L132-L147) describes one application circuit and one fuse circuit per curve, and we read that fuse circuit as a summary of those internal circuits.
 :::
 
-Recursion is also often used to hide data, because an inner proof sits in the outer proof's witness and a zero-knowledge outer proof would conceal it. That benefit is not available yet. As [Chapter 02 recorded](./pcd-intro.md#_10-uncompressed-and-compressed-proofs), neither the Ragu Book nor the code at `3219e08` establishes zero knowledge, and a proof still exposes child data. Tachyon, which has not activated on mainnet and whose design is still changing, depends on fusing in the way this section describes, through a [different Ragu revision](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/Cargo.toml#L83).
+Recursion is also often used to hide data, because an inner proof sits in the outer proof's witness and a zero-knowledge outer proof would conceal it. That benefit is not available yet. As [Chapter 02 recorded](./pcd-intro.md#proof-size-and-hiding-in-ragu), neither the Ragu Book nor the code at `3219e08` establishes zero knowledge, and a proof still exposes child data. Tachyon, which has not activated on mainnet and whose design is still changing, depends on fusing in the way this section describes, through a [different Ragu revision](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/Cargo.toml#L83).
 
 ## 13. Where this chapter leaves us
 

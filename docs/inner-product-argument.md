@@ -556,7 +556,7 @@ Rerunning the same challenges with no mask gives the final scalar $7$, which is 
 
 <!-- /worked:mask-effect -->
 
-The [module documentation](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/mod.rs#L1-L16) says the mask is retained for the folded coefficients, and also that the IPA at this commit has no Pedersen blinding, so neither the commitment nor the $L_j, R_j$ carry a blinding term. The mask is therefore not a claim that the argument is zero knowledge. This matches the [status recorded in chapter 02](./pcd-intro.md#_10-uncompressed-and-compressed-proofs), where the Ragu Book and code do not yet establish zero knowledge. The same documentation records a limitation of unblinded round commitments. A valid opening can produce an identity $L_j$ or $R_j$, for example $R$ with two coefficients at $x = 0$, and the transcript rejects identity points.
+The [module documentation](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/mod.rs#L1-L16) says the mask is retained for the folded coefficients, and also that the IPA at this commit has no Pedersen blinding, so neither the commitment nor the $L_j, R_j$ carry a blinding term. The mask is therefore not a claim that the argument is zero knowledge. This matches the [status recorded in chapter 02](./pcd-intro.md#proof-size-and-hiding-in-ragu), where the Ragu Book and code do not yet establish zero knowledge. The same documentation records a limitation of unblinded round commitments. A valid opening can produce an identity $L_j$ or $R_j$, for example $R$ with two coefficients at $x = 0$, and the transcript rejects identity points.
 
 ### Scaling U by a challenge
 

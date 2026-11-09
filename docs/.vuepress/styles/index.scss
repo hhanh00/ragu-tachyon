@@ -7,3 +7,10 @@
     margin-inline-start: 1.1rem;
   }
 }
+
+// Mermaid flowcharts render at their natural width and would be clipped in the
+// content column, so scale every diagram down to fit.
+.mermaid-content svg {
+  max-width: 100%;
+  height: auto;
+}

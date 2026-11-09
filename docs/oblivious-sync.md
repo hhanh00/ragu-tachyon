@@ -562,7 +562,7 @@ Beyond that, the sources point to measures and do not settle them. A range start
 The rule about delegating ahead of a spend, and the inferences about age and stopping, are our reading of the steps and of the deep dive's remark on timing. The sources do not spell them out.
 :::
 
-The table covers what the service's inputs reveal. What a proof itself reveals is a separate question, because [chapter 2](./pcd-intro.md#_10-uncompressed-and-compressed-proofs) records that Ragu's book and code do not yet establish zero knowledge.
+The table covers what the service's inputs reveal. What a proof itself reveals is a separate question, because [chapter 2](./pcd-intro.md#proof-size-and-hiding-in-ragu) records that Ragu's book and code do not yet establish zero knowledge.
 
 ::: warning The sources differ on what the service holds
 **Nullifier analysis:** the threat model says that the service [can derive nullifiers for a finite range](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nf-analysis.md?plain=1#L92), and its attempts say that it [receives a PCD proof attesting them](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nf-analysis.md?plain=1#L379-L380) in one place and [blindly trusts the list](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nf-analysis.md?plain=1#L147-L150) in another.

@@ -1,6 +1,6 @@
 # Wiring and the Registry
 
-[Chapter 09](./nark.md#_17-a-short-proof-from-the-same-parts) ended with two linear steps in the verifier. Accumulation dealt with the first, computing $\hat{G}$. This chapter deals with the second, computing $s(x, y)$, which requires reading the whole circuit. It also takes up a related problem that has waited since [chapter 02](./pcd-intro.md#choosing-among-many-steps), which is how different nodes of a PCD tree can run different circuits.
+[Chapter 09](./nark.md#_17-a-short-proof-from-the-same-parts) ended with two linear steps in the verifier. Accumulation dealt with the first, computing $\hat{G}$. This chapter deals with the second, computing $s(x, y)$, which requires reading the whole circuit. It also takes up a related problem, which is how different nodes of a [PCD tree](./pcd-intro.md) can run different circuits.
 
 Both problems have the same answer. The prover commits to pieces of the wiring polynomial, a cheap random check ties each new piece to the old ones, and a single expensive check at the very end covers the whole history. The Ragu Book calls this idea [post-processing](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L30-L35), and credits it to Halo. We start with one circuit, then extend the method to a polynomial that holds many circuits, called the **registry polynomial**.
 
@@ -186,7 +186,7 @@ Let the first accumulator hold circuit A at $y_0 = 7$ and the second hold circui
 
 <!-- /worked:cannot-merge -->
 
-We could avoid this by merging A and B into one large circuit with a selector, as [chapter 04](./arithmetization.md#_1-what-arithmetization-produces) did for a branch. Then every step would pay for the gates of all its branches, which is the cost [chapter 02 wanted to avoid](./pcd-intro.md#choosing-among-many-steps). A better way is to keep the circuits apart and to put the choice of circuit into the polynomial itself, as one more variable.
+We could avoid this by merging A and B into one large circuit with a selector, as [chapter 04](./arithmetization.md#_1-what-arithmetization-produces) did for a branch. Then every step would pay for the gates of all its branches. The original PCD model works this way, with a single rule applied at every node, so an application with many kinds of transition pays for all of them at every node. A better way is to keep the circuits apart and to put the choice of circuit into the polynomial itself, as one more variable.
 
 Pick a set of points $\omega^0, \ldots, \omega^{2^k - 1}$, one for each circuit, where $\omega$ is a root of unity of order $2^k$. Let $\ell_i(W)$ be the Lagrange polynomial that equals 1 at $\omega^i$ and 0 at the other points, as in [chapter 05](./polynomial-encoding.md). The **registry polynomial** is
 
@@ -331,7 +331,7 @@ The prover pays more than this table suggests. Each of the four new polynomials 
 
 The decider pays too. To test $S_{\text{new}}$ it computes $m(w, x, y)$ at a fresh $w$, which means one $s_i(x, y)$ for each circuit. That is a linear cost in the total size of the registry, and the [compressed verifier](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/instance.rs#L528) evaluates $m$ at several points of the walk, but all of this happens once for a whole history.
 
-Adding a circuit therefore leaves the recursive circuit almost unchanged, so the book [encourages applications](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L108-L115) to split work into many small circuits that communicate along the PCD tree, and it speaks of hundreds or thousands of circuits. Tachyon, which has not activated on mainnet and whose design is still changing, has [a few dozen steps](./pcd-intro.md#choosing-among-many-steps) at the revision we read, and those steps [run against a mock](./proof-tree.md) of Ragu.
+Adding a circuit therefore leaves the recursive circuit almost unchanged, so the book [encourages applications](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L108-L115) to split work into many small circuits that communicate along the PCD tree, and it speaks of hundreds or thousands of circuits. Tachyon, which has not activated on mainnet and whose design is still changing, has [a few dozen steps](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L562-L601) at the revision we read, and those steps [run against a mock](./proof-tree.md) of Ragu.
 
 ## 9. Assigning domain points
 
@@ -422,6 +422,20 @@ Take the trace with $x = 3$ and the instance $k(Y) = 1 + 35Y$, and let the prove
 
 <!-- /worked:zero-count -->
 
+### Header types and suffixes
+
+A tree with many steps also has many header types, and each step has to accept only the types it was written for. Here is what goes wrong without that:
+
+<!-- worked:charge -->
+
+Extend the tally of [chapter 02](./pcd-intro.md) with a final step `Charge` that adds a flat fee of 2. It consumes $(0, 8, 47)$ and outputs $(0, 8, 49)$. If `Charge` accepted its own output, a prover could apply it again to reach $(0, 8, 51)$, even though the fee is meant to apply once. The input and output are three numbers of the same form, so the numbers cannot tell the two states apart.
+
+<!-- /worked:charge -->
+
+The fix is to give the input and output different types, say `Tally` and `Charged`, and to let `Charge` accept only a `Tally`. In a programming language the type would be enough. Inside a proof, though, a header is only a list of field elements, so a type that the verifier can check has to be part of that data. Ragu gives each header type a label for this purpose, called its **suffix**, which tells header types apart even when their contents look the same.
+
+Tachyon uses suffixes in this way. Its [`Actions`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L46-L55) and `Stamp` headers contain identical fields, and `Actions` even reuses the encoding of `Stamp`, so only the suffix differs. The first represents a bundle's actions before its fee is applied, and the second represents them afterward. The step that applies the fee accepts only `Actions`, so it cannot run twice on one bundle.
+
 ### A different registered circuit
 
 The two checks above leave the prover a free choice among registered circuits. That choice is safe only if the statement says which circuit it expects, and a public input with the same shape can otherwise be proved by the wrong circuit:
@@ -432,7 +446,7 @@ Suppose the verifier wants a proof that some $x$ satisfies $x^4 + 2 = 35$. Tryin
 
 <!-- /worked:substitution -->
 
-The extra row plays the part of the [header suffix from chapter 02](./pcd-intro.md#choosing-among-many-steps). The book's [substitution section](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/recursion/public_inputs.md?plain=1#L99-L118) says that an application circuit's suffix fills the linear coefficient of $k(Y)$, and that application suffixes are nonzero. Internal circuits output suffix zero, so they cannot pass as application circuits. [The code applies this](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/profile.rs#L407-L426) to every internal circuit slot. In the code a suffix [belongs to a header type](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/header.rs#L99) and not to one circuit, so unlike our toy row it leaves steps with the same output header interchangeable.
+The extra row plays the part of the header suffix from the previous subsection. The book's [substitution section](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/recursion/public_inputs.md?plain=1#L99-L118) says that an application circuit's suffix fills the linear coefficient of $k(Y)$, and that application suffixes are nonzero. Internal circuits output suffix zero, so they cannot pass as application circuits. [The code applies this](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/profile.rs#L407-L426) to every internal circuit slot. In the code a suffix [belongs to a header type](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/header.rs#L99) and not to one circuit, so unlike our toy row it leaves steps with the same output header interchangeable.
 
 ## 11. Post-processing and the registry tag
 

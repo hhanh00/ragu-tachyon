@@ -60,7 +60,7 @@ Alice's wallet now combines its secrets with the service's segments, working up 
 
 ## 7. What one fuse proves
 
-Every node in that tree is [one call to `fuse`](./pcd-intro.md#_9-fusion-in-ragu), which runs a step on two child proofs and emits a [header and a proof](./pcd-intro.md#_6-attaching-a-proof). Take `SpendBind` as the node, and follow what its proof has to contain.
+Every node in that tree is [one call to `fuse`](./pcd-intro.md#fusing-in-ragu), which runs a step on two child proofs and emits a [header and a proof](./pcd-intro.md#_6-attaching-a-proof). Take `SpendBind` as the node, and follow what its proof has to contain.
 
 Its step first becomes [gates and linear constraints](./arithmetization.md#_3-gates), which random powers reduce to [one consolidated equation](./arithmetization.md#_12-the-consolidated-equation). Ragu reads that equation as [one coefficient of a polynomial product](./polynomial-encoding.md#_10-the-consolidated-equation-as-a-coefficient), where a QAP would use a [quotient by a vanishing polynomial](./polynomial-encoding.md#_5-the-vanishing-polynomial-and-the-quotient). The prover [commits to its polynomials](./polynomial-commitments.md#_7-committing-to-a-polynomial), and [many evaluation claims batch into one](./batched-openings.md#_8-the-complete-protocol), which an [inner product argument](./inner-product-argument.md#_4-one-round-of-folding) can open. [Random checks and Fiat–Shamir](./statements-and-challenges.md#_8-removing-the-verifier-with-fiat–shamir) remove the interaction, and [chapter 9](./nark.md#_17-a-short-proof-from-the-same-parts) assembles these parts into one complete proof.
 

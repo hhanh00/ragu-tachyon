@@ -9,7 +9,7 @@ The merge protocol in this chapter is our own assembly. We built it from the [Ra
 :::
 
 ::: tip Terminology
-This chapter says that claims **merge**, following the book's wording for Halo. A merge combines two claims into one. It is a different thing from a **fuse**, the [PCD operation from chapter 02](./pcd-intro.md#_9-fusion-in-ragu), although a fuse would contain merges if a system used this technique.
+This chapter says that claims **merge**, following the book's wording for Halo. A merge combines two claims into one. It is a different thing from a **fuse**, the [PCD operation from chapter 02](./pcd-intro.md#fusing-in-ragu), although a fuse would contain merges if a system used this technique.
 :::
 
 ## 1. The step that remains

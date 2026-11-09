@@ -5,7 +5,6 @@ proof is treated as a black box, and the script models only the checks a step
 performs. Importing this module (the Manim figure does) prints nothing.
 """
 import json
-import random
 from itertools import combinations_with_replacement
 
 L = [4, 11, 3, 7, 6, 2, 9, 5]
@@ -71,6 +70,10 @@ def all_roots(lo, hi):
     return roots
 
 
+def partial_header():
+    return tally(0, N - 1)
+
+
 def fragments():
     frag = {}
     assert len(set(L + [h[2] for *_, h in balanced_nodes() if h[1] - h[0] > 1])) == 2 * N - 1
@@ -90,10 +93,10 @@ def fragments():
     assert len(multisets) == 6435 and TRUE_SUM in totals and len(totals) > 1
     repeat = L[1]
     frag['sum-only'] = (
-        f'Joining the entry with value {repeat} to itself produces a node that claims {repeat + repeat}, and nothing in that '
-        f'header reveals the repeat. A tree with {N} leaves has {joins} joins, and a prover can choose any entry for each leaf. '
+        f'Combining the entry with value {repeat} to itself produces a node that claims {repeat + repeat}, and nothing in that '
+        f'header reveals the repeat. A tree with {N} leaves combines subtotals at {joins} nodes, and a prover can choose any entry for each leaf. '
         f'Enumerating those choices gives {len(multisets)} multisets of entries, which reach {len(totals)} different root '
-        f'totals from {min(totals)} to {max(totals)}. Only {TRUE_SUM} is the true sum, yet every one of these trees passes a join rule that '
+        f'totals from {min(totals)} to {max(totals)}. Only {TRUE_SUM} is the true sum, yet every one of these trees passes a rule that '
         'checks only addition.'
     )
 
@@ -163,6 +166,13 @@ def fragments():
     assert chain[-1] == root[3]
     frag['chain'] = '\n'.join(rows)
 
+    shared, rest_full, rest_short = tally(0, N // 2), tally(N // 2, N), tally(N // 2, N - 1)
+    assert join(shared, rest_full) == root[3] and join(shared, rest_short) == partial_header()
+    frag['dag'] = (
+        f'For example, Alice\'s header ${show(shared)}$ can be joined with ${show(rest_full)}$ to give ${show(root[3])}$, and the same header, with the same proof, '
+        f'can also be joined with ${show(rest_short)}$ to give ${show(join(shared, rest_short))}$. Nobody has to rebuild ${show(shared)}$ for the second use.'
+    )
+
     alice, bob = tally(0, N // 2), tally(N // 2, N)
     assert join(alice, bob) == root[3] and alice == left_h and bob == right_h
     frag['parties'] = (
@@ -191,119 +201,157 @@ def fragments():
         f'| Skipped entry | ${show(gap[0])}$, ${show(gap[1])}$ | `Join`: ${gap[0][1]} \\neq {gap[1][0]}$ |',
     ])
 
-    partial = tally(0, N - 1)
+    partial = partial_header()
     assert partial in derived and partial[2] != TRUE_SUM
     frag['partial'] = (
         f'The header ${show(partial)}$ is also true and has a valid proof, because it is one of the derived headers. A verifier who wants the sum of the '
         f'whole list must still confirm that the range runs from 0 to {N}, and a verifier who accepted this header without looking would conclude that the total is {partial[2]}.'
     )
 
-    # Distinguishing header types with a fee.
-    fee = 2
-    charged = (0, N, TRUE_SUM + fee)
-    frag['charge'] = (
-        f'Suppose a final step `Charge` adds a flat fee of {fee}. It consumes ${show(root[3])}$ and outputs ${show(charged)}$. If `Charge` accepted its own output, a prover could '
-        f'apply it again to reach ${show((0, N, charged[2] + fee))}$, even though the fee is meant to apply once. The input and output contain three numbers of the same form, so the numbers cannot tell the '
-        'two states apart. Giving the input and output different type labels, say `Tally` and `Charged`, solves this, because `Charge` accepts only a `Tally`.'
+    # Cost of keeping one proof per node versus one proof overall.
+    sizes = (3, 10, 20)
+    rows = ['| Entries $n$ | Proofs checked if every node keeps its proof, $2n - 1$ | Proofs checked with PCD |', '| --- | --- | --- |']
+    for k in sizes:
+        n = 2 ** k
+        rows.append(f'| {n:,} | {2 * n - 1:,} | 1 |')
+    frag['cost'] = '\n'.join(rows)
+    layers = [k + 1 for k in sizes]
+    frag['layers'] = (
+        f'A tree also saves time. A balanced tree over $n$ entries has $\\log_2 n + 1$ layers, which is {layers[0]}, {layers[1]} and {layers[2]} for the three sizes above. '
+        'With enough workers, all the nodes of one layer can run at the same time, so the number of rounds grows with the logarithm of the number of entries.'
     )
 
-    # Cost of keeping one proof per node versus one proof overall.
-    rows = ['| Entries $n$ | Nodes $2n - 1$ | Proofs checked if every node\'s proof is kept | Proofs checked with PCD | Layers in a balanced tree |', '| --- | --- | --- | --- | --- |']
-    for k in (3, 10, 20):
-        n = 2 ** k
-        rows.append(f'| {n:,} | {2 * n - 1:,} | {2 * n - 1:,} | 1 | {k + 1} |')
-    frag['cost'] = '\n'.join(rows)
-
-    # The toy aggregate. Labels stand in for field elements and commitments.
-    rng = random.Random(7)
-    plan = [('A', 0, 15), ('X', 1, 12), ('Y', 2, 14), ('Z', 1, 15)]
+    # The toy aggregate: three wallet bundles at one anchor. Labels stand in for
+    # field elements and hashes, and each tachygram is named after its bundle so
+    # that set operations read at a glance.
+    plan = [('X', 1), ('Y', 2), ('Z', 1)]
     total_actions = sum(p[1] for p in plan)
     total_tachygrams = 2 * total_actions + len(plan)
-    labels = rng.sample(range(100, 1000), total_tachygrams)
     bundles = {}
     action_no = 1
-    for name, n_actions, anchor in plan:
+    for name, n_actions in plan:
         count = 2 * n_actions + 1
-        tgs, labels = sorted(labels[:count]), labels[count:]
+        tgs = [f'{name.lower()}_{{{i + 1}}}' for i in range(count)]
         acts = [f'a_{{{action_no + i}}}' for i in range(n_actions)]
         action_no += n_actions
-        bundles[name] = {'actions': acts + [f'f_{{{name}}}'], 'tachygrams': tgs, 'anchor': anchor, 'n': n_actions}
-    assert not labels
+        bundles[name] = {'actions': acts + [f'f_{{{name}}}'], 'tachygrams': tgs, 'n': n_actions}
 
-    def cell(items):
-        return '$\\{' + ',\\ '.join(str(i) for i in items) + '\\}$' if items else 'none'
+    def lit(items):
+        return '\\{' + ',\\ '.join(str(i) for i in items) + '\\}'
 
-    rows = ['| Bundle | Actions | Action set, with fee digest | Tachygrams | Anchor |', '| --- | --- | --- | --- | --- |']
+    def html(label):
+        # a_{1} -> a<sub>1</sub>, for Mermaid labels.
+        base, sub = label.split('_')
+        return f'{base}<sub>{sub.strip("{}")}</sub>'
+
+    # Where the header of X comes from.
+    x = bundles['X']
+    frag['stamp-anatomy'] = '\n'.join([
+        '```mermaid',
+        'graph LR',
+        '    subgraph BX["Bundle X"]',
+        '        subgraph Body["body"]',
+        '            AD["action descriptor"]',
+        '            FD["fee descriptor"]',
+        '        end',
+        '        subgraph St["stamp"]',
+        f'            TG["tachygrams {", ".join(html(t) for t in x["tachygrams"])}"]',
+        '            AN["anchor α"]',
+        '            PR["proof"]',
+        '        end',
+        '    end',
+        '    subgraph H["header the proof is about, written as the sets its commitments stand for"]',
+        f'        AS["action set {{{", ".join(html(a) for a in x["actions"])}}}"]',
+        f'        TS["tachygram set {{{", ".join(html(t) for t in x["tachygrams"])}}}"]',
+        '        HA["anchor α"]',
+        '    end',
+        f'    AD -->|"hash: {html(x["actions"][0])}"| AS',
+        f'    FD -->|"hash: {html(x["actions"][-1])}"| AS',
+        '    TG --> TS',
+        '    AN --> HA',
+        '    PR -.->|"proves"| H',
+        '```',
+    ])
+
+    rows = ['| Bundle | Action set, with fee digest | Tachygrams | Anchor |', '| --- | --- | --- | --- |']
     for name, b in bundles.items():
         assert len(b['tachygrams']) == 2 * b['n'] + 1
-        rows.append(f"| {name} | {b['n']} | {cell(b['actions'])} | {cell(b['tachygrams'])} | $\\alpha_{{{b['anchor']}}}$ |")
+        assert len(b['actions']) == b['n'] + 1
+        rows.append(f"| {name} | ${lit(b['actions'])}$ | ${lit(b['tachygrams'])}$ | $\\alpha$ |")
     frag['stamp-bundles'] = '\n'.join(rows)
 
-    span = {'start': 12, 'end': 15, 'members': {13, 14, 15}}
-
-    def lift(stamp):
-        assert stamp['anchor'] == span['start'] or stamp['anchor'] in span['members']
-        return {**stamp, 'anchor': span['end']}
-
-    def can_merge(a, c):
-        return a['anchor'] == c['anchor']
-
     def merge(a, c):
-        assert can_merge(a, c)
         assert not set(a['tachygrams']) & set(c['tachygrams'])
-        return {'actions': a['actions'] + c['actions'], 'tachygrams': sorted(a['tachygrams'] + c['tachygrams']), 'anchor': a['anchor']}
+        return {'actions': a['actions'] + c['actions'], 'tachygrams': a['tachygrams'] + c['tachygrams']}
 
-    assert not can_merge(bundles['A'], bundles['X'])
-    x2, y2 = lift(bundles['X']), lift(bundles['Y'])
-    m1 = merge(bundles['A'], x2)
-    m2 = merge(m1, y2)
-    m3 = merge(m2, bundles['Z'])
-    assert len(m3['tachygrams']) == total_tachygrams == 2 * total_actions + len(plan)
-    assert len(m3['actions']) == total_actions + len(plan)
+    m1 = merge(bundles['X'], bundles['Y'])
+    m2 = merge(m1, bundles['Z'])
+    assert len(m2['tachygrams']) == total_tachygrams == 2 * total_actions + len(plan)
+    assert len(m2['actions']) == total_actions + len(plan)
 
-    def row(step, left, right, check, out):
-        return f"| {step} | {left} | {right} | {check} | $\\alpha_{{{out['anchor']}}}$ | {len(out['actions'])} | {len(out['tachygrams'])} |"
-
-    rows = ['| Step | Left | Right | What the step checks | Output anchor | Action digests | Tachygrams |', '| --- | --- | --- | --- | --- | --- | --- |',
-            row('`StampLift`', 'X', 'span', '$\\alpha_{12}$ is the span\'s start', x2),
-            row('`StampLift`', 'Y', 'span', '$\\alpha_{14}$ is a member', y2),
-            row('`StampMerge`', 'A', 'lifted X', 'anchors match', m1),
-            row('`StampMerge`', 'previous', 'lifted Y', 'anchors match', m2),
-            row('`StampMerge`', 'previous', 'Z', 'anchors match', m3)]
-    frag['stamp-run'] = '\n'.join(rows) + (
-        f'\n\nThe span runs from $\\alpha_{{{span["start"]}}}$ to $\\alpha_{{{span["end"]}}}$, with members '
-        '$\\{' + ',\\ '.join(f'\\alpha_{{{m}}}' for m in sorted(span['members'])) + '\\}$. '
-        f'Merging A with the unlifted X would fail, because ${bundles["A"]["anchor"]} \\neq {bundles["X"]["anchor"]}$.'
+    xb, yb = bundles['X'], bundles['Y']
+    frag['stamp-first-merge'] = (
+        'Take the first merge, of X with Y. Both stamps have the anchor $\\alpha$, so the anchor check passes and the output keeps it. '
+        'The action sets combine as\n\n'
+        f'$${lit(xb["actions"])} \\cup {lit(yb["actions"])} = {lit(m1["actions"])},$$\n\n'
+        'and the tachygram sets combine as\n\n'
+        f'$${lit(xb["tachygrams"])} \\cup {lit(yb["tachygrams"])} = {lit(m1["tachygrams"])}.$$\n\n'
+        f'The output covers {len(m1["actions"])} digests and {len(m1["tachygrams"])} tachygrams.'
     )
+
+    def row(left, right, out):
+        return f"| `StampMerge` | {left} | {right} | anchors match | $\\alpha$ | {len(out['actions'])} | {len(out['tachygrams'])} |"
+
+    frag['stamp-run'] = '\n'.join([
+        '| Step | Left | Right | What the step checks | Output anchor | Action digests | Tachygrams |',
+        '| --- | --- | --- | --- | --- | --- | --- |',
+        row('X', 'Y', m1),
+        row('previous', 'Z', m2),
+    ])
+
+    # The structure of the final block: one aggregate and its adjuncts.
+    def tg_range(name):
+        tgs = [html(t) for t in bundles[name]['tachygrams']]
+        return f'{tgs[0]}…{tgs[-1]}'
+
+    def body(name):
+        b = bundles[name]
+        acts = ', '.join(html(d) for d in b['actions'][:-1])
+        n = len(b['actions']) - 1
+        first = f'{"action" if n == 1 else "actions"} {acts} + {"signature" if n == 1 else "signatures"}'
+        return f'{first}<br/>fee descriptor {html(b["actions"][-1])} + binding signature'
+
+    merged_tgs = ', '.join(tg_range(n) for n in bundles)
+    lines = ['```mermaid', 'graph BT',
+             f'    X["<b>X: aggregate</b><br/>body: {body("X")}<br/>merged stamp: tachygrams {merged_tgs},<br/>anchor α, one proof covering X, Y, Z"]']
+    for name in ('Y', 'Z'):
+        lines.append(f'    {name}["<b>{name}: adjunct</b><br/>body: {body(name)}<br/>no stamp"]')
+    for name in ('Y', 'Z'):
+        lines.append(f'    {name} -.->|"points to"| X')
+    lines.append('```')
+    frag['stamp-block-structure'] = '\n'.join(lines)
 
     # What the block holds and what a validator rebuilds.
     published_actions = [d for name in bundles for d in bundles[name]['actions']]
-    assert sorted(published_actions) == sorted(m3['actions'])
+    assert sorted(published_actions) == sorted(m2['actions'])
     omit_z = [d for d in published_actions if d not in bundles['Z']['actions']]
-    assert sorted(omit_z) != sorted(m3['actions'])
-    proofs_before, proofs_after = len(bundles), 1
-    frag['stamp-block'] = '\n'.join([
-        '| Transaction | Name | Keeps its action and fee descriptors | Carries tachygrams and a proof |',
-        '| --- | --- | --- | --- |',
-        '| A | aggregate | yes | yes, the merged stamp |',
-        '| X | adjunct | yes | no, it points to A |',
-        '| Y | adjunct | yes | no, it points to A |',
-        '| Z | adjunct | yes | no, it points to A |',
-        '',
-        f'The block carries {proofs_after} proof where the four separate transactions carried {proofs_before}. It still carries all {total_tachygrams} tachygrams and all '
-        f'{len(published_actions)} action and fee digests, because the verifier needs them. A validator collects the digests from the four transactions, takes the tachygrams and anchor from A\'s stamp, '
-        f'and checks the one proof against the header those values produce. If a miner leaves Z out of the block, the rebuilt action set has {len(omit_z)} digests instead of {len(m3["actions"])}. '
-        'The header no longer matches the one the proof was made for, so the proof fails.',
-    ])
-
-    # Removing a contributor.
-    q_tgs = sorted(set(m3['tachygrams']) - set(x2['tachygrams']))
-    q_actions = [d for d in m3['actions'] if d not in x2['actions']]
-    assert sorted(q_tgs) == sorted(bundles['A']['tachygrams'] + bundles['Y']['tachygrams'] + bundles['Z']['tachygrams'])
-    frag['stamp-unmerge'] = (
-        f'Suppose a block includes X on its own while the aggregator is still working. The merged stamp holds {len(m3["tachygrams"])} tachygrams, and publishing it now would repeat those of X. '
-        f'`StampUnmerge` takes the merged stamp and a stamp of X lifted to the same anchor, and it produces a stamp with {len(q_tgs)} tachygrams and {len(q_actions)} action digests, which covers A, Y and Z. Its header states less than its input did, which '
-        'is permitted, because a step only has to establish the relation it declares between its inputs and its output.'
+    assert sorted(omit_z) != sorted(m2['actions'])
+    extra = [f'a_{{{action_no}}}', 'f_{W}']
+    with_w = published_actions + extra
+    assert sorted(with_w) != sorted(m2['actions'])
+    proofs_before = len(bundles)
+    frag['stamp-block'] = (
+        f'The block carries 1 proof where the {proofs_before} separate transactions carried {proofs_before}. It still carries all {total_tachygrams} tachygrams, inside the stamp on X, '
+        'and every action and fee descriptor, inside the bodies.'
+    )
+    frag['stamp-rebuild'] = (
+        'The validator hashes the descriptors in each body. It gets $' + lit(bundles['X']['actions']) + '$ from X, $'
+        + lit(bundles['Y']['actions']) + '$ from Y and $' + lit(bundles['Z']['actions']) + '$ from Z, and their union is\n\n'
+        f'$${lit(published_actions)}.$$\n\n'
+        f'This set has {len(published_actions)} members and equals the action set in the last row of the run, so the proof verifies. '
+        f'If a miner leaves Z out of the block, the rebuilt set has {len(omit_z)} members instead of {len(m2["actions"])}. '
+        f'If a miner instead adds a one-action bundle W that the stamp never covered and points it at X, the rebuilt set gains ${extra[0]}$ and ${extra[1]}$ and has {len(with_w)} members. '
+        'In both cases the rebuilt header differs from the one the proof was made for, so the proof fails.'
     )
 
     return frag

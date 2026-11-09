@@ -9,7 +9,7 @@ The split fold in Sections 6 to 10 is our own small assembly of what the Ragu Bo
 :::
 
 ::: tip Terminology
-For the general construction we follow the book and say **primary** for the circuit over the first field and **secondary** for the circuit over the second. Section 12 gives the code's names, which are native and nested. The book's accumulation chapters use both "fuse" and "merge" for the circuit that folds, and this site says fuse for the operation on a node, [as chapter 02 does](./pcd-intro.md#_9-fusion-in-ragu).
+For the general construction we follow the book and say **primary** for the circuit over the first field and **secondary** for the circuit over the second. Section 12 gives the code's names, which are native and nested. The book's accumulation chapters use both "fuse" and "merge" for the circuit that folds, and this site says fuse for the operation on a node, [as chapter 02 does](./pcd-intro.md#fusing-in-ragu).
 :::
 
 ## 1. Two fields in one commitment

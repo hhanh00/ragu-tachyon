@@ -492,7 +492,7 @@ One value in the table falls outside the pairs. Each bundle's [fee change note](
 
 A stamp holds its tachygrams as a flat list, and [the wire format requires](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/mod.rs#L325-L341) them to be unique and sorted by their byte encoding. Sorting erases the order in which actions contributed them, and in the code [a spend's step commits its pair as a set](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L228-L236). Every published value is also [required to be nonzero](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L1458-L1462), which keeps each factor of the polynomial in the next section from degenerating. The [proof tree page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L349) gives a different reason, a collision with the note's own commitment, and we did not establish that one independently.
 
-These privacy statements cover what the published values reveal. As [chapter 2](./pcd-intro.md#_10-uncompressed-and-compressed-proofs) records, Ragu's book and code do not yet establish zero knowledge, so a separate question remains about what a proof itself reveals.
+These privacy statements cover what the published values reveal. As [chapter 2](./pcd-intro.md#proof-size-and-hiding-in-ragu) records, Ragu's book and code do not yet establish zero knowledge, so a separate question remains about what a proof itself reveals.
 
 ## 12. One structure for both tests
 

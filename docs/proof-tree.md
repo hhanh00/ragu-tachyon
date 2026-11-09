@@ -1,6 +1,6 @@
 # The Proof Tree
 
-[Chapter 2](./pcd-intro.md#_12-the-rest-of-tachyon-s-proof-tree) sketched the steps behind one spend as a small graph, and promised a closer look. [Chapter 19](./notes-and-nullifiers.md) has since built the keys, notes, and nullifiers, and [chapter 20](./pool-state.md) built the anchor chain and the set polynomials. This chapter puts those objects into their places. It follows one note through its whole life, step by step, and at each step says what the step takes in, what it checks, what it emits, and who runs it.
+[Chapter 2](./pcd-intro.md#_11-the-rest-of-tachyon-s-proof-tree) sketched the steps behind one spend as a small graph, and promised a closer look. [Chapter 19](./notes-and-nullifiers.md) has since built the keys, notes, and nullifiers, and [chapter 20](./pool-state.md) built the anchor chain and the set polynomials. This chapter puts those objects into their places. It follows one note through its whole life, step by step, and at each step says what the step takes in, what it checks, what it emits, and who runs it.
 
 We treat absence evidence as a black box. [Chapter 21](./oblivious-sync.md) explains how a sync service proves that a value is missing from an epoch, and here we use only the header that service hands over. Fees and stamps get the steps that produce them, and [chapter 23](./aggregation-and-bundles.md) covers what aggregators and miners do with the result.
 
@@ -12,7 +12,7 @@ These steps run against a mock of Ragu. The crate [enables the `mock` feature](h
 
 ## 1. Steps, headers, and parties
 
-The vocabulary comes from [chapter 2](./pcd-intro.md#_9-fusion-in-ragu). A step declares a left input header, a right input header, a witness, and an output header, and running it with Ragu's `fuse` produces a new header with a proof. An unused input is the unit header `()`. A step with two unit inputs starts through Ragu's `seed`, which supplies the bootstrap proof for both. Here is one declaration, trimmed to the lines that matter:
+The vocabulary comes from [chapter 2](./pcd-intro.md#fusing-in-ragu). A step declares a left input header, a right input header, a witness, and an output header, and running it with Ragu's `fuse` produces a new header with a proof. An unused input is the unit header `()`. A step with two unit inputs starts through Ragu's `seed`, which supplies the bootstrap proof for both. Here is one declaration, trimmed to the lines that matter:
 
 ```rust
 impl Step for SpendBind {
@@ -22,7 +22,7 @@ impl Step for SpendBind {
     type Witness<'source> = (value::Trapdoor,);
 ```
 
-This [declaration](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/spend.rs#L89-L97) says nearly everything the next sections need about a step, because the Rust types force the shape of the tree. `SpendBind` cannot accept anything except a proved `NoteSpendable` on its left and a proved `NoteSecret` on its right. The [suffix](./pcd-intro.md#telling-header-types-apart) on each header type enforces this in the proof, so two types with the same fields stay distinct.
+This [declaration](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/spend.rs#L89-L97) says nearly everything the next sections need about a step, because the Rust types force the shape of the tree. `SpendBind` cannot accept anything except a proved `NoteSpendable` on its left and a proved `NoteSecret` on its right. The [suffix](./wiring-and-registry.md#header-types-and-suffixes) on each header type enforces this in the proof, so two types with the same fields stay distinct.
 
 A header does not have to be public. It is visible only to whoever receives that node's data. The [`NoteSecret` header](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/delegation.rs#L31-L49) carries a full note opening and a master key, which is safe only because the wallet that built it [never hands it to anyone](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L354). The tree therefore has private nodes low down and a public node at the top.
 
@@ -446,7 +446,7 @@ Alice's bundle spends 25 and creates an output of 18. She reserves a maximum fee
 
 <!-- /worked:fee-fuse -->
 
-The change in type is what makes the fee happen exactly once. `FeeFuse` [accepts only `Actions`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L136-L137) and emits a `Stamp`, so a second application has no valid input, as [chapter 2's `Charge` example](./pcd-intro.md#telling-header-types-apart) showed in miniature. A bundle with no actions has nothing to fuse, so [`FeeSeed`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L651-L720) starts a `Stamp` directly. It requires a zero maximum fee, so the fee change note is the max fee note itself, and it witnesses its anchor. Aggregators use it for [an innocent aggregate](./pcd-intro.md#the-inputs).
+The change in type is what makes the fee happen exactly once. `FeeFuse` [accepts only `Actions`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L136-L137) and emits a `Stamp`, so a second application has no valid input, as [chapter 15's `Charge` example](./wiring-and-registry.md#header-types-and-suffixes) showed in miniature. A bundle with no actions has nothing to fuse, so [`FeeSeed`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L651-L720) starts a `Stamp` directly. It requires a zero maximum fee, so the fee change note is the max fee note itself, and it witnesses its anchor. Aggregators use it for an [innocent aggregate](./aggregation-and-bundles.md#_1-what-aggregation-removes-and-what-it-keeps), whose bundle has no actions.
 
 <!-- worked:fee-change -->
 
@@ -566,12 +566,12 @@ A proof built from private inputs could reveal a link back to them, so the book 
 
 **Mock at `0725b52`:** [`rerandomize`](https://github.com/tachyon-zcash/ragu/blob/0725b5244371c37e9c19a80b0f660ce11ac5f74a/src/mock/proof.rs#L137-L147) fills in a tag and keeps the rest of the record.
 
-As in [chapter 2](./pcd-intro.md#_10-uncompressed-and-compressed-proofs), this site treats hiding as a goal that has not yet been met. When this chapter says a header drops a value, it means only that the header no longer carries it. It does not mean that the proof conceals it.
+As in [chapter 2](./pcd-intro.md#proof-size-and-hiding-in-ragu), this site treats hiding as a goal that has not yet been met. When this chapter says a header drops a value, it means only that the header no longer carries it. It does not mean that the proof conceals it.
 :::
 
 ## 12. The aggregator's steps
 
-Once published, stamps can be combined by anyone holding them. [Chapter 2](./pcd-intro.md#_11-aggregation-in-tachyon) followed this at the level of whole bundles, and [chapter 23](./aggregation-and-bundles.md) takes up what it means for blocks and fees. Two steps belong here for completeness. [`StampMerge`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L246-L325) has the same body as `ActionMerge` on stamps, and [`StampUnmerge`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L763-L839) requires a witnessed quotient for which the dividend is the product of the divisor and the quotient, in both sets.
+Once published, stamps can be combined by anyone holding them. [Chapter 2](./pcd-intro.md#_10-aggregation-as-proof-carrying-data) followed this at the level of whole bundles, and [chapter 23](./aggregation-and-bundles.md) takes up what it means for blocks and fees. Two steps belong here for completeness. [`StampMerge`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L246-L325) has the same body as `ActionMerge` on stamps, and [`StampUnmerge`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L763-L839) requires a witnessed quotient for which the dividend is the product of the divisor and the quotient, in both sets.
 
 <!-- worked:aggregate -->
 

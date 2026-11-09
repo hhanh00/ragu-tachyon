@@ -722,4 +722,18 @@ assert decide(res_ch)
 frag['replay'] = (f'Replay Section 1 at $y = {Y}$ and $z = {Z}$. The false trace needs a wiring value of ${want}$ at $x = {X}$, while the true $s_A({X}, {Y})$ is ${true_val}$. That value comes from $S_{{\\text{{new}}}}$ at $W = 1$, so the prover has to change this polynomial, and it can do so without disturbing the claim at $w = {W}$ or the right child\'s value by adding ${c_w}(W - {W})(W + 1)$. All twelve claims are true of the committed polynomials, and the batched check accepts. '
                   f'The false accumulator commits to ${show(commit(new_cheat))}$ in place of ${show(commit(s_new))}$. The next check tests it at a fresh point. Over all 43 values, the only ones that pass are $W = {pass_fresh[0]}$ and $W = {pass_fresh[1]}$, the two points the prover built into its difference.')
 
+# Header types: the tally of chapter 02 with a one-time fee.
+from pcd_intro import N as TALLY_N, TRUE_SUM as TALLY_SUM, show as show_tally  # noqa: E402
+
+FEE = 2
+tally_root = (0, TALLY_N, TALLY_SUM)
+charged = (0, TALLY_N, TALLY_SUM + FEE)
+twice = (0, TALLY_N, charged[2] + FEE)
+assert tally_root[:2] == charged[:2] == twice[:2]
+frag['charge'] = (
+    f'Extend the tally of [chapter 02](./pcd-intro.md) with a final step `Charge` that adds a flat fee of {FEE}. It consumes ${show_tally(tally_root)}$ and outputs ${show_tally(charged)}$. '
+    f'If `Charge` accepted its own output, a prover could apply it again to reach ${show_tally(twice)}$, even though the fee is meant to apply once. '
+    'The input and output are three numbers of the same form, so the numbers cannot tell the two states apart.'
+)
+
 print(json.dumps(frag))

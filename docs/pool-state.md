@@ -133,7 +133,7 @@ Suppose a prover claims a union $p'$ with the root $40$ replaced by $31$. Then $
 
 <!-- /worked:union-cheat -->
 
-Division is the reverse. A quotient exists with zero remainder exactly when the divisor's multiset is contained in the dividend's, and this is how `StampUnmerge` from [chapter 2](./pcd-intro.md) removes a contributor.
+Division is the reverse. A quotient exists with zero remainder exactly when the divisor's multiset is contained in the dividend's, and this is how `StampUnmerge` from [chapter 23](./aggregation-and-bundles.md#_11-when-a-block-lands) removes a contributor.
 
 <!-- worked:quotient -->
 

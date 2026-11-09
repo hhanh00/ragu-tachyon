@@ -31,7 +31,7 @@ Each entry gives a one-line reminder and links to the chapter that teaches the t
 - **Fiat–Shamir transform:** replacing a verifier's random challenges with a hash of the transcript. See [Statements and Challenges](./statements-and-challenges.md#_8-removing-the-verifier-with-fiat–shamir).
 - **Folding:** halving a claim with a random challenge. See [The Inner Product Argument](./inner-product-argument.md#_4-one-round-of-folding).
 - **Folding scheme:** a reduction of several instances of a relation to one, with no verifier run inside. See [Split Accumulation](./split-accumulation.md#_9-folding-schemes).
-- **Fuse:** Ragu's operation that produces a node's proof from its children. See [An Introduction to Proof-Carrying Data](./pcd-intro.md#_9-fusion-in-ragu).
+- **Fuse:** Ragu's operation that produces a node's proof from its children. See [An Introduction to Proof-Carrying Data](./pcd-intro.md#fusing-in-ragu).
 - **Gate:** one multiplication check $a_i b_i = c_i$ on the witness. See [Arithmetization](./arithmetization.md#_3-gates).
 - **Grinding:** retrying offline until a hash-derived challenge favors the prover. See [Statements and Challenges](./statements-and-challenges.md#_10-repeated-trials).
 - **Header:** a node's public claim in proof-carrying data. See [An Introduction to Proof-Carrying Data](./pcd-intro.md#_3-headers).
@@ -69,7 +69,7 @@ Each entry gives a one-line reminder and links to the chapter that teaches the t
 - **Split accumulation:** accumulation in which the verifier handles only public instances, while the prover keeps a separate witness. See [Split Accumulation](./split-accumulation.md#_4-an-accumulator-with-two-parts).
 - **Stage mask:** a gate-free revdot claim that a stage polynomial's forbidden wires are zero. See [Staging](./staging.md#_5-the-stage-mask).
 - **Stage polynomial:** a separately committed part of a circuit's trace. See [Staging](./staging.md#_2-splitting-a-trace).
-- **Stamp:** the proof-bearing part of a Tachyon bundle, containing tachygrams, an anchor, and a proof. See [An Introduction to Proof-Carrying Data](./pcd-intro.md#_11-aggregation-in-tachyon).
+- **Stamp:** the proof-bearing part of a Tachyon bundle, containing tachygrams, an anchor, and a proof. See [An Introduction to Proof-Carrying Data](./pcd-intro.md#_10-aggregation-as-proof-carrying-data).
 - **Step:** the rule relating a node's input headers to its output header. See [An Introduction to Proof-Carrying Data](./pcd-intro.md#_4-steps).
 - **Structured vector:** a vector arranged so that the revdot product pairs each gate's $a$ and $b$ wires. See [Arithmetization](./arithmetization.md#_8-arranging-the-witness).
 - **Succinct verification:** in-circuit verifier cost that grows more slowly than the circuit. See [Recursive Proofs](./recursive-proofs.md#_7-what-succinct-verification-has-to-mean).
