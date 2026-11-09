@@ -1,0 +1,151 @@
+Chapter five. QAP and polynomial encoding.
+
+The last chapter ended with two ways to write the same statement, a list of R one C S rows and Ragu's single consolidated equation. Neither helps the verifier yet, because checking either one means looking at the whole witness. This chapter turns those equations into statements about polynomials, which a verifier can test at a single random point.
+
+There are two routes. The first is the quadratic arithmetic program, or QAP, the standard reduction behind systems such as Groth sixteen, which ends in a divisibility test with a quotient polynomial. The second is Ragu's route, which reads the claim from one coefficient of a product and needs no division. We run both on the same statement as before, modulo forty-three. No curve points appear here, because commitments come in the next chapter.
+
+What polynomials provide.
+
+Suppose two polynomials of bounded degree differ. Their difference is nonzero with at most that degree, so it has at most that many roots, and the two agree on at most that many points. This is the one-variable Schwartz-Zippel lemma. So a check at one random point says something about every coefficient at once.
+
+To use this fact, we have to express the claim that all constraints hold as an equality of polynomials. A QAP assigns each row to its own point of the field, so a true statement makes a polynomial vanish at all of those points. Ragu has already merged its constraints into one scalar equation, so it only has to place that scalar where a verifier can reach it.
+
+The R one C S starting point.
+
+R one C S uses a wire list holding the constant one, the public output, and three private values. We'll call its three public matrices the left, right, and output matrices. Each row combines the wire list using its row of the left matrix and its row of the right matrix, then multiplies the two results. The product must equal the combination given by the output matrix.
+
+Our wire list is one, thirty-five, three, nine, twenty-seven. Across the three rows, the left combinations are three, nine, thirty-five, and the right combinations are three, three, one. Multiplying entry by entry gives the output combinations, nine, twenty-seven, thirty-five. A real circuit has many thousands of rows, and these are what we have to compress.
+
+Interpolating the rows.
+
+We want one polynomial that carries all the rows. A polynomial can store one value at each point of the field, so we give each row its own point. This set of distinct points is called the domain, and our example uses one, two, three.
+
+The most direct idea is to interpolate the left combinations themselves. That polynomial would hold the correct values, but it would mix the circuit with the witness in a way the verifier cannot pull apart, and nothing would show that it came from the left matrix. So we interpolate the matrix alone. Each column belongs to one wire, so each column gets one polynomial, whose value at each domain point is that column's entry for the row. These column polynomials exist, because enough points determine a polynomial, and they depend only on the circuit.
+
+To construct them, first build a polynomial for each domain point that equals one there and zero at the others. Multiply together X minus each of the other domain points, then divide by the product's value at the chosen point. These are the Lagrange basis polynomials. Any column is then a sum of basis polynomials, each weighted by that column's entry for the row. For example, one column of the left matrix has entries zero, zero, five, so its polynomial is five times the third basis polynomial.
+
+Adding the witness.
+
+The column polynomials describe the circuit, so now we bring in the witness. Multiply each column polynomial by its wire value and add, which gives the left, right, and output polynomials. At a domain point, each column polynomial gives that row's entry, so the left polynomial equals that row's left combination, and likewise for the others. So each row says that the left polynomial times the right polynomial equals the output polynomial at that row's point. All rows hold exactly when this equation holds across the whole domain.
+
+The vanishing polynomial and the quotient.
+
+Define the difference polynomial as the left times the right, minus the output. The rows hold exactly when the difference is zero at every domain point. That is still one fact per row, and one random point would not capture them, because a random point is almost never in the domain. We need a statement that holds as an identity across the whole field.
+
+The factor theorem provides it. If a polynomial is zero at a point, then X minus that point divides it. So the difference is zero across the domain exactly when the product of all those factors divides it. That product is the vanishing polynomial. The rows therefore hold exactly when some polynomial, called the quotient, times the vanishing polynomial equals the difference.
+
+The left and right polynomials have degree at most one less than the row count, so the difference has at most twice that degree. The vanishing polynomial has degree equal to the row count, so the quotient has degree at most two less than the row count. The column polynomials and the vanishing polynomial together make up the QAP, and a witness satisfies it when the quotient exists. In our example the difference has nonzero coefficients, yet it vanishes at one, two, and three. Long division leaves no remainder and gives the quotient thirty-seven plus thirty-three X, of degree one as predicted.
+
+Testing the identity at one point.
+
+Now we have an equality of polynomials, so our random-point reasoning applies. A verifier picks a random test point after the prover has fixed its polynomials, and compares the two sides there. The chance of missing a difference is at most the difference's degree bound divided by the field size. At the test point eleven, the difference is twenty-nine, while the quotient is thirteen and the vanishing polynomial is thirty-two, whose product is also twenty-nine. The honest polynomials pass at all forty-three points, as an identity should. So one comparison of field elements has replaced all the rows.
+
+Why a cheater's quotient does not exist.
+
+Keep the public value thirty-five and try the secret four. The first two rows hold, but the last gives thirty against thirty-five. The difference built from this witness vanishes at one and two but equals thirty-eight at three. A failing row makes the difference nonzero at that point, while any multiple of the vanishing polynomial is zero there. So division leaves a remainder, and no quotient exists.
+
+The prover can still present some polynomial as its quotient and hope the test misses. On the toy field we can count every attempt. We try all one thousand eight hundred forty-nine candidates of degree at most one, at the forty points outside the domain, because a test inside the domain says nothing about the quotient. On a real field a random point lands there with negligible probability. Nine hundred nine candidates pass nowhere, one hundred sixty pass at one point, and seven hundred eighty pass at two. None passes at more than two of the forty, and a random guess passes at an average rate of one in forty-three. The count stays low because the two sides differ by a nonzero polynomial of low degree, whatever the prover chooses.
+
+This only works if the prover fixes its polynomials before learning the test point. Suppose the prover with the false secret learns the point eleven in advance. It divides the difference at eleven by the vanishing polynomial at eleven, gets twenty-seven, and presents the constant polynomial twenty-seven. The check at eleven passes. At twelve the same quotient gives twenty-seven against a true value of thirty-three, so the forgery works only at the known point.
+
+The test also assumes that the three polynomials really are combinations of the column polynomials with one shared witness. If the prover could present any three polynomials, it could set them all to zero, and the identity would hold with a zero quotient for any statement. So a complete system has to enforce three things. The prover fixes its polynomials before the test point is known, each polynomial has the required form, and all three use the same wire list.
+
+Enforcing the test in Groth sixteen.
+
+Groth sixteen enforces these requirements by keeping the test point secret from everyone. A setup ceremony publishes curve points that encode powers of the point, in the style of the KZG setup, together with points derived from the column polynomials and further secret values. The prover can only form linear combinations of these points, so it evaluates its polynomials at the point inside the group without knowing it. The further secret values force one shared witness into all three polynomials. The verifier checks the identity using pairings. The proof is three group elements, and verification uses three pairings.
+
+The cost of QAP.
+
+Each ingredient of this route has a cost, and several conflict with what Ragu needs.
+
+The prover works over a special domain. Interpolating and multiplying term by term takes time quadratic in the row count, so real provers use the fast Fourier transform, which requires the domain to be a set of roots of unity. In our field six cubed is one, so one, six, thirty-six form such a domain, and the vanishing polynomial collapses to X cubed minus one. The same field has no domain of size four, because four does not divide forty-two. So real systems pick fields whose multiplicative group has a large power of two in its order.
+
+The product also outgrows the circuit, because it has about twice the degree of its factors. With sixty-five thousand five hundred thirty-six rows, the difference has degree up to one hundred thirty-one thousand seventy, and the next power of two is one hundred thirty-one thousand seventy-two. Groth sixteen provers avoid part of this cost. The difference is known to vanish on the domain, so evaluating on one shifted copy of it, called a coset, is enough to recover the quotient. They still run several transforms over a field with the required roots of unity.
+
+The setup requires trust. Anyone who learns the secret values can forge proofs, as our small forgery showed, and Groth sixteen ties its setup to one circuit. Ragu's overview sets out to avoid a trusted setup, and its non-uniform model lets a prover switch among many circuits without verification keys.
+
+The verifier needs pairings, which make the secret point usable. Ragu works over the Pasta curves, which are not pairing-friendly, so this check is not available to it.
+
+Finally, someone has to compute all the column polynomials before any proof. Ragu's overview lists this among the things it avoids, since Ragu never builds sparse matrices or a QAP reduction, while its cost model stays close to that of QAP-based SNARKs. So Ragu has to reach a polynomial test some other way, using only the commitments from the next chapter.
+
+The consolidated equation as a coefficient.
+
+Ragu has already combined its gates and constraints using two challenges, which left one scalar equation. The revdot of the structured vector with the sum of its dilated self, the gate vector, and the wiring vector equals the public input list's inner product with the powers of the constraint challenge. With no separate rows left to pack, Ragu needs no domain and no vanishing polynomial. The remaining job is to let the verifier check this equation without seeing the structured vector.
+
+We already have the link to polynomials, because a revdot of two lists is the middle coefficient of the product of their polynomials. So we read every list in the equation as coefficients. The structured vector becomes the trace polynomial. Dilation multiplies each coefficient by the gate challenge raised to that position, which is the effect of substituting the challenge times X for X. So the dilated vector is the same trace polynomial at a scaled input, and no new data is involved.
+
+The gate vector and wiring vector depend on the challenges, and the circuit is fixed before the challenges exist. So we describe them with polynomials in two variables, the gate polynomial and the wiring polynomial, and substitute a challenge for the second variable once it is known. The public numbers likewise become the coefficients of the public input polynomial, and its value at the constraint challenge is the equation's right side.
+
+The Ragu Book's NARK chapter uses the other layout, with the left and right inputs swapped. The wiring code at the commit this site pins places them as we did. The two forms differ only by those names, and this site follows the code.
+
+Now collect the dilated trace, the wiring polynomial, and the gate polynomial into one polynomial, which we'll call the second factor. The equation now says that the middle coefficient of the trace times the second factor equals the public input polynomial at the constraint challenge. In our example, at challenges five and seven, the trace has eight coefficients, so the middle power is seven. Collecting every pair of exponents that adds to seven gives thirteen, and the public side is also thirteen.
+
+Why the coefficient is out of reach.
+
+The full product has fifteen coefficients, and only the one for X to the seven is constrained. All the others are by-products of the multiplication. Two obstacles keep the verifier from checking that coefficient directly. First, the commitments in the next chapter let a verifier learn evaluations, and a coefficient in the middle is not an evaluation at any point. Second, a commitment sized for the trace holds too few coefficients, because the product needs almost twice as many. Doubling the generators would fix the size, but every commitment in the system would become about twice as expensive, all to expose one coefficient.
+
+Splitting the product.
+
+A single reshaping removes both obstacles. For the size problem, cut the product into a lower half, running up through the middle power, and an upper half, so each piece fits within one commitment. The coefficient we want is now the top of the lower half, which is still not an evaluation.
+
+The one coefficient evaluation can reach is the constant term, because substituting zero removes all the others. So we reverse the lower half, which moves the top coefficient to the bottom. We now hold the reversed lower piece and the upper piece, and the consolidated equation says that the reversed lower piece at zero equals the public input polynomial at the constraint challenge. In our example, that constant term is thirteen, the required value.
+
+The verifier also needs to know that these pieces really came from the product. Reversing twice restores the original, so substituting the inverse of X into the reversed piece and multiplying by the right power of X recovers the lower half. Adding the upper piece, shifted up past the lower half, gives back the product. That one equation ties the pieces to the product, and the verifier has to evaluate it at a nonzero point, since it uses the inverse.
+
+Polynomial oracles.
+
+So far we have written checks in terms of polynomials the verifier does not hold. The usual way to separate this reasoning from the cryptography is to pretend the verifier has an oracle for each polynomial the prover sends. An oracle is a black box that fixes a polynomial when the prover creates it, and afterward reports its value at any point the verifier asks about. A protocol built this way is called a polynomial interactive oracle proof, or polynomial IOP. The next chapter replaces each oracle with a commitment, and later chapters provide the evaluation proofs.
+
+The order of messages carries much of the protocol's soundness. Both sides start with the public polynomials. The prover sends the trace oracle, and only then does the verifier send the gate and constraint challenges. The prover computes and splits the product and sends oracles for the two pieces, and only then does the verifier send a random nonzero evaluation point.
+
+The verifier asks the trace oracle for its values at the evaluation point and at the point times the gate challenge. It asks the reversed piece for its values at the inverse of the point and at zero, and it asks the upper piece for its value at the point. It computes the public polynomials itself. Then it runs two checks.
+
+The split check says the trace value times the second factor's value equals the recombined pieces at the evaluation point. The target check says the reversed piece at zero equals the public input polynomial at the constraint challenge. Dilation helps in the split check, because the verifier queries the same trace oracle at a second point. No separate polynomial is involved, so the prover cannot substitute a different trace in the second factor.
+
+The verifier's local work varies. The gate polynomial has a short closed form, since its sums are geometric series, and the public input polynomial is cheap when sparse. Computing the wiring polynomial directly costs time linear in the circuit size, and the chapter on wiring and the registry studies how to avoid this.
+
+A complete run.
+
+Take the witness whose secret is three. The prover sends the trace, and the verifier sends the challenges five and seven. The prover sends the two pieces, and the verifier sends the evaluation point nine. Nine times five is two modulo forty-three, and the inverse of nine is twenty-four. The trace gives five at nine and nine at two. The reversed piece gives six at twenty-four and thirteen at zero, and the upper piece gives thirty at nine. Locally the verifier computes twenty-three for wiring, three for gates, and thirteen for the public input.
+
+The split check multiplies five by the sum of nine, twenty-three, and three, which gives three, and the recombined pieces also give three. The target check compares thirteen with thirteen. Both pass, and the honest polynomials pass the split check at all forty-two nonzero points.
+
+Why cheating fails.
+
+The argument assumes that oracles are fixed when sent, and that challenges are uniform and arrive after the messages they test. Next chapter's commitments provide the first under the discrete log relation assumption. Fiat-Shamir provides the second in a non-interactive proof, treating its hash as a random oracle. Inside this model, the argument only counts roots of polynomials.
+
+A prover with a false witness sends some trace before seeing the two challenges, and a random pair rarely makes the true coefficient equal the target. For the secret four, that happens at forty-three of the one thousand eight hundred forty-nine pairs. Outside those, the honest split fails the target check, so the prover has to lie about the split.
+
+The most direct lie changes only the coefficient the target check reads. At challenges five and seven, the true coefficient is eighteen and the target is thirteen, so the prover changes the reversed piece's constant term to thirteen. The two sides of the split check then differ by five times X to the seven, and the verifier rejects at all forty-two nonzero points.
+
+Any pieces that pass the target check must describe a polynomial other than the true product, since they disagree on that coefficient. So the split check always compares two different polynomials, and the prover's best option is to give their difference as many roots as possible. It builds a polynomial of degree fifteen with roots at one through fifteen, scaled so its coefficient of X to the seven is five. It then splits the true product minus this polynomial. The target check passes, and the split check passes at exactly fifteen of the forty-two points, the most that degree allows.
+
+For two to the eleven gates on a field of about two to the two hundred fifty-five elements, the same limit gives a probability below two to the minus two hundred forty. The limit there is eight times the gate count minus one, because a commitment has room for one more coefficient than the honest upper piece uses.
+
+As with the QAP, the order of messages is essential. Suppose the prover also knows the point nine before sending the pieces. Changing the reversed piece's constant term moved the split check by five times nine to the seven. Adding a constant to the upper piece moves it the other way by that constant times nine to the eight. The constant thirty-four, which is five divided by nine, cancels the two at this point. The forged pair passes both checks at nine and nowhere else.
+
+Comparing the two routes.
+
+Both routes turn many constraints into one polynomial test at a random point. A QAP gives each row a domain point and encodes the witness as values at those points, while Ragu combines rows with powers of challenges and encodes the witness as coefficients. Groth sixteen uses one secret test point and secret setup values to tie its factors to one witness. Ragu's random values are all public, and one trace oracle queried at two points does the tying.
+
+The central difference is division against extraction. A QAP has to show that a whole polynomial vanishes across a domain, and a quotient is the evidence for that. Ragu's claim concerns one number, so the prover computes no quotient and only moves that number to a place evaluation can reach.
+
+The multiplication isn't free, though. The prover still computes the product, and for large polynomials that takes fast Fourier transforms on a domain of about eight times the gate count. The Ragu Book's structured vectors chapter notes that Ragu needs this only where succinctness is required in the proof-carrying data tree, so a prover can skip it elsewhere. The book's overview also credits this design with largely avoiding the encoding of witnesses at domain points, without using the sum-check protocol.
+
+The encoding in Ragu.
+
+The split appears in the compression step of the code at the commit this site pins, as a short function that cuts off the upper part and reverses what remains. The verifier recomputes the right side of the split check from claimed evaluations and rejects on a mismatch.
+
+Names differ across the sources. The book's NARK chapter calls the pieces c one and c two, which are unrelated to the output wires, and it calls the evaluation point x. Its structured vectors chapter and the code call the pieces p and q, and the compression chapter and the code call the point r. This site uses the NARK chapter's names, because r already names the trace and p is used for other polynomials.
+
+The book and the code differ on the public constant. The NARK chapter adds a third check, that the trace and the public input polynomial both equal one at zero, and it makes the first witness element the constant one. The book's local wiring chapter instead places the constant in gate zero's extra wire, and it says gate zero's zero output makes the trace zero at zero. The trace assembly code at the commit this site pins agrees with the wiring chapter, so this site follows that form. Our toy circuit has no such wire, so our run leaves this check out.
+
+The last point is reconstructed from the code at the commit this site pins, and the authors have not confirmed it. The split is not the only way Ragu checks a revdot claim. The NARK chapter presents the oracle protocol and then builds its concrete NARK differently. There the verifier receives the two lists and recomputes their revdot directly, which avoids the prover's transforms at the cost of a larger proof, and the uncompressed verifier follows this form. The split appears in compression, applied to a random combination of folded claims instead of a single product. Later chapters on the complete proof and on revdot folding return to these.
+
+Where this leaves us.
+
+A QAP interpolates each matrix column over a domain, and the rows hold exactly when the difference is divisible by the vanishing polynomial. A false witness has no quotient, so a prover passes only by luck or by knowing the test point. Groth sixteen enforces this with a secret point, a trusted setup, and pairings, and Ragu uses none of those.
+
+Ragu reads its consolidated equation as one coefficient of a product. Splitting the product and reversing the lower half turns that coefficient into a constant term, and a split check at a random point ties the pieces to the product. Written with oracles, this is a polynomial IOP whose soundness depends on the order of its messages.
+
+Every oracle in this protocol is still an assumption. The next chapter builds the commitment that replaces each oracle with one curve point.

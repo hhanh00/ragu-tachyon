@@ -1,0 +1,195 @@
+Chapter fourteen. Revdot folding.
+
+The chapter on split accumulation sorted the verifier's work by what it reads, and it folded the evaluation claims. One item stayed open, which was the revdot product of two vectors. That product reads two whole witness vectors, so a recursive verifier cannot compute it. This chapter folds it instead.
+
+A revdot claim contains a product of two unknown vectors, so it does not combine linearly the way an evaluation claim does. The split accumulation chapter ended with the first sign of this, a cross term that the prover has to supply. We start from that example and find that its single challenge stops working at three claims. Repairing it leads to the error matrix and to two challenges called mu and nu. We then remove the two costs this fold would place in a circuit, namely the commitment sums and the quadratic field arithmetic. We finish with the different fold that Ragu's code runs at each step.
+
+The book, the code, and this chapter's plan.
+
+The Ragu Book and the code differ here. The book's revdot chapter describes an error matrix with two challenges per layer, and it folds one hundred thirty-three claims in nineteen groups of seven. The code, at the commit this site pins, uses a quotient fold in its fuse, with one challenge per layer and fourteen groups of seven on the native side. The book's recursion chapter and its endoscalar ledger agree with the code on this. Compression still uses an error matrix.
+
+This site follows the code for what Ragu does. We still teach the matrix for most of the chapter, because it is the general construction, compression needs it, and the quotient fold is easiest to understand as a change to it.
+
+Some of what follows is reconstructed from the code at the commit this site pins, and the authors have not confirmed it. The toy runs and the attacks are the site's own, checked by the script behind the page. The gate counts for the code's fold are our reading of its functions, and the authors have not published them. The code's comments credit the quotient identity to ProtoGalaxy, a paper we could not read, so we derive the identity here without relying on it.
+
+A few names need settling. The book uses cross term and error term interchangeably for a product that mixes two claims, while the code says error terms for different numbers, the quotient coefficients. So we say cross term for a product and quotient coefficient for the code's values. The book also calls its spot-check point beta, which already names the batching challenge from the batched openings chapter, so we rename that point theta. A fuse, as before, is the proof-carrying data operation that contains the folds.
+
+The claim that remains.
+
+A step of the proof from the nark chapter ends up holding two commitments and a target value, and it needs to know that the committed vectors have that revdot product. We'll call the two vectors the left vector and the right vector. A revdot claim then has a public instance, made of the two commitments and the target. Its witness holds the two vectors and a blinding factor for each. The claim holds when each commitment opens to its vector and the revdot product equals the target. The proof from the nark chapter gives one such claim, with target thirteen and vectors of eight entries. Both commitments recompute to the stated points, and the product does come to thirteen.
+
+The earlier chapters offer two ways to check a claim like this, and each has its cost in the wrong place. The direct check makes the verifier pay. For vectors of eight thousand one hundred ninety-two entries, it takes that many field multiplications and two multi-scalar multiplications of that size, and both vectors have to travel. It cannot go in a circuit, since a recursive verifier reads only instances.
+
+The split from the polynomial encoding chapter makes the prover pay instead. Only two commitments and a few values travel, which suits a verifier. But the prover needs at least three fast Fourier transforms, and it would run them at every step of a long computation. The book wants to confine that to the places in the tree where a short proof is needed.
+
+Split accumulation suggests a third route. We reduce many claims to one claim of the same form and leave the last one to a decider. The reduction has to handle many claims at once, because a fuse in Ragu's standard profile has eighty-six native and seventy-two nested revdot claims. The book names their sources, which are the consolidated equation of each circuit, the stage checks, and the accumulators of the previous step.
+
+The nark chapter listed two linear costs as targets for this part of the site, and this chapter addresses neither directly. The cost of the value called G hat already left the recursive path in split accumulation. The cost of computing the wiring value remains, because a fold says nothing about whether the right vector came from the correct circuit, and the next chapter deals with that. What this chapter removes is the need for the split and its transforms at most steps.
+
+Two claims and one cross term.
+
+Start with two claims and weight the second by a challenge, which we'll call r. The commitments combine by linearity, so anyone can compute the combined left commitment and the combined right commitment. The target needs more care, because the revdot product is linear in each argument separately. Expanding both arguments gives four products.
+
+The outer two products are the claimed values, the first with weight one and the second with weight r squared. The middle two products each mix one claim's left vector with the other claim's right vector, and no claim says anything about them. So the prover supplies their sum, which is the cross term, and it carries weight r. The new target is the first value, plus r times the cross term, plus r squared times the second value. The new claim therefore has the same form as the old ones.
+
+The prover has to send the cross term before it learns r, and a count shows why. Suppose the prover states a false first value of thirty in place of twenty-nine. We tried all forty-three possible cross terms against all forty-three values of r. The honest cross term never passes, and each of the other forty-two passes at exactly one r. If the prover could choose the cross term after seeing r, it could solve this linear equation and pass every time.
+
+So a false claim survives only if r lands on one root. This is the root count from the statements and challenges chapter, applied to a polynomial in r whose constant term is the false claim's error.
+
+Three claims break the single challenge.
+
+The natural extension gives each claim a power of r as its weight, on both sides. Bilinearity then gives one product for each pairing of a left vector with a right vector. When the pairing comes from one claim, a true claim makes that product equal its target.
+
+Now expand for three claims and collect the powers of r. The constant term is the first claim's value, and the top term, at r to the fourth, is the third claim's value. Look at the coefficient of r squared in the middle. It adds the second claim's value to two cross terms, and the verifier can check only this sum. If the second claim is false, the prover can move the error into a cross term, which it controls, and the polynomial in r stays exactly right.
+
+To see this we need real claims, so we take three proofs of the step function from the split accumulation chapter's chain, which cubes its input, adds the input, and adds five.
+
+Now we attack the fold. Put the nark chapter's false witness, the one with input four, in the middle slot between two later proofs. Its vectors give eighteen while its statement requires thirteen, so this claim is false by five. With honest cross terms, the fold rejects at all forty-two nonzero values of r. The cheater raises the cross term in the middle coefficient by five, from eleven to sixteen, before it knows r. Running all forty-three values of r now gives forty-three passes. The output is even a true claim, because the folded vectors really have that product, so the decider accepts it too.
+
+The challenge did nothing here, because the error and its cancellation carried the same power of r. Two claims escaped this problem because each of their diagonal entries has a power of r to itself, and that stops being true at three claims. We therefore need weights under which no cross term can share a monomial with a claimed value.
+
+Two challenges and the error matrix.
+
+Give the two sides independent weights, one set on the left vectors and another on the right vectors. Each pairing then carries the product of a left weight and a right weight. If each set of weights consists of the powers of its own independent challenge, every pairing has its own monomial and the collision disappears.
+
+The book makes the same choice in a different form. It takes the two challenges mu and nu. The weights on the left vectors are the inverse powers of mu, and the weights on the right vectors are the powers of mu times nu. Multiplying a left weight by a right weight, you find that mu cancels whenever the two indices match, which leaves a pure power of nu on the diagonal. Away from the diagonal, a power of mu survives, and the pair of exponents determines the cell. So no two cells share a monomial.
+
+The square array of all these products is called the error matrix. The folded claim combines the left commitments with the left weights and the right commitments with the right weights. Its target is the weighted sum over every cell. The verifier fills the diagonal with the claimed values it already holds, and the prover supplies every other cell. For a list of claims, that is the number of claims squared, minus the number of claims.
+
+We can test this repair against the attack that just succeeded, with the same false claim and the same shift of five. The error on the diagonal now has weight nu, and the shift has weight mu squared times nu squared. The two cancel only where mu squared times nu equals one, or where nu is zero. Across all one thousand eight hundred six pairs with nonzero mu, the fold passes at eighty-four, which is zero point zero four seven of them. Half of those have nu equal to zero, where the folded right vector reduces to the first claim's right vector and the other claims drop out of the check.
+
+One fold on the toy curve.
+
+The order of messages follows what the argument requires. Both parties hold the list of instances. The prover computes every cross term and sends them. The verifier sends mu and nu. The verifier then computes the new instance, and the prover computes the new vectors and blinding factors.
+
+Take three true claims, the three proofs from before. The prover computes the three by three matrix. Its diagonal entries match the claimed values, so it leaves those out and sends the other six. The verifier sends mu equal to six and nu equal to thirteen. Multiplying each cell by its weights and adding all nine gives a new target of nineteen.
+
+The verifier's work touches only instances and cross terms. The prover applies the same weights to its vectors and to its blinding factors, which works because each commitment is linear in its vector and blinding factor together, as the polynomial commitments chapter showed.
+
+The decider now has one claim to check. It computes the revdot product of the folded vectors, gets nineteen, and recomputes both commitments, which match. Three revdot products and six commitment checks have become one and two. Repeating the fold at all the pairs of challenges gives a true output every time, which is what an honest prover needs.
+
+An accumulator of revdot claims.
+
+The output has the same form as each input, so it can serve as an accumulator, and the book says exactly this. The instance of the accumulator is two commitments and a target, and its witness is two vectors and two blinding factors. Each step places the old accumulator in the list along with the step's new claims. This explains the two names that the nark chapter kept apart, since the trace commitment holds one step's trace while the left commitment here can hold an aggregate of many claims. This accumulator sits beside the one from split accumulation, and the book lists both in the accumulator of one curve.
+
+Here is a chain over the first three proofs, folding one new claim at each step. The target starts at thirteen, becomes thirty-two after the first fold, and becomes twenty-five after the second. Every vector still has eight entries, because each fold takes a linear combination of vectors of that length. If the chain stops here, the decider finds that the last vectors have product twenty-five and that both commitments recompute, so it accepts.
+
+The decider's work is two multi-scalar multiplications at full size and one revdot product, once for the whole history. The prover pays for the cross terms at each step, so we can compare that with what it avoids. A fold of one accumulator and one new claim costs sixteen thousand three hundred eighty-four multiplications for dense vectors. The split costs three hundred forty-four thousand sixty-four by the usual estimate, and then the prover still has to commit to two more polynomials.
+
+The fold needs no product polynomial, since each cross term is one number computed with one pass over the vectors. So most steps never run a transform, and the split comes back only where a proof leaves the tree.
+
+Replacing the commitment sums with evaluations.
+
+The verifier as described computes the two combined commitments, which takes two scalar multiplications per claim. Inside a circuit, those are operations on points whose coordinates lie in the wrong field. The curve cycles chapter could defer each one to the other circuit, but the book takes a different route that reuses a mechanism we already have.
+
+The relation between the commitments says that the polynomials behind them satisfy the same relation, as long as the commitments are binding. And an identity between polynomials can be tested at a random point. So the prover names the combined commitments without the verifier computing them. The verifier sends a random point, theta. The prover reports each input polynomial's value at theta and the combined polynomial's value at theta. The verifier then checks that the combined value equals the weighted sum of the input values.
+
+That check is field arithmetic, which a circuit handles natively. It only means something if the reported values are true, so each value becomes an evaluation claim. The right side works in the same way. With one input list of three claims, that makes eight evaluation claims, and they join the list that the split accumulation fold handles anyway.
+
+In the toy fold, take theta equal to twenty-two. On the left side the prover reports three values, and field arithmetic confirms that their weighted sum equals seventeen, the value it reports for the combined polynomial. The right side confirms in the same way, and the split accumulation fold then handles all eight claims.
+
+The challenge theta has to come after the prover names the combined commitments, for the reason that every test at a random point needs. A wrong commitment shows up as a nonzero difference polynomial. Suppose the prover names a combined commitment with one vector entry raised by one, and it reports true values for it. The linear check then fails at every theta except zero. A difference that vanishes at one through seven does as well as a difference can, and it passes at those seven of the forty-three values. Outside those roots the prover has to report a false value, which makes that entry a false evaluation claim for the batched check to catch.
+
+The saving comes from how the batching in the batched openings chapter charges for its inputs. Its point combination takes one scalar multiplication per polynomial, however many points that polynomial is queried at. With three claims, computing the commitment sums directly takes six scalar multiplications in the circuit. In the batched form, the input commitments cost nothing extra when the list already contains them, and only the two combined commitments are new. So two scalar multiplications replace six, and they happen in the circuit on the other curve.
+
+Two layers.
+
+The circuit still has to compute the target, which has one term per cell of the matrix. Factoring the weights lets it compute each level of the sum by repeated multiply-and-add, which is Horner's rule. The total comes to the number of claims squared, plus one, once we count the two precomputed combinations of the challenges.
+
+Quadratic growth is a problem because a circuit has a limit of two to the eleven gates. The book's example of one hundred thirty-three claims would need far more than that, and the book notes that smaller circuits also lead to smaller commitments and faster verifiers later on. Since the cost is the square of the list's length, shorter lists help, so we fold in stages.
+
+Divide the claims into groups of equal size. In the first layer, the prover sends the cross terms within each group, and the verifier sends mu and nu. Folding each group gives one intermediate claim. In the second layer, the prover computes the cross terms between the intermediate claims and sends them. The verifier sends fresh challenges, which we'll call mu prime and nu prime, and folding the intermediate claims gives the final claim. The second layer's diagonal consists of the intermediate targets, which the verifier already computed. Cross terms between claims in different groups never appear individually, because the second layer's cross terms bundle them, and that is why the count drops.
+
+Let's extend the chain to six proofs, in two groups of three. The prover sends twelve cross terms, the verifier sends mu and nu, and each group yields one intermediate instance, with targets nineteen and one.
+
+The prover now computes the two cross terms between those intermediate claims and sends them. The verifier sends fresh challenges, and the final target comes to nine. The final vectors do have revdot product nine, and the decider accepts. The prover sent fourteen cross terms, where a single layer over six claims would have needed thirty.
+
+Choosing the group size.
+
+Applying Horner's rule at each layer gives the book's count. Take the number of groups times the group size squared, add the number of groups squared, subtract the number of groups, and add three. The first term favours small groups and the second favours few groups, so a balance exists.
+
+For one hundred thirty-three claims, a single layer costs seventeen thousand six hundred ninety constraints. Nineteen groups of seven cost one thousand two hundred seventy-six, the lowest count among all group sizes from two to sixty-six. That sits ninety-three percent below the single layer, and the book reports the same two counts.
+
+Why cheating fails.
+
+This argument is informal. The toy curve permits forgeries, since every discrete log is known. So the counts below model a prover who holds real vectors and does not use those relations, except in the last example.
+
+Begin with a false claim and honest cross terms. Take the false list from before. The stated target differs from the true product by the diagonal error alone, which is thirty-eight times nu modulo forty-three, and that is zero only when nu is zero. The fold passes at forty-two of the one thousand eight hundred six pairs, all with nu equal to zero, where the later claims drop out. Those passes are a real weakness of that one value, but a random challenge rarely takes it. A false claim in the first slot has weight one and no such exception.
+
+A cheater can also move the cross terms away from their honest values. The difference between the two sides then becomes a polynomial in mu and nu, and the diagonal error keeps it nonzero. For three claims, the Schwartz-Zippel bound allows at most two hundred fifty-eight of the forty-three squared pairs. The best attack we found raises two cross terms in the same column, and it passes at one hundred twenty-six of the pairs with nonzero mu. On a field of two hundred fifty-five bits with one hundred thirty-three claims, the bound falls below two to the minus two hundred forty-five.
+
+Every count so far assumes that the prover fixes its cross terms first. In a non-interactive proof, that means the transcript absorbs them before it produces mu and nu. At mu equal to six and nu equal to thirteen, the false list fails with honest cross terms. A prover who already knows these challenges raises one cross term by forty-two, which solves one linear equation, and the fold passes. The same shift committed in advance passes at only eighty-four of the pairs.
+
+With two layers, a false claim survives the first layer as a false intermediate claim, and the second layer treats it as an ordinary false claim on its diagonal. In the six-claim run with honest cross terms, the first layer passes at forty-two pairs. The error then sits on the second layer's diagonal with weight one, so the second layer passes at none of its pairs.
+
+The book explains the fresh challenges by noting that the root-counting argument applies separately at each layer. That argument needs each layer's messages to come before that layer's challenges. The second layer's messages depend on the first layer's result, so reusing the challenges breaks the order. Suppose the second layer did reuse mu and nu. The prover then knows them before it sends the second layer's cross terms, so it can compute the error and cancel it through one cross term. Doing this at every pair with both challenges nonzero passes all one thousand seven hundred sixty-four of them. With fresh challenges the same message is fixed first, and it passes at forty-two pairs.
+
+A false claim can still reach the decider, because the verifier checks arithmetic and has no way to know that a claim is true. Start the earlier chain from the false claim, keeping every later step honest. The stated target differs from the true product by thirty-eight at the start and after each fold, because the accumulator sits in the first slot, whose diagonal weight is one. The verifier sees nothing wrong at any step, and the decider rejects the last accumulator.
+
+A chain that never runs the decider has therefore established nothing about its revdot claims. The target of a new claim must also come from the statement and not from the prover, which is the lesson of the nark chapter, and a comment in the code records this requirement. The old accumulator's instance must be tied to the previous proof, as split accumulation showed.
+
+The decider's check means something only because the combined commitment opens in one way. Using the known discrete logs of the toy generators, a prover can state a false target of twenty for our fold of three claims. It presents a different left vector that commits to the same point and has product twenty with the right vector, so the decider accepts. On a real curve, such a vector would give a discrete log relation among the generators.
+
+The reasoning relies on the discrete log relation assumption. It treats the transcript hash as a random oracle, with each challenge drawn after the data it tests. It assumes that the circuit takes each target from the statement or the previous proof, and that the decider runs honestly. Private retries under Fiat-Shamir add to these chances. We do not analyse Ragu's scheme as a whole here.
+
+The quotient fold in Ragu's fuse.
+
+The matrix has one remaining cost. The prover sends one field element per off-diagonal cell, and each of those values enters the circuit. The verifier uses them only through the weighted sum, so we can ask whether a shorter message could determine that sum. The code at the commit this site pins answers this by changing the weights.
+
+Treat the claims as the values of one curve passing through a set of nodes, zero, one, two and so on, one node per claim. For each node, take the Lagrange basis polynomial that equals one there and zero at the other nodes, in a variable we'll call T. Using these as weights, blend the left vectors into one vector-valued polynomial, the right vectors into another, and the targets into a third polynomial. At each node, all three reduce to that claim's own vectors and target.
+
+Now take the difference between the revdot product of the two blended vectors and the blended target. At a node, this difference is that claim's actual product minus its target. So it vanishes at every node exactly when all the claims are true. A polynomial that vanishes at all the nodes is a multiple of the vanishing polynomial, which is the product of T minus each node.
+
+Here is where the savings appear. With a given number of claims, the blended product has degree at most two less than twice that number, and the vanishing polynomial has degree equal to it. So the quotient has one coefficient fewer than the number of claims, which is the shorter message. The prover sends those coefficients, and the verifier sends one challenge, mu.
+
+Evaluating everything at mu gives the new claim. The weights on both sides are the Lagrange basis values at mu. The new target is the blended target at mu, plus the vanishing polynomial at mu times the quotient at mu. Notice that the prover's work has not shrunk, since computing the quotient still needs every product, including the diagonal.
+
+We reuse the earlier matrix so the two folds can be compared directly. Dividing by the vanishing polynomial leaves no remainder, and the quotient has two coefficients, which the prover commits to before it sees the challenge. The verifier sends mu equal to twenty. The new target comes to twenty-seven, and the folded vectors' revdot product is also twenty-seven. The prover sent two field elements where the error matrix needed six.
+
+Why one challenge is enough.
+
+We showed earlier that one challenge with power weights fails, so we need to see what has changed. Suppose one claim is false, and consider any quotient the prover might send. At that claim's node, the vanishing polynomial is zero, so the quotient's contribution disappears. The difference there equals the claim's error, which is not zero. So no quotient can make the difference polynomial zero, and it has a limited number of roots. In the earlier attack, the prover's message shared a power of r with the false claim and could cancel it. Here the message is multiplied by a polynomial that is zero exactly where the false claim shows up.
+
+Take the false list again, with the middle claim false by five. We tried every choice of the two quotient coefficients against all forty-three values of mu. The best choice passes at four values of mu, which matches the bound. Every choice passes at mu equal to zero and at mu equal to two, because at a node the weights select one claim, so the fold checks only that slot. No choice passes at mu equal to one, the node of the false claim.
+
+Those passes at nodes show the fold's weak spot. The code's comments note it too, and they rely on a challenge rarely hitting a node. The message order matters as before. At mu equal to twenty, a cheater who already knew the challenge would need the quotient to equal thirty there, and one linear equation provides that. This is why the code fixes the quotient before the challenge. The code's comments put the nested challenges in a set of two to the one hundred forty-three values. The largest reduction on the nested side then has a failure bound below two to the minus one hundred thirty-eight.
+
+The code still folds in two layers, with a fresh challenge for the second. For our six claims, the prover sends five field elements, where the matrix version sent fourteen, and the final target again equals the revdot product of the final vectors.
+
+The code's comments give the reason for keeping two layers. The number of carried coefficients stays the same for any way of splitting the slots into groups, while the prover's count of revdot products depends on the split. The choice of seven per group sits near the minimum. So the two layers now serve the prover more than the circuit.
+
+Compare the options for the native side, with ninety-eight slots in fourteen groups of seven. The book's two-layer matrix commits to seven hundred seventy field elements and spends eight hundred seventy-one multiplication gates on the scalar fold. The code's quotient fold commits to ninety-seven elements with two hundred sixty-two gates, and it computes eight hundred eighty-two revdot products. A quotient fold with one layer would need nine thousand six hundred four products and four hundred eighty-four gates.
+
+The gate count for the matrix uses the book's formula, and the other two are our own count from the code. These figures cover only the folding of scalars. The nested side has ten groups of eight, and by the same count it commits to seventy-nine coefficients with two hundred thirteen gates.
+
+The fold in the code.
+
+The new-target formula appears in a code function called corrected. It computes the blended target, runs Horner's rule over the quotient coefficients, multiplies by the vanishing polynomial's value, and adds the result. What follows about the rest of the code is reconstructed from the code at the pinned commit, and the authors have not confirmed it.
+
+The native side's ninety-eight slots hold its eighty-six claims, the nested side's eighty hold its seventy-two, and unused slots stay zero. The fuse absorbs each layer's stage commitment before squeezing that layer's challenge, and it absorbs the commitment for the two folded polynomials before squeezing the challenge x. The staging chapter explains those stages.
+
+A circuit called collapse checks that each group folds to its witnessed value, and that those values fold to the instance's target. Its comments state that this last check is waived for the bootstrap step, which takes only dummy inputs. The code has no separate theta either. It reuses x, checking the left polynomial at x times z and the right polynomial at x, so both checks read the same trace values, which saves separate queries.
+
+The prover computes the left commitment with a small multi-scalar multiplication over the children's commitments, and it commits to the right polynomial directly. At the next fuse these two enter as raw claims, with the child's target as their target, and this is the accumulator we described. The uncompressed verifier acts as the decider by recomputing the revdot product of each claim that the proof carries.
+
+Blinding differs too. The book's accumulator has two blinding factors, while the code stores each polynomial with its commitment and no such factors. Our runs include them to match the nark chapter. One set of challenges drives the folds on both curves, and the endoscalars chapter gives the lift that makes this possible.
+
+All of this describes the Ragu revision this site pins. Tachyon, which has not activated on mainnet and whose design is still changing, pins a different Ragu revision and runs its steps against a mock of Ragu. So nothing at its pinned commit executes this fold.
+
+Compression and the forms of the fold.
+
+Compression folds again when a proof leaves the tree, and here the matrix returns, with plain powers of a pair of challenges as its weights. These belong to the same family as the book's weights under a change of names, and for our earlier fold they give the same vectors and the same target of nineteen.
+
+The verifier in compression does not read the cross terms either. The prover packs them into one vector and commits to it, and a public vector holds their weights in mirrored positions. The weighted sum then becomes one more revdot product. With our numbers and one layer, that product is twelve and the diagonal contributes seven, which again gives nineteen.
+
+The fold then leaves three revdot claims, which are the folded pair plus one claim per layer for those packed vectors. The split from the polynomial encoding chapter proves a random combination of them. This is the one place that pays for the product polynomial and its transforms, and the chapter on recursion in Ragu continues from there.
+
+The Ragu Book and the code differ here as well, because the sources contain four forms of this fold. The book's revdot chapter uses inverse powers of mu on the left and powers of mu times nu on the right, with all the cross terms as the message. The book's structured vectors chapter swaps those two weights, and its prover sends the whole matrix with the diagonal enforced. The code's fuse and the book's recursion chapter use Lagrange weights on both sides, with only the quotient coefficients as the message. The code's compression and the book's compression chapter use plain powers, and the message is one commitment to the cross terms plus the revdot product of the packed vectors.
+
+The first, second and fourth of these are one family of weights written in different ways. The book's revdot chapter also says that its one hundred thirty-three claims belong to Ragu's fuse operation, whereas the code's fuse has eighty-six native claims and uses the Lagrange form. The site follows the code. We found no statement in the sources of why the fuse uses one form and compression another, so we offer none.
+
+Where this leaves us.
+
+Folding two revdot claims with one challenge needs one cross term, but at three claims a cross term shares a power of the challenge with a claimed value, and a false claim can pass everywhere. Independent weights give each cell of the error matrix its own monomial, so the output can serve as an accumulator until a decider finishes the work. A spot check and two layers then keep the circuit small. A false claim passes only at rare challenges, as long as each layer's messages come first and nobody knows a relation among the generators. Ragu's fuse replaces the matrix with a short quotient polynomial, while compression keeps a committed form of the matrix and then runs the split.
+
+The fold accepts any right vector with the correct product, and we have not yet asked whether that vector contains the correct circuit's wiring. The verifier's other linear cost, computing the wiring value, concerns the same question. The next chapter, on wiring and the registry, answers it.

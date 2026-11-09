@@ -1,0 +1,163 @@
+Appendix. Glossary.
+
+Each entry gives a one-line reminder of a term, and the chapter that teaches the term has the full account.
+
+An accumulation proof is the prover's message that lets a verifier check one accumulation step.
+
+An accumulator is a running object that carries deferred checks from one recursive step to the next.
+
+An action set indicator is a value used to find out which actions a stamp covers.
+
+An anchor is a hash-chain value that commits to the Tachyon pool state.
+
+An anomalous curve is a curve whose number of points equals its field size, which cycles have to avoid.
+
+Atomic accumulation is accumulation in which the accumulator alone is enough to verify each step.
+
+Autonome, aggregate and adjunct are the three states of a Tachyon bundle. An autonome has a complete proof, an aggregate has a merged proof, and an adjunct is a stripped input to a merged proof.
+
+The base case is the start of a recursive chain, where no earlier proof exists.
+
+A batched opening is a reduction of many polynomial evaluation claims to one.
+
+Binding is the property that a prover cannot open one commitment to two different values.
+
+The binding signature is the signature that enforces a bundle's value balance through homomorphic value commitments.
+
+A bonding polynomial is the wiring polynomial of a circuit with constraints only, and it equals zero whenever its second variable is zero.
+
+A bucket is a group of an epoch's tachygrams that share a quadratic-residue profile.
+
+Compression means replacing a large proof's polynomials with commitments and openings.
+
+The consensus window is the two epochs that validators check for duplicate tachygrams.
+
+A cross term, in the inner product argument, is one of the two off-diagonal points, named L and R, sent in each halving round.
+
+A curve cycle, also called a two-cycle, is two curves in which each curve's order equals the other's field size.
+
+A decider is the party or step that runs a deferred check.
+
+A deferred operation is work that one circuit hands to the circuit on the other curve.
+
+An endomorphism is a map from a curve to itself that respects addition. On curves with j equal to zero, it acts as multiplication by an eigenvalue.
+
+An endoscalar is a short challenge that the curve's endomorphism makes cheap to apply.
+
+An epoch nullifier is the value a note publishes for a given epoch.
+
+The error matrix is the matrix of all revdot products between claim vectors, and its diagonal holds the claimed values.
+
+An evidence tree is a tree that retains one proof for all of an epoch's buckets.
+
+An exclusion proof is a proof that a nullifier is absent from closed epochs.
+
+Faerie gold is an attack in which a sender makes two notes that cannot both be spent.
+
+The Fiat-Shamir transform replaces a verifier's random challenges with a hash of the transcript.
+
+Folding means halving a claim with a random challenge.
+
+A folding scheme is a reduction of several instances of a relation to one, with no verifier run inside.
+
+Fuse is Ragu's operation that produces a node's proof from its children.
+
+A gate is one multiplication check on the witness, requiring the gate's a wire times its b wire to equal its c wire.
+
+Grinding means retrying offline until a hash-derived challenge favors the prover.
+
+A header is a node's public claim in proof-carrying data.
+
+Hiding is the property that a commitment reveals nothing about the committed value.
+
+Hoisting means sharing products between gadget steps to save gates.
+
+Incrementally verifiable computation, or IVC, is a proof that covers a whole chain of steps.
+
+An indexed factor is the cubic encoding of a pair of epoch and nullifier, used to build multisets.
+
+An inner product argument, or IPA, is a short proof of a claim about the inner product of committed vectors.
+
+An instance is the public part of a statement.
+
+A master key is a per-note key derived with Poseidon, from which the note's nullifiers come.
+
+The max fee note and the fee change note are the values that let a bundle's fee be chosen after signing.
+
+A multi-scalar multiplication, or MSM, is a sum of many scalar multiples of points, which dominates IPA verification.
+
+A NARK is a non-interactive proof with a constant-size instance and a linear-size witness.
+
+A nested commitment is a commitment to the coordinates of points from the other curve.
+
+Non-native arithmetic means emulating one field's arithmetic inside a circuit over another field.
+
+A nullifier is a value published on spend to stop double spends.
+
+A payment key is a hash of the spend validating key and the nullifier key that a note commits to.
+
+A Pedersen vector commitment is the point you get by multiplying each entry of a vector by the generator for its position and adding the results, optionally with a blinding term.
+
+A polynomial commitment scheme, or PCS, is a commitment to a polynomial, together with a way to prove its evaluations.
+
+A polynomial IOP is a protocol in which the verifier may query polynomial oracles.
+
+Post-processing is Halo's technique for supporting many circuits without verification keys.
+
+Proof-carrying data, or PCD, is a computation structured as a tree of steps, where each step's data carries a proof of all the work behind it.
+
+A quadratic arithmetic program, or QAP, is a polynomial form of R one CS in which the constraints hold when one polynomial divides another.
+
+The quotient fold is Ragu's fuse-time reduction of revdot claims using Lagrange weights and a quotient.
+
+A quotient polynomial comes from subtracting a claimed value from a polynomial and dividing by X minus the evaluation point. It exists exactly when the polynomial takes the claimed value at that point.
+
+A rank-one constraint system, or R one CS, has constraints saying that matrix A times the witness, multiplied entry by entry with matrix B times the witness, equals matrix C times the witness.
+
+A random linear combination merges several claims with random weights.
+
+A random oracle is an idealized hash function whose outputs behave as independent random values.
+
+A registry polynomial is a polynomial that interpolates many circuits' wiring over a domain.
+
+A revdot claim is an instance made of two commitments and a value, with witness vectors whose revdot product is that value.
+
+A revdot product is the inner product of one vector with the reversal of another.
+
+The Schwartz-Zippel lemma says that a nonzero low-degree polynomial is zero at a random point with probability at most its degree divided by the size of the field.
+
+Soundness is the property that false statements rarely pass verification.
+
+A spendable is a proof that certifies a note's position in the pool's history.
+
+Split accumulation is accumulation in which the verifier handles only public instances, while the prover keeps a separate witness.
+
+A stage mask is a gate-free revdot claim that a stage polynomial's forbidden wires are zero.
+
+A stage polynomial is a separately committed part of a circuit's trace.
+
+A stamp is the proof-bearing part of a Tachyon bundle, containing tachygrams, an anchor, and a proof.
+
+A step is the rule relating a node's input headers to its output header.
+
+A structured vector is a vector arranged so that the revdot product pairs each gate's a and b wires.
+
+Succinct verification means in-circuit verifier cost that grows more slowly than the circuit.
+
+A sync service is an untrusted party that proves nullifier absence without learning which note it serves.
+
+A tachygram is an opaque field element published for each action, either a note commitment or a nullifier.
+
+Transcript bridging means using challenges from one curve's transcript in the circuits on both curves.
+
+Trial decryption is a wallet's attempt to decrypt every output to find its own.
+
+The unified instance is the shared public values of Ragu's internal circuits.
+
+A vanishing polynomial is the polynomial that is zero on every point of a domain.
+
+A verification key is circuit-specific data that many systems require and Ragu avoids.
+
+The witness is the secret values that satisfy a circuit, also called the trace.
+
+That is the last entry, and it completes the glossary.

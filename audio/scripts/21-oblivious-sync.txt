@@ -1,0 +1,245 @@
+Chapter twenty-one. Oblivious Sync.
+
+Chapter nineteen showed that a spend must prove one nullifier absent from each closed epoch since the note's creation, and chapter twenty built the chain of anchors that those proofs refer to. This chapter opens the black box they left behind. It covers how an untrusted service can prove absence over a whole epoch without knowing which note the values belong to. It also covers how the wallet later ties that work to its note, and what the service learns along the way.
+
+Two problems run through the chapter. The first half shows how a wallet can tie values that a stranger tested to its own nullifiers at the right epochs. The second half deals with size, since an epoch's polynomial is far too large to open directly. At the end we take stock of what the service sees.
+
+The status of these designs.
+
+Tachyon has not activated on mainnet, and this part of its design is still changing. Everything here describes the Tachyon repository at the commit this site pins, which uses a different revision of Ragu from the one in the Ragu chapters. The ZIP for the syncing service is an empty outline, so no request format, service interface, or privacy policy is specified, and we found none in the crate.
+
+The crate does contain the proof steps, but it builds Ragu with its mock feature and calls its proof system the mock Ragu application. These steps compute natively, and comments mark circuit work that remains, such as boolean constraints on the sides. So what we say a step enforces describes the design the steps declare, and we did not find real circuits enforcing it.
+
+The work a spend needs.
+
+Take the running note of chapter nineteen, created in epoch three and spent with target epoch seven. Its nullifiers for epochs three, four, five, and six must each be tested for absence from the epoch of the same number, and either the wallet or a service can do that reading. Its nullifiers for epochs seven and eight are published by the spend, and consensus checks them against its window.
+
+Each test needs someone to read a whole epoch's tachygrams, which is exactly the work that wallets were supposed to stop doing. Handing that work to a service is safe only if the values it receives are useless later. Evolving nullifiers provide this, because the pair published at the spend is unrelated to the values tested for earlier epochs, assuming Poseidon behaves as a pseudorandom function.
+
+We call this party the sync service, or the service. The book also says delegate and oblivious syncing service for the same role.
+
+Two branches that share no secrets.
+
+The service knows nothing about the note, so it cannot prove anything about the note. All it can prove is a statement about arbitrary field elements, saying that these values, at these epochs, do not appear in the pool. The code's name for such a proof is Arbitrary Unspent, and its doc comment says that the tested values remain arbitrary until the wallet attributes them to a derivation.
+
+The wallet holds the other half. As chapter nineteen showed, it proves that a range of nullifiers really derives from the master key of a note with a given commitment, which gives a Note Nullifiers proof. Neither proof says anything about the other, so a final wallet step has to connect them. The book calls that step Unspent Bind, and it is the only place where the two branches meet. Its output, Note Unspent, then feeds the Spendable Lift step.
+
+Both branches build their commitments step by step, because neither fits in one proof step. So the binding has to compare two values that were accumulated separately, by different parties, over different ranges. The wallet's range also needs to be at least as wide as the service's, since it covers epochs the service never saw. We need a commitment that grows one epoch at a time and that supports a proof that one committed collection sits inside another. The deep dive calls this a ranged nullifier commitment, and it rules out the vector commitment schemes it surveyed because they rely on RSA or bilinear groups.
+
+The sources name these objects differently. The nullifier page and the deep dive each use their own letters, and the code calls the three polynomials elapsed, nullifier sequence, and complement. We'll say the service's polynomial, the wallet's polynomial, and the complement. Our ranges exclude the upper end, as the code's do, while the nullifier page's include both ends.
+
+Testing containment with polynomials.
+
+Chapter twenty already has a tool for containment, since a polynomial divides another exactly when its roots form a sub-multiset, and a late random challenge checks the division. So the first thing to try is to give the service's values as roots. The service commits to the product of X minus each tested value. The wallet commits to the product of X minus each nullifier. The wallet then shows that its polynomial equals the service's polynomial times a witnessed quotient.
+
+Our small examples use the field of forty-three elements, so we reduce the nullifiers modulo forty-three. That gives twenty-nine at epoch three, nine at epoch four, twelve at epoch five, and forty-one at epoch six.
+
+This proves that the tested values are the note's, but it says nothing about which value was tested against which epoch. A later proof looks for each nullifier only in the epoch with the same number, so that loss is fatal.
+
+Here is the attack. Suppose an earlier spend of this note had target three and was accepted during epoch four, so epoch four contains twenty-nine and nine. Say epoch four publishes twenty-nine, nine, and seventeen, and epoch five publishes thirty-three, six, and thirty-eight. A second spend must fail, and the honest test does fail, because nine is a root of epoch four's polynomial.
+
+The cheater swaps the two values, testing twelve against epoch four and nine against epoch five. Both tests pass. The tested multiset is still nine and twelve, so its polynomial did not change, and it divides the wallet's polynomial just as the honest one does. So each entry of the collection must carry its epoch as well as its value.
+
+Putting the epoch into the factor.
+
+We want a polynomial factor that encodes a pair of an epoch and a value, such that a product of factors determines which pairs went in. Polynomials over a field factor uniquely into irreducible pieces, up to multiplying the pieces by constants, so two goals follow. Each pair's factor should be irreducible, and the leftover constants should give a cheater no freedom.
+
+The natural first attempt is a linear factor, the epoch plus one, times X, plus the value. The shift by one keeps the coefficient of X nonzero at epoch zero. A linear polynomial is always irreducible, so the first goal holds, and the second one fails.
+
+For epochs four and five the linear factors are five X plus nine and six X plus twelve. Move a constant from one factor to the other, multiplying the first by twenty-seven and dividing the second by twenty-seven. The product stays the same, and the factors become six X plus twenty-eight and five X plus ten. That reads as value ten at epoch four and value twenty-eight at epoch five. Neither is the genuine nullifier, and the product is the same polynomial, so it passes every challenge.
+
+To remove this freedom, Tachyon cubes the linear term and subtracts a constant. We'll call this the indexed factor. The constant does two jobs, and we can derive both.
+
+First, the constant removes the scaling freedom. Suppose a second pair gives the same factor up to some multiplier. Write the first pair's linear term as Y, and express the second pair's linear term through it as a scale times Y plus a shift. Expand the cube and compare coefficients, one power of Y at a time.
+
+The Y squared term forces the shift to be zero. The constant term then says that the subtracted constant equals the multiplier times that same constant, so the multiplier must be one, as long as the constant is nonzero. The Y cubed term says that the scale cubed is one. So the two factors can agree only when the second pair is the first pair scaled by a cube root of unity. Without the subtracted constant, the constant term would say nothing, and any multiplier would do, which is the same trick as in the linear case.
+
+Second, a non-cube makes each factor irreducible. A cubic over a field can only split by having a root. The indexed factor has a root exactly when the linear term at some point cubes to the constant, which requires the constant to be a cube. So if the constant is not a cube, the factor has no root in the field and is irreducible. Non-cubes exist only when three divides the field size minus one, because otherwise cubing permutes the nonzero elements. Pasta satisfies this, and the code fixes the constant at two, which it calls the smallest cubic non-residue.
+
+In the toy field, fourteen of the forty-two nonzero elements are cubes, and two is one of them, so the toy field cannot use the code's constant. Its smallest non-cube is three, and we use that. The real field does have two as a non-cube, which we checked for the Pallas base field.
+
+With irreducible factors and no spare constants, a product determines its multiset of pairs, which the code calls an indexed multiset. We can test this on the toy field. Epochs three to six and all forty-three values give one hundred seventy-two pairs, and they produce one hundred seventy-two different factors. Multiplying any two of them, repeats allowed, gives fourteen thousand eight hundred seventy-eight products, and no two of those are equal.
+
+The non-cube requirement has a concrete purpose, because a factor that splits can divide a product without being one of its members. Take our four pairs with the constant two, which is a cube in the toy field. The wallet's polynomial then has eleven distinct roots, and eleven false pairs have all three of their roots among them. Epoch zero with value thirty-five is one such pair, and its factor divides the wallet's polynomial although it is not a member. With the constant three, the wallet's polynomial has no roots at all, and no false pair divides it except for scaled copies that are the same polynomial.
+
+The sources do not discuss why they chose a cube over a square of the linear term, so we leave that question open.
+
+The next explanation is reconstructed from the code at the commit this site pins, and the authors have not confirmed it. The deep dive's sketch states that this cubic form is irreducible and stays so under affine substitution, and that collisions need a cube root of unity. The rescaling attack on linear factors, the coefficient comparison, and the attack with a cube for the constant are this site's own explanation of why the form takes this shape.
+
+When two pairs share a factor.
+
+The derivation leaves one escape. If we scale both the epoch term and the value by a cube root of unity other than one, the cube does not change, so the two pairs have the same factor. In the toy field the cube roots of unity are one, six, and thirty-six. So epoch zero with value nine and epoch five with value eleven give the same polynomial, because their epoch terms, one and six, are one scaling apart.
+
+A collision like this would matter if a valid epoch term happened to equal a cube root of unity times another. The code states a bound that prevents it, which keeps the epoch term below the square root of one third of the field size, rounded down. Here is the reason. Suppose both epoch terms lie between one and that bound, and one is a cube root of unity other than one times the other. Such a root satisfies the equation that its square, plus itself, plus one, equals zero. Multiplying by the square of the epoch term shows that the sum of three terms is a multiple of the field size. Those terms are the larger term squared, the product of the two terms, and the smaller term squared.
+
+As an ordinary integer, that sum is positive, and each of its three terms is below one third of the field size. So the sum is below the field size, and a positive integer below the field size cannot be a multiple of it. No such pair exists.
+
+On the toy field the bound is only three, and our collision has one plus six plus thirty-six, which is forty-three, exactly the field size. For the Pallas base field the bound is about two to the one hundred twenty-six, while the code has only two to the twenty epochs. Our toy epochs three to six lie above the toy bound, so we checked them directly, and the earlier test found no collision among them.
+
+The deep dive makes the same point more loosely, and adds that a real circuit does not range-check the epoch directly. It relies on the increments as ranges are built and on an out-of-range epoch leading to invalid anchors. The code states the bound without a derivation, so this argument is reconstructed by this site, and the authors have not confirmed it.
+
+A full run on the toy curve.
+
+We can now run the whole binding. A wallet derives the range of epochs three to six. Say it delegates epochs four and five to a service, keeping epoch three because that is the creation epoch, and epoch six because it has not reached the service yet. Real windows are larger, and we'll use the true size shortly.
+
+The service's polynomial is the product of the indexed factors for the epochs it tested. The wallet's polynomial is the product over all derived epochs. The complement is the product over the derived epochs the service did not test. The claim is that the wallet's polynomial equals the complement times the service's polynomial. With each factor having degree three, the service's polynomial has degree six, the complement has degree six, and the wallet's polynomial has degree twelve.
+
+Each party's header holds a commitment, because a header has room only for short values. Unspent Bind first checks that its witnessed polynomials match the commitments on its two input headers. A stand-in hash of the three commitments gives the challenge six, and the step checks the product there. A shared helper absorbs all three commitments into the challenge, compares the evaluations, and records one opening claim per polynomial, which it leaves for the proof system to verify.
+
+At six, the service's factors evaluate to nineteen and thirty-six, so its polynomial gives thirty-nine. The wallet also has eighteen for the complement and fourteen for its own polynomial. The identity holds, since thirty-nine times eighteen is fourteen modulo forty-three. The output is a Note Unspent header. It keeps the segment's anchors and epochs, and it carries the wallet's note commitment, so the anonymous claim now belongs to one note.
+
+A dishonest service gains nothing, because its proof is about whatever it tested, and the wallet's check leaves a diverging proof useless. It can refuse to serve, and it cannot fool the wallet.
+
+A cheating wallet is the more serious case, and the argument runs through the order of events, as in chapter three. The commitments are fixed before the challenge exists, so a false claim is a fixed nonzero polynomial, and the challenge has to land on one of its roots. We tried every kind of attempt, with the honest complement committed. In none of them does a true quotient exist.
+
+Using a wrong value at epoch five passes two of the forty-three challenges, for each of the forty-two wrong values. The swap from earlier passes three. Testing epoch four twice, standing in for epoch five, passes three. Using a genuine nullifier of epoch seven, which the window does not hold, also passes three.
+
+The difference has degree at most twelve, so no attempt can pass more than twelve challenges, and the worst one here passes three. A wrong value passes so few because the difference factors into the complement and one indexed factor, which have no roots in the field, times a difference of two cubes, which has degree two. The proportion looks large only because the field has forty-three elements.
+
+The repeated-epoch attempt needs one more fact. The wallet's polynomial has each epoch once, because Nullifier Fuse requires contiguous ranges, which keeps it squarefree. So a repeated factor in the service's polynomial cannot divide it.
+
+The real window size.
+
+The code's derivation unit is wider than our toy range. Nullifier Derive produces a group-aligned window of sixteen epochs from four sponges, and Nullifier Fuse joins adjacent windows by multiplying their polynomials. Our note needs epoch three covered, so its first window starts at epoch zero. The factors for epochs zero to two, and for epochs where the window runs ahead of the evidence, go into the complement, which stays with the wallet.
+
+The stand-in range of chapter nineteen is the prime sixty-five thousand five hundred thirty-seven, and it cannot host this encoding. One less than that prime is not divisible by three, so cubing permutes that field and every element is a cube. So we work modulo the next prime with the right shape, sixty-five thousand five hundred thirty-nine, whose smallest non-cube is two. The nullifier values carry over unchanged.
+
+The service tests epochs four, five, and six, which gives degree nine. The complement covers epochs zero to three and seven to fifteen, which gives degree thirty-nine, and the wallet's polynomial has degree forty-eight. At the stand-in challenge the identity holds. If the service instead tests one more than the genuine value at epoch five, then trying every challenge finds two that pass, against the degree bound of forty-eight. The window is well inside the injectivity bound here, which is one hundred forty-seven.
+
+Notice what Unspent Bind does not compare. The proof tree page says it compares no bounds between the segment and the derivation. It does not need to, because each factor carries its own epoch. An epoch outside the derivation has no factor to divide out, so coverage follows from the identity.
+
+The book and the code differ on the steps around the bind. In the deep dive, an Unspent Seed step creates an empty range, and the bind requires the segment's range to sit inside the derivation's range. An Unspent Merge step joins results, and the creation epoch goes through its own initial steps. In the proof tree page and the code at the commit this site pins, Q R Unspent Init is the only seed, so no empty segment exists. The join is Unspent Fuse, and the bind compares no bounds beyond a defensive check that the segment is not empty. The creation epoch uses an ordinary segment bound by Unspent Bind, which Q R Spendable Init then consumes. This site follows the code.
+
+Why one opening per epoch needs buckets.
+
+With the binding in place, we turn to what the service proves. A nullifier is absent from an epoch exactly when the epoch polynomial is nonzero there. Anyone can show that the epoch polynomial is the product of the stamp polynomials absorbed into the anchor chain, and the work is paid once and reused for every query. The obstacle is the polynomial's degree, because opening a commitment with Ragu's linear-time verifier costs time in proportion to it.
+
+Take a hypothetical load of one hundred two-input, two-output transactions per second, with eight tachygrams each. An epoch of the code's four thousand ninety-six blocks lasts three hundred seven thousand two hundred seconds at seventy-five seconds per block. So it holds two hundred forty-five million seven hundred sixty thousand tachygrams, and the epoch polynomial has that degree.
+
+The deep dive estimates more than sixteen minutes of verification at its own higher figure, and so it drops this approach. Its figure of more than four hundred eighty million tachygrams uses a two-week epoch, and it matches four hundred eighty-three million eight hundred forty thousand, which is four tachygrams per transaction. Two per action would give nine hundred sixty-seven million six hundred eighty thousand. Its later scale estimate does use eight per transaction, and neither figure uses the code's epoch length.
+
+The fix is to split the epoch into buckets small enough to open, so that a query touches one. This only works if a value can find its own bucket without any list of the epoch's contents, and if nobody can leave a tachygram out of the bucket where it belongs. So the partition has to be a public rule computed from the value alone, and it has to be cheap to prove that a whole bucket obeys the rule.
+
+A rule based on hashing each member would cost one hash per member inside a proof, by our count, since the deep dive says only that its own choice is cheap to prove. Tachyon instead classifies values by quadratic residuosity, because a polynomial identity can attest many members at once.
+
+Half of the nonzero elements of a field like ours are squares. In the toy field there are twenty-one of them, and multiplying by a non-residue swaps the two halves. The smallest non-residue is two. Nine is a square, and eighteen is not. Three is not a square, and six is. So every nonzero value has a root either of itself or of twice itself, and never both. The code uses five, which is the smallest non-residue of the real field.
+
+Classifying a value.
+
+One split of the field gives two classes, and we need many. A discriminant is an offset that gives a different split, because a value is classified by whether the value plus the offset is a square. The rule sets the bit to one when the shifted value is a square or zero, which we call the residue side, and to zero otherwise. A run of discriminants then gives each value a string of bits, its Q R profile. Tachyon uses consecutive offsets, counting up from a first discriminant that a builder picks.
+
+Here is chapter twenty's epoch zero, with its stamps A, B, and C and nine tachygrams. A search for a readable small-field example chose the first discriminant twenty-six. At that discriminant, the values twenty-two, twenty-four, twenty, thirteen, and nineteen fall on the non-residue side, and forty, twenty-three, forty-one, and twenty-one fall on the residue side. To show a value's side, a prover supplies a root, a value whose square equals the shifted value on the residue side, or the non-residue times the shifted value on the other. For twenty-two, the shifted value is five, and fifteen is the root, because fifteen squared is twice five modulo forty-three.
+
+One value needs special handling, which is the one where the shifted value is zero. At our discriminant that is seventeen, because seventeen plus twenty-six is forty-three. Zero squared equals zero on either side, which means a root alone would let this value sit on either side. The rule files it on the residue side, so a step that claims the non-residue side must also check that the shifted value is nonzero. Without that check, a cheater could move this value to whichever side suited it.
+
+Proving a split.
+
+A builder holds a set of tachygrams with a committed polynomial, and it wants to split them into a non-residue side and a residue side. A product of the two sides equal to the original shows that they partition the set, and that check works as in the binding. What remains is to show that each member sits on the side it claims, without one check per member.
+
+Suppose every root of a polynomial has a known square root of the kind we just described. Interpolate a polynomial we'll call U through the pairs of each member and its root. Then U squared, minus the side's multiplier times the sum of X and the discriminant, vanishes at every member. Consensus forbids repeats within two epochs, so the side's polynomial is squarefree. A polynomial that vanishes at every root of a squarefree polynomial is divisible by it, so a quotient exists.
+
+The reverse also holds, and that is what gives the identity force. If the identity holds for some U and some quotient, then evaluating at any member shows that U at that member is a root of the kind that only the member's true side allows. One identity, checked at one random point, therefore covers all the members at once.
+
+The code splits this into two steps. Q R Intake Split checks the product, and it opens the non-residue side at the negated discriminant to show that it is nonzero there, which handles the exceptional value. Q R Side Descend then extracts one side as a child, and it runs the identity on the other side, the sibling. The sibling's attestation is what protects the child. If every root of the sibling truly belongs to the sibling's class, then every member of the child's class must be in the child.
+
+Take stamp A as an intake, with members twenty-two, twenty-four, and forty. Its non-residue side holds twenty-two and twenty-four, and its residue side holds forty. To descend into the residue side, the prover attests the sibling. The roots fifteen and ten determine a line for U, and the quotient comes out as the constant seventeen, which is constant here because the sibling has degree two. A stand-in hash of the commitments and the discriminant gives the challenge ten, where both sides equal eighteen.
+
+Now we can see why cheating fails. An absence proof goes wrong only if a published value is missing from the bucket that its own profile selects. Suppose a cheater wants forty missing from the residue child, because later it will claim that forty is absent. It moves forty into the sibling. The identity then needs a square root of three at forty, and three is not a square, so no such polynomial exists. Trying all forty-three values and taking the quotient by long division, none of them divide exactly, and the best attempt passes two of the forty-three challenges. The crate's tests reject a child short of a member in this way.
+
+The attack the other way is harmless. If the cheater left a stray non-residue member in the residue child, then the sibling's identity would still hold, and the child would have one root too many. A stray can only make a later nonzero opening harder to pass.
+
+Here the book and the code differ. The deep dive has one decomposition relation prove both sides pure, using four polynomials, and it says the output contains exactly the members of each class. The proof tree page and the code at the commit this site pins have a split and a separate descent for each child, each attesting only the sibling, and the child may carry a stray member. This site follows the code. The deep dive's exactly is stronger than what each descent enforces, and the weaker form is enough for absence.
+
+The challenge in the descent step also absorbs the discriminant, through a curve point computed from it. The discriminant is chosen by the prover and is not one of the committed polynomials, so without this a prover could solve the identity for the discriminant after seeing the challenge. Chapter three showed the same failure in general.
+
+Routing an epoch into buckets.
+
+Splitting one big polynomial in one step is impossible, since no step can hold it, so the partition has to grow out of small pieces. Each stamp or short run of stamps starts as a root intake, a bounded set of tachygrams at depth zero with a range of anchors. A round of routing splits each intake and merges neighbours. Two intakes may merge only if they have the same profile, their anchor ranges meet, and the union fits the capacity. The merge is a polynomial product, as in chapter twenty.
+
+Here is the network for our epoch, with a capacity of four. We start with one root intake for each of the three stamps. Round one uses the discriminant twenty-six. Profile zero gets one intake holding twenty-two, twenty-four, and twenty, from stamps A and B, and a second intake holding thirteen and nineteen, from stamp C. Profile one gets a single intake covering all three stamps, holding forty, twenty-three, forty-one, and twenty-one.
+
+Round two uses the discriminant twenty-seven and splits profile zero. Profile zero zero holds twenty-four and nineteen, and profile zero one holds twenty-two, twenty, and thirteen, each covering all three stamps. So the network ends with three buckets. Multiplying their polynomials gives back the epoch polynomial of chapter twenty, and no bucket has degree above four, where the epoch polynomial has degree nine.
+
+The buckets have different depths. Profile one was complete after one round, because one intake covering all three stamps held all of it. Profile zero still had two intakes after round one, so only that branch went through another round. The deep dive calls this a jagged frontier. The final profiles form a prefix partition, so every value matches exactly one of them.
+
+Each final bucket also has to cover the whole epoch, or a tachygram of that profile could be missing. Q R Bucket Seal certifies this by computing the boundary digest into the next epoch, as chapter twenty explained. A bucket sealed before the final anchor lands on a value outside the accepted chain. The step checks that the intake begins on a boundary digest, from a previous final anchor it takes as a free witness, and consensus closes that gap later.
+
+For our epoch, the step takes zero as the previous final anchor and checks the start against the entry anchor twenty-nine. The last intake ended on the final anchor twenty-six, so the step computes the crossing to forty. The bucket covers the range from twenty-nine up to forty, using chapter twenty's stand-in values. An epoch with no stamps seals an empty bucket whose polynomial is one, so it costs no more than any other.
+
+The depth stays modest at real scale. The deep dive sizes this for fifty thousand such transactions per second over two weeks, which is four hundred eighty-three billion eight hundred forty million tachygrams. At eight thousand tachygrams per bucket that is sixty million four hundred eighty thousand buckets, and the base-two logarithm of that is twenty-five point eight. So the honest depth stays below twenty-six, inside the thirty-two positions the header allows. The eight thousand comes from the deep dive, and we found no such constant in the crate, where capacity is a parameter of the test fixtures.
+
+The choice of first discriminant does not affect soundness, because a proof certifies the buckets under whichever value the builder used. It affects only balance, and the deep dive worries that a user who knew it could grind tachygrams into one bucket. Across all forty-three choices, the fullest of the four depth-two classes holds on average three point seven of our nine tachygrams. With twenty-six known in advance, a user could publish nine of the eleven field elements with profile one one and fill that class alone. So each builder samples its discriminant privately and keeps it unpublished until the epoch closes. A biased network hurts only its builder, and a wallet may use any valid network.
+
+Testing a value against its bucket.
+
+The last step of the service's work is Q R Unspent Init, which takes a sealed bucket and a value and proves the value absent. First it opens the bucket's polynomial at the value and requires a nonzero result.
+
+Test the value four, which chapter twenty found absent from this epoch. Its shifted values are thirty and thirty-one, and these give it the sides zero and one. So its bucket is zero one, whose polynomial gives thirty-one at four, which is nonzero. One opening of a polynomial of degree three has replaced an opening of degree nine.
+
+The step must also show that this bucket is the right one, because any other bucket would open nonzero too. Now test forty-one, which stamp B published. Its sides lead to bucket one, where the opening gives zero, so the nonzero check fails and no proof exists. Opened against the other buckets, forty-one gives thirty and thirty-five, both nonzero. So without a profile check, a cheater could prove absence of a value that was published.
+
+To force the match, the step witnesses the value's side and root at every one of thirty-two positions. At each position it computes the shifted value, and it checks that the root squared equals the shifted value when the side bit is one, or the non-residue times the shifted value when the bit is zero. A zero bit also requires a nonzero shifted value. Since the non-residue is not a square, only the value's true side has a root. The step runs all thirty-two positions because a circuit's shape cannot depend on secret values, and buckets differ in depth.
+
+The bucket's depth selects how many sides to compare, through a mask of thirty-two bits. The proof tree page gives the checks. The number of set bits must equal the depth. The sum of the positions of the set bits must equal the smallest sum possible, which is zero plus one and so on up to the depth minus one. Only the leading positions reach that sum, so these two checks force the mask to be the first positions up to the depth.
+
+A running integer then starts at zero, and where a mask bit is set, the step doubles it and adds the side bit, which appends one bit. The result must equal the bucket's bits, so the integer is built out of the value's own sides. For depth two there are four hundred ninety-six ways to set two mask bits, and only the first two positions pass. For the value four, the first four sides are zero, one, zero, zero. The running integer goes through zero, one, one, one, ending at one, the integer that encodes zero one. The sides past the depth are computed and ignored.
+
+The output is a one-epoch segment. It tests a value against a bucket, so its elapsed polynomial holds the single indexed factor for that epoch and value. The step must also tie that factor to the value it opened, and the check has a trap.
+
+Take the one-factor sequence for value twelve at epoch five, with the challenge six. If the challenge did not depend on the value, a cheater could pick a twin value of thirty-seven, using the cube root of unity six. The inner terms differ by that root, so their cubes agree, and both factors give thirty-six at the challenge. A sequence naming twelve would then pass for a test of thirty-seven, so the proof could test one value and record another. So the challenge absorbs a curve point computed from the value as well as the sequence commitment, which makes it depend on the value. The crate has a test for exactly this twin.
+
+Composing segments and keeping evidence.
+
+A segment for one epoch has to grow to cover many. Unspent Lift appends the next epoch's bucket in one step, and Unspent Fuse joins two segments on a shared boundary. Both check that the anchors and epochs meet, and that the new elapsed polynomial is the product of the old ones. Each producer adds exactly one factor per epoch and labels it with its own epoch, so a segment holds one factor for each epoch in its range. This is the property that lets Unspent Bind skip comparing bounds.
+
+For example, start with bucket zero one of epoch zero and the value four, which gives a segment over epoch zero with anchors from twenty-nine up to forty. Epoch one published nothing, so its bucket is empty and any value passes the opening. Lifting over that empty bucket with the value thirty-three gives a segment over epochs zero and one, with anchors from twenty-nine up to eighteen, and an elapsed polynomial of degree six.
+
+The segment stops at the entry anchor of the first epoch it does not cover, so the following epoch's nullifier is someone else's to test. When the lineage lifts over the segment, it comes to rest on that anchor. In the running note's case this leaves epoch seven, which consensus scans directly, and that is the handover promised in chapter nineteen.
+
+The creation epoch works like any other, except that Q R Spendable Init also opens that epoch's bucket at the note commitment and requires zero. That check needs no profile, since a root of any bucket is a tachygram the epoch published. The deep dive has the wallet handle the creation epoch directly, which fits the rule that the service never sees the note commitment.
+
+The routing network produces one proof per final bucket, and a builder would rather not store them all. So it folds them into a tree, a Poseidon Merkle tree whose node has four children. Proofs go in two at a time, and a builder short of four leaves repeats one. Each leaf digests the bucket's header, namely its epoch, both anchors, first discriminant, depth, bits, and commitment. With our three buckets, the last repeats, so the four slots hold buckets one, zero zero, zero one, and zero one again.
+
+The node over these four slots hashes to one root value, which stands for all the buckets. To serve a query for bucket zero one, a builder reveals the four children, the verifier rehashes them to the root, and it then checks the bucket's fields against slot two's digest. Further steps walk a query down the tree and replay the bucket as an ordinary sealed bucket, which the earlier steps accept unchanged. A quaternary tree of depth thirteen has two to the twenty-six leaves, which is the deep dive's intended maximum, so an opening costs at most thirteen node hashes and one leaf digest.
+
+The leaf must bind the profile, for the reason we just saw. Suppose it did not, and a builder wanted to prove the published value forty-one absent. It could offer the contents of bucket zero zero under the label one. The profile check would pass, because the label is forty-one's true profile, and the opening would give thirty, which is nonzero. With the profile in the leaf, that combination digests to a value matching none of the slots, so the path check rejects it.
+
+A tree claims nothing about which buckets it holds. A builder that omits a bucket can fail to answer a query, and it cannot answer wrongly, since each bucket carries its own whole-epoch claim. All of this evidence is built from public data, so anyone can check or replace a builder, and the table of roles marks these steps as possible for a wallet.
+
+The book and the code differ on the evidence tree's domains. The deep dive says a node needs no domain constant and that leaves bind sentinel endpoints. The proof tree page and the code at the commit this site pins hash nodes and leaves under separate domains, so that no path can present a node as a bucket, and a test rejects that attempt. The endpoints are entry anchors. This site follows the code.
+
+What the service learns.
+
+Oblivious refers to what the service does not know. Let's separate what comes from the proof steps from what depends on policy.
+
+The service sees each value it was given, with its epoch, because the request itself needs both. It sees when a wallet asks and for which range, and the deep dive leaves timing and range selection to wallets. It does not learn the note commitment, the nullifier trapdoor, the master key, the nullifier key, or the note's value, because no step it runs touches them. It cannot compute any nullifier beyond its list, because it has values and no key, assuming Poseidon acts as a pseudorandom function. It cannot tell from the values alone whether a request is real or a decoy, because nothing it receives is bound to a note. And it does not learn the eventual spend anchor, because the wallet lifts and spends alone.
+
+The service can compare its list with everything published, so the wallet must never delegate a value that it will later publish. Alice's spend sits in the bundle of chapter nineteen, which publishes nine values. A service holding her nullifiers for epochs four to six compares that list with the bundle and finds no match. If Alice had also delegated epoch seven, the service would see that value published, which would tie her request to this bundle.
+
+So a wallet that spends with a given target has to keep that target's nullifier and the next one out of every request, as chapter one noted. A wallet that delegates ahead of time must therefore spend with a target above everything it has delegated.
+
+Beyond that, the sources point to measures and do not settle them. A range starts near a note's creation, so a request can suggest the note's age, and a stream of requests can reveal when a wallet stops asking. The deep dive suggests standard ranges, decoys, and local continuation to give different requests the same shape, and different ranges to different services, so that none of them sees the whole sequence. None of this is specified.
+
+The rule about delegating ahead of a spend, and the inferences about age and stopping, are reconstructed by this site from the code at the commit it pins and from the deep dive's remark on timing. The authors have not confirmed them, and the sources do not spell them out.
+
+All of this covers what the service's inputs reveal. What a proof itself reveals is a separate question, because chapter two records that Ragu's book and code do not yet establish zero knowledge.
+
+The sources also differ on what the service holds. The nullifier analysis says in its threat model that the service can derive nullifiers for a finite range. Its attempts say in one place that the service receives a proof attesting them, and in another that it blindly trusts the list. The deep dive and the code say that the service receives values and a range with no note-binding evidence. Q R Unspent Init takes the value as a free witness and consumes no proof from the wallet, although a doc comment still says that a delegate receives proven value windows.
+
+The proof tree page also lists an Arbitrary Unspent segment among proofs that stay inside a wallet and need no rerandomization, while its own roles section has the service build it. Those two statements fit only if the wallet runs the steps itself, so we treat rerandomization of a service's segment as unsettled. This site follows the code on what the service receives.
+
+Why cheating fails.
+
+Each defence here assumes that proofs cannot be forged, and the steps do not yet run as real circuits, so this describes the design. We've met each attack already, so here we collect what each defence rests on.
+
+The division that stops a false value, a skipped epoch, or a repeated epoch rests on Schwartz-Zippel, Fiat-Shamir, commitment binding, and irreducible factors. The epoch binding rests on a non-cube constant and epochs below the bound. Absorbing the value against a twin rests on Fiat-Shamir, and the sibling's identity rests on Schwartz-Zippel and the non-residue. The profile in the leaf and the seal's boundary digest both rest on Poseidon collision resistance.
+
+A harmful first discriminant affects balance only, assuming at least one honest network exists. Keeping a request unlinked from a spend assumes Poseidon acts as a pseudorandom function and the wallet follows the rule.
+
+Where this chapter leaves us.
+
+A spend needs one absence proof per closed epoch, and a wallet can hand the reading to a service by sending explicit values. Unspent Bind joins the service's claim to the wallet's derivation through a divisibility check, using cubic factors that bind each value to its epoch. The epoch polynomial is too large to open, so builders route its tachygrams into buckets by a profile of quadratic-residue bits that any value can compute for itself. Sealing makes each bucket cover the whole epoch, and an opening with a matching profile proves absence.
+
+The service sees values, epochs, and timing. It learns no field of the note as long as those values are never published, although a range and its timing can still hint at the note's age. The policies that would hide such patterns are unspecified at this commit.
+
+All of this describes one commit of a proposal that has not activated, whose service ZIP is empty, and whose steps still run against a mock of Ragu. We have now seen most of the proof steps one at a time, with several chapters in between. The next chapter, The Proof Tree, puts them in lifecycle order as proof-carrying data steps, from deriving nullifiers through bootstrapping, maintaining, and spending, and it says who runs each.

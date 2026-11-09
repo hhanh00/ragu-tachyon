@@ -1,0 +1,231 @@
+Chapter twenty-two. The Proof Tree.
+
+Chapter two sketched the steps behind one spend as a small graph and promised a closer look. Chapter nineteen has since built the keys, notes, and nullifiers, and chapter twenty built the anchor chain and the set polynomials. This chapter puts those objects into their places. It follows one note through its whole life, step by step, and at each step it says what the step takes in, what it checks, what it emits, and who runs it.
+
+We treat absence evidence as a black box. Chapter twenty-one explains how a sync service proves that a value is missing from an epoch, and here we use only the header that service hands over. Fees and stamps get the steps that produce them, and chapter twenty-three covers what aggregators and miners do with the result.
+
+The status of this design.
+
+Tachyon has not activated on mainnet and its design is still changing. This chapter describes the Tachyon repository at the commit this site pins, and any later commit may differ. Its shielded protocol ZIP is an empty outline, so our sources are the book's proof tree, authorization, and fee pages, together with the Tachyon crate.
+
+These steps run against a mock of Ragu, at a different revision from the one in the Ragu chapters. In that revision, the mock's fuse runs a step's body natively, discards the recorded polynomial openings, and returns a hash record in place of a proof. It does not verify the child proofs. So when we say that a step checks something, we mean that its body at this commit checks it natively, and that the design expects a circuit to enforce the same relation. We did not find real circuits for these steps.
+
+Steps, headers, and parties.
+
+The vocabulary comes from chapter two. A step declares a left input header, a right input header, a witness, and an output header, and running it with Ragu's fuse produces a new header with a proof. An unused input is the unit header. A step with two unit inputs starts through Ragu's seed, which supplies the bootstrap proof for both.
+
+Take the declaration of the step called Spend Bind. It names a Note Spendable header on the left, a Note Secret header on the right, one trapdoor as its witness, and a Spend Header as its output. That declaration says nearly everything we need about a step, because the Rust types force the shape of the tree. Spend Bind cannot accept anything except a proved Note Spendable and a proved Note Secret. The suffix on each header type enforces this in the proof, so two types with the same fields stay distinct.
+
+A header does not have to be public, because it is visible only to whoever receives that node's data. The Note Secret header carries a full note opening and a master key, which is safe only because the wallet that built it never hands it to anyone. The tree therefore has private nodes low down and a public node at the top.
+
+Three parties run the tree. A wallet holds keys and note data, a sync service holds the nullifier values a wallet shared with it along with public pool history, and an aggregator merges stamps. The book's roles table gives validators no step, and they check the final proof, although one sentence says that consensus also publishes spans. We follow the table.
+
+The crate registers thirty-eight steps and sixteen header types. We compared the book's table of steps with the code's declarations, and the left input, right input, and output of all thirty-eight agree.
+
+The running example.
+
+We keep Alice's note from chapter nineteen, with value twenty-five, created in epoch three and spent with target epoch seven. All of its numbers carry over, including the stand-in hash, which is S H A two fifty-six of a tag and inputs, reduced modulo sixty-five thousand five hundred thirty-seven. Two more stand-ins are new to this chapter.
+
+First, polynomials live modulo sixty-five thousand five hundred thirty-nine. The nullifier factors we're about to meet need a value with no cube root. In the old modulus every element has a cube root, so we move up to the next prime in which two has no cube root. Second, set commitments are hashes of coefficients. Coefficients this large do not fit the toy curve's forty-three scalars. This chapter relies only on the same polynomial giving the same value and a different polynomial giving a different value, and the hash provides both at this scale.
+
+Signing keys and value commitments remain real arithmetic on the toy curve. The note lives through a made-up pool history. Epoch three has three stamps, and the second is Bob's, whose five tachygrams include Alice's commitment. Epoch four has two stamps and epoch five has one. Epoch six published nothing, so its entry and final anchors are equal. Epoch seven has three stamps and is still open. Each state of the anchor chain follows chapter twenty's folds, and we'll refer to anchors by role rather than by value.
+
+Deriving nullifiers.
+
+A note's lineage has to end by publishing nullifiers that nobody can choose, and along the way it has to test earlier nullifiers against each past epoch. Both needs start from the same secret. So the tree computes that secret once, in a private node that later steps can consume as often as they like.
+
+The step Note Seed has two unit inputs. It witnesses the note's value and trapdoors along with the proof authorizing key, which is the pair of the spend validating key and the nullifier key. It emits a Note Secret holding the note commitment, the note, and the master key. The point of the step is the pairing. Deriving the payment key from the proof authorizing key pins the nullifier key, so the same nullifier key and nullifier trapdoor reach both the master key and the commitment. After this step, the nullifier key appears in no header. For Alice's note, the master key comes out as two hundred ninety-nine.
+
+The step does not show that this note exists, since anyone can seed an invented note. That question closes later, when a lineage has to find the commitment in the pool.
+
+Later steps need many nullifiers at once, and they need to compare them with a sync service's work without revealing the master key. So Nullifier Derive takes the Note Secret, derives a whole window of sixteen nullifiers from four sponges, and emits a commitment to the window. Its output, Note Nullifiers, holds the note commitment, the start epoch, the commitment to the window, and the end epoch, with no key material. The start epoch is a witness, but it must be a multiple of four, and it is written on the header so that any choice labels its window honestly. For Alice's note we take the window starting at epoch zero.
+
+The commitment has to hold pairs of an epoch and a nullifier, and not nullifiers alone, because of a double spend we'll see shortly. A natural encoding of a pair is a linear factor, the epoch plus one, times X, plus the member. Linear factors fail, because the factor's root is the negated member over the epoch plus one. So a member at epoch three, and twice that member at epoch seven, share a root. The two factors differ only by a constant multiple, and divisibility cannot tell them apart.
+
+The code instead uses an indexed factor. It cubes the linear term and subtracts a constant that has no cube root in the field. If this cubic had a root, the linear term at that root would be a cube root of the constant, and none exists. In the real field the constant is two. For epoch three, trying all sixty-five thousand five hundred thirty-nine field elements finds no root, so this cubic has no linear factor, and a cubic with no linear factor is irreducible. Cubing also separates the earlier collision, because the two pairs' leading coefficients now differ, at sixty-four against five hundred twelve.
+
+An irreducible factor is what makes division meaningful. Polynomials factor uniquely into irreducibles, so one product of such factors divides another exactly when its factors are among the other's, with multiplicity. Divisibility therefore tests multiset containment of pairs. The window's sequence polynomial is the product of its members' indexed factors.
+
+Two cubic factors can still coincide when the ratio of their linear terms is a cube root of unity. None of the two hundred forty ordered pairs in our window does this. The code's comment gives the epoch term below the square root of one third of the field size as enough to rule out every such pair. That bound is one hundred forty-seven for our stand-in field, and it exceeds two to the one hundred twenty-five for the real one, while epoch indices stay below two to the twenty.
+
+The step binds the commitment to the sponge outputs with one opening. The prover commits to the sequence polynomial before a challenge exists, the challenge comes from a hash of that commitment, and the step compares the opening with the factors it computes itself. The sequence has degree forty-eight, and the opening matches the sixteen factors evaluated directly from the sponge outputs. Suppose a prover commits instead to a sequence with the member at epoch five replaced. Testing every challenge shows that this false sequence agrees with the true product at two points, which is within the degree bound of forty-eight.
+
+A note older than a window needs more than one. Nullifier Fuse joins two ranges of the same commitment, requires that they be contiguous, and checks that the combined polynomial is their product. A second window starting at epoch sixteen passes, since the first window ends at fifteen. A window starting at epoch twelve would also be group-aligned, but it would repeat four epochs, and the check rejects it. The contiguity check keeps the product free of repeated factors. Our note needs only the first window, so the rest of the run does not use this step.
+
+The next explanation is reconstructed from the code at the commit this site pins, and the authors have not confirmed it. The code's comment gives the irreducibility and the collision bound, and the proof tree page says the factor carries its epoch. The sources do not explain why a cube is needed in place of a linear factor. The explanation through shared roots is this site's own, and so is the plain-factor attack we'll reach shortly. We checked both on the stand-in field only.
+
+Bootstrapping a spendable.
+
+The derivation so far could describe an invented note. The next step has to tie the commitment to the pool, and to give the wallet a position on the anchor chain from which a spend can proceed. The result is a Note Spendable header, holding the note commitment, the current epoch, and an anchor. Two steps can start one, and they differ in where they leave the lineage.
+
+Spendable Init serves a spend in the creation epoch. It takes the commitment from a Note Nullifiers header and witnesses the creation stamp's tachygrams, the anchor just before that stamp, and the epoch. It opens the set polynomial at the commitment and requires zero, and it folds the stamp's commitment onto the witnessed predecessor. The output anchor is the state immediately after the creation stamp.
+
+The predecessor and the epoch are free witnesses, which looks like a hole until we follow the anchor forward. A wrong predecessor or a wrong epoch each gives some other value, and the step accepts both, since nothing in it can tell. But neither value appears in the chain. So a wrong witness produces a valid-looking header whose anchor consensus will not recognize when the spend is published, as chapter twenty explained.
+
+This step tests no nullifier, because the only stamp its position covers is the one that created the note. A double spend within the creation epoch runs into the duplicate window instead. A spendable from this step can spend only inside its creation epoch, because it rests after a stamp, and the lift we're about to meet starts only from an entry anchor.
+
+Maintaining a spendable.
+
+A note carried into a later epoch has to show that it was not spent in each epoch it crosses. Doing that work requires the whole epoch's tachygrams, which a wallet does not want to fetch, so the tree splits the job at a deliberate seam. A service tests values it was given without knowing whose they are, and the wallet then claims those tests for its note.
+
+The service's product is an Arbitrary Unspent segment. Its header holds a start anchor, a start epoch, a commitment called elapsed, a next epoch, and a next anchor. It covers whole epochs, with entry anchors at both ends and the upper end excluded, and elapsed commits to one indexed factor for each covered epoch. To the service each tested value is an arbitrary field element.
+
+For this chapter one fact about buckets is enough, namely that an opening of the epoch's contents at a value gives zero if and only if the value was published. A real network routes tachygrams into many buckets by quadratic residue. To keep the numbers short we use one bucket per epoch holding everything. Testing Alice's nullifiers for epochs three, four, five, and six gives four nonzero openings, so all four are absent. The opening for empty epoch six is one.
+
+Three steps build segments. Q R Unspent Init starts one from a bucket and a value, Unspent Fuse joins two that meet on a boundary, and Unspent Lift appends one more epoch. For Alice's note, the service starts one segment for each of epochs three, four, and five. It fuses the segments for epochs four and five, checking that their anchors and epochs meet, and that the combined polynomial is the product at a challenge. It then lifts that segment over epoch six, which gives a segment covering epochs four through six. Each segment holds plain numbers, so nothing in it mentions a note.
+
+The wallet now has to show that those plain numbers really are its nullifiers, each at its own epoch. Unspent Bind does this by division. It takes a segment on the left and a Note Nullifiers on the right, and it ties each committed polynomial to its witnessed form. Then it witnesses a complement and checks that the window polynomial equals elapsed times the complement.
+
+Since the factors are irreducible, this holds only if every factor in elapsed is one of the note's genuine pairs of epoch and nullifier. The step needs to compare no bounds, because the factors carry their epochs. It then writes the derivation's commitment onto the output, a Note Unspent, which is the first time the service's work is linked to a note.
+
+In our run, the window polynomial has degree forty-eight and the composed elapsed has degree nine. Division leaves remainder zero and a complement of degree thirty-nine, namely the thirteen factors for epochs zero to three and seven to fifteen. The segment for epoch three binds the same way, with a complement of degree forty-five.
+
+We can now see why the factor holds the epoch. Suppose Alice already spent the note with target five, so epoch five now holds her nullifiers for epochs five and six. An honest test at epoch five gives zero, and the segment cannot be built. She now tries a second spend with target seven, and she tests a different one of her nullifiers at epoch five, namely her nullifier for epoch nine. That value is not in epoch five, so the bucket reports absence.
+
+With plain factors, all the tested values come from the window, the division leaves remainder zero, and the double spend goes through. With indexed factors, the factor for epoch five with that value does not divide the window polynomial, because the window holds it at epoch nine. The division now leaves a nonzero remainder. If she commits to the honest complement anyway and hopes for a lucky challenge, the check passes at exactly two of the sixty-five thousand five hundred thirty-nine challenges.
+
+The complement also explains how the rest of the window is used. It holds epochs below the lineage and epochs ahead of it, including seven and eight, whose nullifiers the spend will later publish.
+
+A note that will outlive its creation epoch starts through Q R Spendable Init. This route has to cover the creation epoch itself, since a spend later in epoch three would otherwise go unnoticed by every later test. So the left input is the note's Note Unspent for that epoch, which shows that its epoch three nullifier is absent, and the right input is a sealed bucket. The step opens the bucket at the commitment and requires zero. It also requires the segment and the bucket to have the same extent, so that the bucket's stamps are the ones consensus will eventually pin.
+
+In a real network the bucket holding the commitment and the bucket that tested the nullifier will usually differ, and only their anchors have to agree. For our note the opening gives zero and the extents match, so the step emits a spendable resting on the entry anchor of epoch four.
+
+Spendable Lift has no witness at all. It compares a Note Spendable with a Note Unspent, in three equalities, and moves the lineage to the segment's far end. The two must have the same note commitment, the spendable's epoch must equal the segment's start epoch, and the spendable's anchor must equal the segment's start anchor. For us that moves the lineage from the entry anchor of epoch four to the entry anchor of epoch seven.
+
+Each check closes a particular gap. The epoch check stops a lineage from skipping an epoch, and the anchor check welds the segment to the lineage's position. The commitment check handles the second note from chapter nineteen with the same nullifier trapdoor. That note has the same master key and so the same nullifiers, which means a segment bound through its derivation tests identical values. With a new commitment trapdoor and value nine, its commitment differs, which stops the lift. So a spender cannot move absence evidence from a note worth nine to a note worth twenty-five, or the reverse.
+
+The anchor check is what confines the first bootstrap to its epoch. A spendable from Spendable Init rests on the state after the creation stamp. The segments for epochs three and four each start on an entry anchor, so neither matches and the third check fails. At this commit, the book's maintenance section and the comment on the lift agree that only a lineage resting on an entry anchor can lift.
+
+One lift can consume a segment crossing any number of epochs, so the wallet's cost does not have to grow with the note's age, apart from the windows it derives. The lineage now certifies every epoch before seven. It says nothing about epoch seven itself, which is left to the consensus window.
+
+Spending.
+
+A spend has to do two different things. It has to publish a nullifier pair and a value commitment, which requires the note's secrets. It also has to produce a randomized signing key tied to the note's owner, which requires the spend validating key. These could be one step except for a budget. The book counts a Poseidon permutation at about a seventh of a step and a scalar multiplication at about a quarter, so we can add up each step's work.
+
+Doing a spend in one step would need five permutations and three scalar multiplications, which comes to one point four six of a step before any polynomial opening. An output would need one point three two. Splitting each action in two brings every part under one. Spend Bind and Output Bind each cost zero point seven nine, Output Action costs zero point five four, and Spend Action costs zero point six eight.
+
+Spend Bind takes the Note Spendable on its left and the same Note Secret from the derivation on its right, which is an instance of the node sharing from chapter two. The secret's commitment has to equal the lineage's. This equality connects two facts established separately, namely that the lineage's note was minted and unspent, and that the secret's master key and value belong to that note. A phantom note reusing the nullifier trapdoor with a larger value has a different commitment and fails here.
+
+The step then derives the pair from the master key at the lineage's epoch and the next, with one sponge each, requires both to be nonzero, and commits the value. The value commitment adds two terms. It multiplies a value generator by the value, positive for a spend and negative for an output. It then multiplies a second generator by a fresh random trapdoor. A book footnote says that this sampling may later change. For Alice the two published nullifiers are those of epochs seven and eight, and nothing in the pair is a witness. The output carries the commitment, the pair, the anchor, the payment key, and the value commitment.
+
+Spend Action takes the Spend Header and witnesses the action entropy, the proof authorizing key, and two set polynomials. It first requires that key to derive the header's payment key, and this check is the only thing that ties the spend validating key to the note. Then it derives the randomizer and the randomized key as in chapter nineteen, hashes the value commitment and randomized key into an action digest, and builds the stamp's first two sets.
+
+The sets use the root polynomials of chapter twenty. A shared relation opens the witnessed polynomial at a challenge derived from its commitment, and it compares the opening with the product of the challenge minus each root. The action set has one root, the digest, and the tachygram set has two, the nullifier pair. A prover who holds a different spend validating key, together with the right nullifier key, computes a different payment key, and the first check fails.
+
+The output header type is Actions, which holds the action commitment, the tachygram commitment, and the anchor. Notice what it drops. The note commitment, the payment key, and the epoch do not appear, and neither does anything recording the note's age. The book points out that the published pair sits at the epochs of the live range, whatever the note's age, so no later step reads a position that would reveal how long the note has existed.
+
+Outputs.
+
+Creating a note needs no lineage, since nothing about the past has to be shown. It still has to look like a spend to an observer, so it also takes two steps and ends in the same header type.
+
+Output Bind has unit inputs and witnesses the new note and the value trapdoor. It derives the commitment and the padding tachygram from one opening, requires both to be nonzero, and commits the negated value. Output Action derives the randomizer under its own domain, sets the randomized key to that randomizer times the signing generator, and builds the two sets. It witnesses no key, because the recipient's payment key rides inside the commitment, and the sender cannot be asked to prove anything about it. In our run, Alice pays eighteen zatoshi to Carol.
+
+The anchor in Output Action is a free witness, because an output has no chain state to thread. The wallet usually gives it the same anchor as its spends, so that the merge needs no lift. Both action types publish a value commitment, a randomized key, a signature, and two tachygrams, and chapter nineteen showed why the counts reveal nothing about the split.
+
+Moving and merging actions.
+
+A transaction with several actions needs them combined into one Actions node, and combining requires a shared anchor, because the output header has a single anchor field. In our run the spend's actions rest on the entry anchor of epoch seven, which consensus may not accept as a published anchor. Under the anchor page's rule, an entry anchor counts as an end-of-block state only if the first block of its epoch carries no stamp. A wallet would rather sit near the latest anchor in any case. So the wallet chooses an anchor for the bundle and moves the spend there.
+
+Action Lift does the move. Its left input is the Actions and its right input is an anchor span, the proved run of anchors from chapter twenty. It requires the anchor to be the span's start or a member, and it outputs the span's end. In our run the wallet plans to anchor its bundle at the state after epoch seven's first stamp. The span from the entry anchor to that state has one member, and the spend's anchor is the span's start, so the check passes. An anchor from before the span, such as the one from epoch six, gives a nonzero result and the step rejects it.
+
+The same restriction from chapter twenty applies here, because no span contains a boundary digest. A wallet moves a note across an epoch with Spendable Lift, before the spend, and moves its actions within the epoch with Action Lift, after it.
+
+Action Merge then takes two Actions headers. It requires equal anchors, ties the four witnessed input polynomials to the four header commitments, and checks that each merged set is the product of its inputs, which is the union of chapter twenty. The check absorbs all three commitments into the challenge, so that the polynomials are fixed before the challenge exists. In our run the merged action set has two roots and the merged tachygram set has four.
+
+The code's function that proves a plan follows this order. It binds and acts on each spend, lifts it along any spans to the plan's anchor, proves each output at that anchor, and merges everything.
+
+Applying the fee.
+
+An Actions header cannot be published, because validators accept only a Stamp. The step between them applies the fee, and the design wants a particular freedom here. A wallet signs a maximum fee once and can choose the actual fee later, at or below that maximum, with the difference returning as change. Changing the fee then needs no further trip to a signing device.
+
+To allow this, the bundle commits to the maximum through a max fee note. Its opening has a payment key, a maximum fee, a nullifier trapdoor, and a commitment trapdoor, and the bundle publishes it only as a value commitment. That commitment uses the negated maximum fee, with a blind that hashes the payment key and the two trapdoors. This note is never spent. The blind binds the change note's owner into the commitment that gets signed. The fee change note has the same fields, except that its value is the maximum fee minus the fee, and it appears on chain only as a commitment among the tachygrams.
+
+Fee Fuse takes Actions on the left and a unit input on the right, and it witnesses the max fee note, the fee, and the set polynomials. It rederives the blind and the max fee commitment, checks that the change lies in range, computes a fee digest and the change commitment, and multiplies each set by one more factor. The output type is Stamp, with the same fields as Actions and a different suffix.
+
+Alice's bundle spends twenty-five and creates an output of eighteen. She reserves a maximum fee of five, which leaves a value balance of two. She chooses a fee of three, so the change note is worth two. The output action set has three roots, and the output tachygram set has five, which is twice the two actions plus one bundle.
+
+The change in type is what makes the fee happen exactly once. Fee Fuse accepts only Actions and emits a Stamp, so a second application has no valid input, as chapter two's example showed in miniature. A bundle with no actions has nothing to fuse, so Fee Seed starts a Stamp directly. It requires a zero maximum fee, so the fee change note is the max fee note itself, and it witnesses its anchor. Aggregators use it for an innocent aggregate.
+
+If the wallet raises the fee to four, the fee digest changes and the change note, now worth one, gets a new commitment. So both set commitments change, and Fee Fuse has to run again. The sighash and the binding key stay the same, so no signature has to be made again.
+
+These steps prove a local relation, which is that the change and the digest match the opening. They do not show that the fee is funded. That comes from the next layer.
+
+Authorization outside the proof.
+
+A bundle also needs authorization that the proof does not provide. The authorization page lists three layers, namely per-action signatures, value commitments, and a binding signature, and each covers a gap that the proof leaves open.
+
+Start with the action signatures. The proof shows that the randomized key equals the spend validating key plus the randomizer times the generator, but a prover holding only the proof authorizing key can produce that proof. Spending therefore also needs a signature under the randomized key. That requires the randomized secret, which is the spend authorizing key plus the randomizer, and so it requires the spend authorizing key. This is what separates a proving device from a custody device. The custody device receives each note and its action entropy, recomputes the commitment, the randomizer, and the randomized key for itself, and signs. An output's randomized secret is the randomizer alone, so no custody is needed there.
+
+Each signature covers the transaction sighash, which includes a bundle commitment over the actions, the value balance, the max fee commitment, and the memo. The fee is not included, and neither is the stamp, since aggregation strips it. The randomizer is derived from the note commitment inside the proof, which makes the randomized key itself a commitment to the note commitment. So a signature binds its action to the note even though the action shows no tachygram.
+
+Now the binding signature. No step adds up values, so the proof cannot show that a bundle balances. Value commitments allow validators to check that from public data, because summing commitments sums values and trapdoors separately. A validator knows the claimed value balance, so it subtracts that term. It adds the max fee commitment as one more output, and the result is called the binding key.
+
+If the values balance, the value generator's term vanishes, and the binding key is a known multiple of the trapdoor generator. That multiple is the sum of all the trapdoors plus the fee blind. The planner knows every trapdoor, so it can sign under that key, and the signature shows that it knows the discrete log of the binding key to the trapdoor generator. In our run the trapdoors are thirty-eight, eighteen, and twelve, which sum to twenty-five modulo forty-three. The validator's computed point matches twenty-five times the trapdoor generator, and the signature verifies.
+
+Cheating on the balance leaves a term behind. Suppose Alice claims a value balance of twelve in place of two, taking ten more from the pool. The validator's binding key now has a surviving value term of thirty-three. Of the forty-three possible claims in the toy field, only the true one removes that term. The signature fails unless Alice can find the discrete log of the false binding key. On the toy curve she can, by counting, because the value generator is forty-one times the trapdoor generator, which gives her the key two for the false balance. So this protection rests on the hardness of discrete log.
+
+The fee enters neither key. The balance equation accounts for it at the transaction level, because the pool's net outflow is the inputs, minus the outputs, minus the fee change, which equals the value balance plus the fee. For our bundle this gives five, so five zatoshi leave the pool, and the fee change note keeps two inside it.
+
+Here the book and the code differ on what shows the balance. The bundle page lists a balance match among the things the proof establishes. The fee page, the authorization page, and the code say that the fee steps prove no funding, and no step sums value commitments. Validators derive the binding key from public data and check the signature. The proof contributes something narrower, which is that each value commitment commits to the value of the note behind it.
+
+This site follows the code. Separately, the authorization page's detailed sequence diagram carries a comment calling itself significantly outdated. It hashes the commitment's inputs in a different order from the code, and it gives an output one tachygram rather than two. We use the code's forms.
+
+Publishing a stamp.
+
+Stamps keep arriving while a wallet proves, so it may lift again before publishing. Stamp Lift has the same check as Action Lift on the other header type. The book says spans are published as an epoch progresses, and a wallet builds its own span for anything newer. In our run the wallet lifts along a span from the state after epoch seven's first stamp to the state after its third, built by two Anchor Span Seed steps and one Anchor Span Fuse. The stamp's anchor is the span's start, so the check passes.
+
+The header holds only commitments and an anchor, and the published bundle does not carry the action commitment. A validator rebuilds the header from what it can see, which is the comparison that chapter two required of every verifier. The crate's verification stops short of the chain, so the anchor lookup comes from the book and chapter twenty.
+
+For Alice's bundle, the validator accepts the action signatures and the binding signature. It checks that five tachygrams match twice two actions plus one bundle. It rebuilds the tachygram set, which matches the stamp, and it rebuilds the action set from two action descriptors and one fee descriptor. It verifies the proof against those commitments and the anchor, which a mock cannot really perform, so that acceptance holds in the design. Finally it finds the anchor in epoch seven of the chain. If a miner dropped the output's descriptor, the validator would rebuild a different action commitment. The header would then differ from the one the proof covers, so the proof would fail.
+
+Once the anchor checks out, it closes the free witnesses below it. The seal's lower boundary, the predecessor witnessed at each seed, and the epochs absorbed along the way all had to be genuine for the folds to reach a published value, as chapter twenty argued. An output's free anchor closes the same way, because the merge forced it to equal the spend's.
+
+A proof built from private inputs could reveal a link back to them, so the book requires that every proof leaving the process that built it be rerandomized. The code calls rerandomize when proving a plan, lifting, merging, and unmerging. Intermediate nodes that stay in the wallet skip it.
+
+The sources disagree on what rerandomizing achieves. The Tachyon book says it replaces the proof with an unrelated one that verifies against the same header, so the released proof has no correlation with its private lineage. A comment in the Ragu code, at the revision of the Ragu chapters, says that unlinkability is the intent, that today it is not achieved, and that the remaining work is in the future. The mock at Tachyon's pinned revision fills in a tag and keeps the rest of the record.
+
+As in chapter two, this site treats hiding as a goal that has not yet been met. When this chapter says a header drops a value, it means only that the header no longer carries it. It does not mean that the proof conceals it.
+
+The aggregator's steps.
+
+Once published, stamps can be combined by anyone holding them. Chapter two followed this at the level of whole bundles, and chapter twenty-three takes up what it means for blocks and fees. Two steps belong here for completeness. Stamp Merge has the same body as Action Merge on stamps, and Stamp Unmerge requires a witnessed quotient for which the dividend is the product of the divisor and the quotient, in both sets.
+
+Suppose an aggregator holds Dave's stamp with one action, at the same anchor as Alice's. It has two action and fee digests and three tachygrams, and Stamp Merge multiplies the sets, which gives degrees five and eight. If a block then includes Dave's transaction alone, Stamp Unmerge divides by his stamp. The quotient has remainder zero and exactly Alice's tachygram commitment again. Dividing by a value that was never in the stamp leaves a nonzero remainder.
+
+Aggregators need no secret, since these steps read only commitments and the polynomials rebuilt from published values, and the aggregated stamp has the same shape as any other stamp.
+
+The whole tree.
+
+Counting only the nodes of this run, one spend and one output take twenty-three nodes, of which the wallet runs fourteen and the sync service nine. The buckets add more, on the service side, and chapter twenty-one describes the steps that build them. The published result is one proof, whose header a validator can rebuild.
+
+The next point is reconstructed from the code at the commit this site pins, and the authors have not confirmed it. The book draws a similar tree, and a test helper in the crate takes the same route to a spendable. The exact mix of fuses and lifts here, the two sets of spans, and the assignment of spans and of epoch three's segment to the sync service are this site's choices. The book allows a wallet or an aggregator to build spans as well, and the deep dive has the wallet prove the creation epoch's exclusion itself.
+
+Following the fields shows where each commitment stops and where each anchor moves. Note Seed and Nullifier Derive carry the note commitment with no anchor. The two Unspent Bind nodes carry it across epochs three and then four through six. Q R Spendable Init leaves the lineage on the entry anchor of epoch four, and Spendable Lift moves it to the entry anchor of epoch seven.
+
+Spend Bind still carries the commitment, and Spend Action is where it disappears. From there on, only the anchor moves. Action Lift takes it to the state after epoch seven's first stamp, Action Merge and Fee Fuse keep it there, and Stamp Lift takes it to the state after the third stamp.
+
+The whole registered set of thirty-eight divides into families. Three steps derive nullifiers, and four hold a spendable. Six handle spends, outputs, and merging. All of those run on the wallet. Two apply the fee, and aggregators can also run Fee Seed. Three move and combine stamps, which wallets and aggregators share, except that Stamp Unmerge is for aggregators only. A sync service may also run Stamp Lift.
+
+The rest fall to the sync service, and a wallet may run them itself. These are two steps for anchor spans, which aggregators also run, three for absence segments, two for stamp summaries, seven for routing into buckets, and six for evidence trees. Stamp summaries are named only here, and chapter twenty-one treats a run of stamps as one intake. The book's table gives fourteen steps to a wallet alone. It assigns twenty to the sync service, none of which reads a note.
+
+Why cheating fails.
+
+Let's collect the attempts from the chapter and what each defence rests on. Every one also assumes that the proof system does not accept a false statement and that the steps run as real circuits, which the status note at the start qualified.
+
+Spending an invented note fails because the bootstrap steps need the commitment in a stamp and the anchor has to reach the chain, which rests on Poseidon collision resistance and a correct consensus lookup. Choosing a second nullifier sequence fails because the nullifier key and trapdoor both sit behind the commitment at Note Seed, which also rests on collision resistance. Committing a false nullifier window fails at the opening with a late challenge, which rests on Fiat-Shamir, Schwartz-Zippel, and commitment binding.
+
+Testing another epoch's nullifier fails because its indexed factor does not divide the window at Unspent Bind, which rests on irreducible factors and indices below the bound. Skipping an epoch or using a detached segment fails at the equalities in Spendable Lift. Moving evidence to a different note with the same trapdoor fails at the commitment equality in Spendable Lift and Spend Bind. Stopping an epoch's evidence short fails because the seal's crossing misses the published entry anchor. Using someone else's spend validating key fails when Spend Action rederives the payment key. Those last four rest on Poseidon collision resistance.
+
+Spending without the owner's approval fails because a valid randomized key needs a signature, which rests on discrete log and signature security. Creating value fails because the value term survives in the binding key, which rests on discrete log between the two generators. Applying a fee twice, or publishing with no fee, fails because header suffixes separate Actions from Stamp, assuming the proof system enforces suffixes. Dropping an action from a published stamp fails because the rebuilt header differs from the proved one, which rests on commitment binding.
+
+Most of these fall into two patterns. A value that matters is derived inside a step and never witnessed, so changing it requires a hash collision. A value that is witnessed gets carried forward until consensus or a later equality can compare it with something fixed. Reading the tree bottom-up, each step adds one equality or one identity. So the argument rests on the whole chain, and a single step's checks mean little alone.
+
+Where this chapter leaves us.
+
+A step declares its input headers, witness, and output, and the types force the tree's shape. Low nodes hold private headers, and the published node holds only commitments and an anchor. Note Seed pairs the commitment with the master key, and Nullifier Derive commits a window of pairs as a product of irreducible cubic factors, so that divisibility tests containment.
+
+A sync service builds note-blind segments, Unspent Bind divides them out of the wallet's window, and Spendable Lift moves the lineage across whole epochs. A spend takes two steps because of the step budget, and an output has the same shape with no key and no lineage. Fee Fuse turns Actions into a Stamp exactly once, with a fee chosen after signing. Signatures and value commitments sit outside the proof, and a validator rebuilds the header and looks up the anchor, which closes every free witness below.
+
+All of this describes a design at one commit, running natively against a mock of Ragu, and rerandomization has not yet been shown to provide the hiding that the Tachyon book expects of it.
+
+The tree ends at a published stamp, one per bundle unless someone combines them. The next chapter, Aggregation and Bundles, follows those stamps through aggregators and miners, and it covers stripping, the bundle format, and how fees reach the block.

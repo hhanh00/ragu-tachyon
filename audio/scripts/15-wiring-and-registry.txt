@@ -1,0 +1,207 @@
+Chapter fifteen. Wiring and the registry.
+
+The nark chapter ended with two linear steps in the verifier. Accumulation dealt with the first, computing the value called G hat. This chapter deals with the second, computing the wiring value, which requires reading the whole circuit. It also takes up a related problem that has waited since the introduction to proof-carrying data, which is how different nodes of a tree can run different circuits.
+
+Both problems have the same answer. The prover commits to pieces of the wiring polynomial, a cheap random check ties each new piece to the old ones, and a single expensive check at the very end covers the whole history. The Ragu Book calls this idea post-processing, and it credits the idea to Halo. We start with one circuit, then extend the method to a polynomial that holds many circuits, called the registry polynomial.
+
+Much of this chapter is reconstructed from the code at the commit this site pins, and the authors have not confirmed it. The protocols come from the book's chapters on wiring consistency and on the registry. The toy circuits, the attacks, and the link between a chosen circuit and its wiring value are the site's own assembly, and we read that link from the code. We could not read the Halo paper, so what we say about Halo follows the book.
+
+What the verifier still computes.
+
+Recall the check that ties the right factor to the trace in the nark chapter. The right factor's value at a point must equal the sum of three things, which are a trace value, the wiring value, and a gate value. The gate value has a short closed form. The wiring value has none, because the wiring comes from an arbitrary circuit. Our toy circuit has eight nonzero wiring coefficients, so computing this one value takes eight terms. A full real circuit needs on the order of eight thousand one hundred ninety-two terms.
+
+A recursive verifier would have to do this inside a circuit. So the circuit would have to contain a description of itself and grow with every wire it adds, as the recursive proofs chapter found. The accumulation chapter escaped the same problem for G hat by testing a claim at a random point, which worked because that value has a short product form. The wiring polynomial has no such form.
+
+A natural next idea is to let the prover supply a commitment to the wiring polynomial, with its constraint variable fixed, and carry the claim forward in the accumulator. Split accumulation does this for evaluation claims. That chapter showed that folding establishes what a commitment opens to. It says nothing about whether the commitment holds the right polynomial, and this gap is exploitable.
+
+Take the false trace with input four, at fixed challenges. With the true wiring the revdot product is eighteen, while the target is thirteen. The prover alters one coefficient of its wiring polynomial, which moves the product by thirty-eight modulo forty-three and reaches the target. It commits to this altered polynomial and builds the right factor from it. The check on the right factor now holds at all forty-three points, and every evaluation claim is true of the committed polynomials. The only thing wrong with this proof is that the commitment does not hold the real wiring.
+
+So that commitment has to be checked somehow, and we want the check to cost far less than computing the wiring. Polynomial identity tests are the usual tool for this. But a test needs a polynomial on the other side to compare with, and the verifier does not want to compute any of them. We find that second polynomial inside the wiring polynomial itself.
+
+Restricting a polynomial of two variables.
+
+The wiring polynomial has two variables, which we'll call X and Y. Its coefficients form a table, with one row for each constraint, marked by powers of Y, and one column for each position in the trace, marked by powers of X. Our toy circuit's table has four nonempty rows and eight columns.
+
+We can fix either variable. Fixing Y gives a polynomial in X, and fixing X gives a polynomial in Y. Each of these is called a restriction. Both directions take the same table and add it up along different lines, so the two restrictions agree where they cross.
+
+Fixing Y at seven collapses the rows into a polynomial with eight coefficients in X. Fixing X at nine collapses the columns into a polynomial in Y. These are different polynomials, and they meet at one number, since evaluating the first at nine and the second at seven both give twenty-three.
+
+The protocol uses this crossing. A commitment to a restriction in X and a commitment to a restriction in Y make two evaluation claims that must have the same value. The chapter on batched openings already knows how to check evaluation claims cheaply, and the verifier needs no knowledge of the table to compare the two.
+
+Restricting in Y only makes sense if the result fits the commitment scheme, and this explains a limit we met earlier. The commitment has four n generators, where n is the number of gates, so the restriction in Y must have degree below four n. The book gives this as the reason for the bound of four n constraint rows.
+
+Consistency for one circuit.
+
+Suppose a node has two children, and each child's accumulator holds a claim made of a commitment and a value of Y. The claim means that the commitment holds the restriction of the wiring polynomial at that Y. The node wants to replace the two claims with one claim of the same form. We want three things from the replacement. It should tie each old commitment to the true circuit, it should create a new claim at a fresh point, and it should leave no work that depends on the size of the circuit.
+
+The book's protocol achieves this with a single restriction in Y that crosses all three restrictions in X. The verifier first sends a random X value. The prover sends a commitment to the restriction at that X, and we'll call this the bridge. The verifier then sends a fresh Y value, and the prover sends the new commitment, to the restriction at that fresh Y. Both parties then add six evaluation claims to the batch from the batched openings chapter.
+
+Those six claims form three pairs. Each pair says that a restriction in X and the bridge agree at their crossing. The first two pairs concern the old commitments, and the last pair concerns the new one.
+
+We can run this on our circuit with two accumulators we have already met. The verifier sends its X and later a fresh Y, and the three pairs share the values thirty-five, six and two. So the prover states one value per pair, which gives six claims about four polynomials.
+
+The verifier never computes these values. It treats them as claims that share polynomials and places them in the batch, and the batch accepts. Checking the crossing identity at all one thousand eight hundred forty-nine pairs of challenges confirms that an honest prover passes every time.
+
+A batched check tells us that the claims are true of the committed polynomials, and it says nothing about the circuit. Something still has to connect the last commitment to the real wiring. That job falls to the end of the chain, in the same way that a single multi-scalar multiplication ended the accumulation chapter's chain. If the chain stops here, the decider computes the restriction at Y equal to twelve from the circuit, which takes eight terms. It commits to the result and gets the same point. That one linear computation stands in for computing the wiring at each of the three points.
+
+Why a false accumulator fails.
+
+The argument runs backward from the decider. Suppose the decider has confirmed that the new commitment holds the true restriction. Then the third pair of claims fixes the bridge's value at the fresh Y, and the prover committed to the bridge before it saw that Y. Two different polynomials of degree below four n agree at fewer than four n points, so the bridge must be the true restriction, except with very small probability. That makes the bridge correct at the old Y values, so the first pair fixes the old commitment's value at X. The prover fixed that old commitment before it saw X. So the same reasoning shows that the old commitment holds the true restriction.
+
+We can follow this in the toy run by giving the prover a false old commitment and counting what it can do at each step. The most favourable false polynomial differs from the truth by a multiple of the polynomial with roots at one through seven, the difference that the nark chapter found best for its cheater. Against an honest bridge, the first pair can hold only where this difference vanishes. Trying all forty-three values of X finds seven that pass, and no polynomial with eight coefficients has more roots.
+
+Outside those values the prover must lie in the bridge to keep the pair true, which moves the error one step along. At X equal to twenty-one the false commitment opens to fifteen, while the true value is thirty-five. The prover absorbs this error by adding to the bridge a polynomial that equals the error at the first old Y and zero at the second. Against an honest new commitment, we tried all forty-three values of the fresh Y, and seven pass.
+
+Outside those values the error moves once more. At the fresh Y of twelve, the prover has one option left, which is to add a constant of twenty to its new polynomial so that it opens to the value the false bridge requires. All six claims are now true of the committed polynomials, and the batched check accepts. The prover has moved its error into the new accumulator. The decider computes the true restriction itself, gets a different point, and rejects.
+
+So a false accumulator does not disappear. At each step it either hits a rare root or it passes its error into a new commitment, and the decider exposes the last one. A chain that never runs the decider has established nothing about its wiring, in the same way as the evaluation claims of split accumulation.
+
+All of this depends on the order of the messages. Suppose the prover knows X equal to twenty-one before it fixes the old accumulator. It can pick a difference that vanishes at that point and still gives the revdot shift of the opening attack. That false polynomial passes with an honest bridge and an honest new commitment, and the decider accepts the accumulator that leaves the fold. This is why the old commitments have to enter the transcript before the transcript produces X.
+
+A polynomial for many circuits.
+
+The protocol so far assumes that every accumulator refers to the same wiring polynomial. Now suppose a tree has two kinds of step. We use the running circuit as circuit A, which proves that x cubed plus x plus five equals thirty-five. We add a circuit B with the same number of gates, which proves that x to the fourth plus two equals forty. They differ in two constraints.
+
+The two accumulators may now refer to different circuits, and the bridge stops working, since one bridge cannot be a restriction of both. Let the first accumulator hold circuit A and the second hold circuit B, with the bridge taken from circuit A. The first pair holds, but the second compares twenty-four with six. Over all forty-three values of X, these agree only at zero. So an honest prover with two different circuits fails almost everywhere.
+
+We could avoid this by merging the circuits into one large circuit with a selector, as the arithmetization chapter did for a branch. Then every step would pay for the gates of all its branches, which is the cost the introduction to proof-carrying data wanted to avoid. A better way is to keep the circuits apart and put the choice of circuit into the polynomial itself, as one more variable, which we'll call W.
+
+Pick a set of points, one for each circuit, made of the powers of a root of unity whose order is a power of two. For each point, take the Lagrange polynomial in W that equals one there and zero at the other points. The registry polynomial multiplies each circuit's wiring polynomial by its Lagrange polynomial and adds up the results. Setting W to a circuit's point makes every term vanish except one, so the registry polynomial becomes that circuit's wiring polynomial.
+
+The field needs enough roots of unity for this. The toy field has forty-two nonzero elements, and forty-two is two times twenty-one, so its only such roots are one and minus one, which is forty-two. So our toy registry holds exactly two circuits. At W equal to one, the registry polynomial is circuit A. At W equal to forty-two, it is circuit B.
+
+At W equal to fourteen, the two weights are twenty-nine and fifteen. The result is a blend of the circuits that belongs to no single one, and the protocol uses this blend as a random fingerprint of the whole set. Those two weights add up to one, as the weights do at every W, and we return to this fact later.
+
+An accumulator now has to carry a claim that does not name one circuit, so that accumulators from different circuits can merge. The form the book chooses leaves W free. The claim is made of a commitment, an X value and a Y value, and it means the commitment holds the polynomial in W that gives every circuit's value at that X and Y. We will see shortly why this form is also what we want for reading one circuit's value. Since this polynomial uses the same generators, it needs degree below four n in W, and the code enforces that a registry has at most four n entries.
+
+Consistency for the registry.
+
+The two old claims now differ in two coordinates, X and Y, so a single bridge cannot cross both. We therefore change one variable at a time. The book's protocol freezes W at a random point, moves Y to a common value, moves X to a common value, and then lets W go free again.
+
+Here are its steps. The verifier sends a random W value. The prover sends two bridge commitments, each holding a polynomial in Y at the frozen W and one child's X. The verifier sends a random Y value. The prover then sends a middle commitment, which holds a polynomial in X at the frozen W and that Y. The verifier sends a random X value. The prover sends the new commitment, which holds the polynomial in W at the new X and Y. Finally, both parties add ten evaluation claims to the batch.
+
+Each move along this walk is a crossing of two restrictions, and each crossing gives a pair of claims, so five crossings give the ten claims. The first two crossings tie each old commitment to its bridge. The next two tie each bridge to the middle commitment. The last ties the middle commitment to the new one. Two bridges are needed at the start because the children have different X values. Only one middle commitment is needed afterward, because by then both children have the same Y, and both restrictions in Y land on the same polynomial in X.
+
+For the toy run, let the left child have used circuit A and the right child circuit B. The new commitment holds a polynomial in W with two coefficients, thirty-one and fourteen, because on this domain it has degree one in W. The script repeats all five comparisons at all seventy-nine thousand five hundred seven triples of challenges, and an honest prover passes every one. The accumulator that leaves the fold has the same form as the two that entered, so the next node can repeat the walk.
+
+Selecting a circuit.
+
+The walk keeps the accumulators consistent with the registry, but the point of all this was to obtain a child's wiring value for the original check. The new accumulator provides that value directly. Opening the new commitment at a circuit's domain point gives that circuit's wiring value at the new X and Y.
+
+This is why the accumulator leaves W free. Each circuit's value is one evaluation claim on the same commitment, and the prover names the circuit by naming the point. The original check then reads a claimed value that the batch will test, in place of a value the circuit would have to compute.
+
+In our run the new polynomial is thirty-one plus fourteen W. The left child used circuit A, at the point one, so its wiring value is two. The right child used circuit B, at the point forty-two, so its wiring value is seventeen. The script confirms that each child's revdot product equals its own target, with different wiring and different public inputs on the two sides. One step of the protocol handled both, and only the evaluation point changed.
+
+These two openings bring the list to twelve claims on six polynomials, and the batched check accepts them. The wiring decider then evaluates the accumulator at a fresh point. At W equal to thirty, the polynomial gives twenty-one. Blending the two circuits' own values with their Lagrange weights at thirty also gives twenty-one. That comparison is the registry's form of the decider.
+
+What the registry costs.
+
+The cost divides among three parties. The recursive circuit handles claims only, whatever the size of the registry or of the circuits. It does a little field arithmetic per claim, and the six commitments join the list from split accumulation. It also checks that each child's point lies in the domain, which takes a few squarings per child.
+
+Compare the options for a hypothetical tree with two hundred fifty-six application circuits of two to the eleven gates each, which is the gate limit that the recursive proofs chapter recorded. Computing the wiring values directly takes at least sixteen thousand three hundred eighty-four multiplications for two full circuits. One merged circuit with selectors takes five hundred twenty-four thousand two hundred eighty-eight gates on every step. The registry takes twelve claims and sixteen squarings, plus the field arithmetic and commitments we mentioned.
+
+The prover pays more than this comparison suggests. Each of the four new polynomials is a Lagrange-weighted sum over the circuits, so computing one touches every registered circuit, including those the step did not use. The book describes a floor planner and memoization that let circuits with common routines share this work, which is one source of the diminishing overhead it claims. We have not measured these costs.
+
+The decider pays too. To test the new commitment, it computes the registry polynomial at a fresh W, which means one wiring value for each circuit. That cost is linear in the total size of the registry, and the compressed verifier evaluates the registry polynomial at several points of the walk. All of this happens once for a whole history.
+
+Adding a circuit therefore leaves the recursive circuit almost unchanged. So the book encourages applications to split work into many small circuits that communicate along the tree, and it speaks of hundreds or thousands of circuits. Tachyon, which has not activated on mainnet and whose design is still changing, has a few dozen steps at the revision we read, and those steps run against a mock of Ragu.
+
+Assigning domain points.
+
+So far we gave each circuit a power of a root of unity, but that root depends on the size of the domain, and the size depends on how many circuits there are. If a registry grows from four circuits to five, it moves from a domain of four points to one of eight. The root then changes, and so does the point of every circuit except the first. Circuit code that refers to another circuit's point would need to know the final count.
+
+The toy field has no room to show this, so this section uses the field of size ninety-seven, for arithmetic only. It has a root of unity of order thirty-two. With four points the naive assignment gives circuit one the point twenty-two. With eight points it gives circuit one the point sixty-four, and it gives circuit two the point twenty-two instead.
+
+To avoid this, we take one maximal domain, whose size is the largest power of two dividing the group order, and assign each circuit a point there. Write the circuit's index in binary, reverse its bits across the full width, and use the result as the exponent of the root. The book calls this rolling domain extension. Circuit one then gets ninety-six and circuit two gets twenty-two, whatever the size of the registry.
+
+Reversing the bits puts the low bits of the index at the top of the exponent, so small indices give exponents that are multiples of a large power of two. In five bits, for instance, circuit one reverses to the exponent sixteen, and circuit two reverses to eight. The element orders for the first eight circuits come out as one, two, four, four, eight, eight, eight, eight.
+
+Those orders show why this works. The first four circuits land on elements of order at most four, and the first eight on elements of order at most eight, so each batch of circuits fills the small domain first. Growing the registry adds new points without moving old ones. The element also stays the same when written in the smaller domain, which the script checks at every size. So a circuit can compute its own point, or another circuit's, from its index alone. A code function does this, and a code test asserts those same orders.
+
+On the toy field the largest available order is two, so circuit zero gets the point one and circuit one gets forty-two, the two points our registry has used all along. The degree of the registry polynomial in W still depends on the domain size, because the Lagrange polynomials change with the domain. What stays fixed is the element that names each circuit.
+
+What the prover may select.
+
+The prover chooses the point at which the new commitment opens for each child, and a verifier should worry about a free choice like this. We go through the three things the prover might choose.
+
+The first is a point outside the domain. Here the fact that the Lagrange weights add up to one causes trouble. A point outside the domain gives a blend of circuits that still carries the constant wire's constraint from the nark chapter, so the blend behaves as a third circuit that nobody registered. To show this we use circuits of three gates with that constant wire.
+
+Take a public input claiming the output thirty-five, and let the prover select the out-of-domain point four. There the weights are twenty-four and twenty, which add up to one, so the mixture looks like a circuit. The input seven does not satisfy circuit A's statement, yet a trace built for the mixture satisfies the consolidated equation at all the pairs. The same trace passes against circuit A at only forty-three pairs and against circuit B at forty-three.
+
+So the protocol has to check the point. A value is in the domain exactly when squaring it the right number of times gives one. A native circuit named hashes one enforces this on both children's points, and the uncompressed and compressed verifiers make the same check on the root's point. In our toy domain, four squared is sixteen, which is not one, so the check catches this selection.
+
+The second choice is a domain point with no circuit. The domain usually has more points than circuits, because its size is the next power of two. The registry also holds bonding polynomials, which the staging chapter uses for its stage checks. A prover might select one of these in place of a circuit.
+
+The book treats every domain point as a wiring polynomial. An unassigned point holds the zero polynomial, and it counts as a bonding polynomial. The two kinds differ in one coefficient. A circuit has a constant-wire constraint at the lowest row, so its restriction at Y equal to zero is one. A bonding polynomial leaves that constraint out, so its restriction at zero is zero.
+
+The verifier always sets the constant term of the public input polynomial to one when it expects a circuit, and this rules out the second kind. To see why, read the consolidated equation at Y equal to zero. A bonding polynomial contributes nothing there, so only the gate terms remain, and they would have to equal one for every z. The lowest gate product could supply a constant term, but it always brings a partner term at the highest power of z, so a constant one cannot be formed.
+
+In the toy run, take an honest trace and let the prover select the zero polynomial. Its gates hold, so the left side is zero, and the equation holds at forty-three of the one thousand eight hundred forty-nine pairs. A prover can try to manufacture the missing one from that lowest gate product. Then the left side is one plus z to the eleventh, which equals one only at z equal to zero, and that again is forty-three of the pairs.
+
+The third choice is a different registered circuit. The two checks so far leave the prover free to choose among registered circuits. That choice is safe only if the statement says which circuit it expects, because a public input with the same shape can otherwise be proved by the wrong circuit.
+
+Suppose the verifier wants a proof that some x has x to the fourth plus two equal to thirty-five. Trying all forty-three values shows that no such x exists, so this statement is false. The verifier computes the public input for output thirty-five, and the prover selects circuit A with input three. Every check passes at all the pairs, because the instance matches the true statement that circuit A proves.
+
+Now add a row to each circuit that sets the linear coefficient of the public input polynomial to a value fixed for that circuit, two for A and three for B. Circuit B with a true output still passes everywhere. The same substitution with circuit A now passes at forty-three of the pairs, all of them with Y equal to zero.
+
+The extra row plays the part of the header suffix from the introduction to proof-carrying data. The book says that an application circuit's suffix fills that linear coefficient and that application suffixes are nonzero. Internal circuits output suffix zero, so they cannot pass as application circuits, and the code applies this to every internal circuit slot. In the code a suffix belongs to a header type and not to one circuit. So unlike our toy row, it leaves steps with the same output header interchangeable.
+
+Post-processing and the registry tag.
+
+We can now say what is unusual about this design. Many recursive systems preprocess each circuit into a verification key, a short commitment to the circuit's polynomials, and the verifier reads this key. With many circuits, a recursive verifier would have to handle a table of keys. Ragu has no such keys, as its book states. A verifier holds the registries themselves, built from the circuit definitions, and a prover computes the restrictions it needs at each step. That is the sense in which the work moves from before the proof to after it.
+
+Without keys, one question remains, which is how the transcript comes to depend on the circuits. Fiat-Shamir requires the statement to enter the transcript before any challenge, and the circuits are part of the statement. Here is what goes wrong otherwise. Fix a false trace, and suppose the transcript has produced its challenges from data that does not depend on the circuit. At these values the trace misses its target, because one constraint is off by thirty-eight.
+
+An author who has seen the challenge Y can now publish a slightly different circuit, with one altered constraint. That constraint fails on the trace by exactly the amount needed to cancel the existing error. Two constraints are broken, and the equation still holds at Y equal to seven. Counting over all the pairs, it holds at one hundred twenty-nine. The verifier was misled only because the circuit came after the challenge.
+
+The usual fix is to hash the circuits into the first transcript state. That does not work directly here, for a reason the code documents. The registry contains the recursive verifier's own circuits, and those circuits replay the transcript. So a transcript that starts from a digest of the registry would need that digest inside the circuits it summarizes. Keyed systems avoid the cycle because they generate the key beforehand and carry it in public inputs.
+
+Ragu breaks the cycle with a registry tag, a field element we'll call kappa. It adds kappa times the highest power of X times the highest power of Y to the registry polynomial, at the one slot that no circuit uses. We call it kappa because k already names the public input polynomial.
+
+We should first check that this cannot break an honest proof. Read as a constraint, the new term says that kappa times the first position of the trace equals zero, and the system gate keeps that position at zero. So the constraint holds for every kappa. The code reserves that row by refusing a circuit that would reach it. The term has no factor of W, so it appears at every domain point. It also vanishes when Y is zero, so it does not disturb the distinction between circuits and bonding polynomials.
+
+Take kappa equal to nineteen. On the nark chapter's constant-wire circuit, the first position is zero, and the tagged polynomial still satisfies the consolidated equation at every pair. Our earlier two-gate circuit has nine in that position, so the tag would break it. The tag also reaches every commitment a fold makes to a restriction, and the forty-three values of kappa give forty-three different points. So a transcript that absorbs this commitment gives challenges that the circuit's author could not predict before kappa was drawn.
+
+The order of events provides the protection. The whole system description, including every circuit, is fixed and published first, and then kappa is sampled independently and without bias. An author cannot adapt a circuit to challenges that depend on a number drawn after the circuit was published. The code keeps one tag for each of its two registries.
+
+This mechanism is temporary. The book and the code both call the caller-supplied tag a temporary workaround for issue seventy-eight, which replaced an earlier tag derived from evaluations. Each application has to supply its tags, for example from a public randomness beacon, and the interface does not verify how they were produced. Any argument that needs a nonzero tag has to include the small chance that uniform sampling returned zero. Expect this part of the design to change.
+
+Why cheating fails.
+
+This argument is informal. It assumes the discrete log relation assumption for the generators, it treats the transcript hash as a random oracle with each challenge drawn after the data it tests, and it assumes that someone runs the decider. It also assumes that the circuit ties each child's claim and circuit point to that child's proof, for the reason split accumulation gave about dropping an accumulator. A prover who could restate those coordinates freely could prove consistency for values that have nothing to do with the check they were meant to support.
+
+The earlier backward reasoning applies to the registry link by link. Each commitment is tested at a challenge drawn after it was fixed, and a false commitment passes only at a root of its difference from the true polynomial. Running the toy registry with the best difference we could build at each link gives the same count every time, seven passes out of forty-three. That applies to the old commitment, the bridge, the middle commitment and the new commitment.
+
+Those rates are large because the field is small and the polynomials have eight coefficients. At full size, on a field of about two to the two hundred fifty-four elements, adding the chances over the six commitments of one fold gives a bound below two to the minus two hundred thirty-eight.
+
+Now take the attack that opened this chapter and try it against the full protocol. The prover no longer gets to supply a free commitment, because its wiring value has to come out of the accumulator at the point of the circuit it named. Replay the attack at the fresh challenges. The false trace needs a wiring value of twenty-six, while the true value for circuit A is two.
+
+That value comes from the new commitment at W equal to one, so the prover has to change this polynomial. It can do so without disturbing the claim at the frozen W or the right child's value. All twelve claims are true of the committed polynomials, and the batched check accepts. The next check tests the false accumulator at a fresh point. Over all forty-three values, the only ones that pass are fourteen and forty-two, the two points the prover built into its difference.
+
+That false accumulator then behaves as we saw before. It moves from node to node, it changes form with each fold, and at the end of the chain the decider rejects it. As split accumulation showed, this conclusion relies on binding, because a prover who knows a relation among the generators could open the same point to a different polynomial.
+
+Wiring and the registry in Ragu.
+
+The code at the commit this site pins runs this walk inside its fuse on both of its registries. Its test-oracle verifier states what each stage must hold in a short list of registry evaluations, which locates most of the values from our run and the two openings at the children's points. The book names the commitments with primes, while the code calls them registry x y, registry w x zero, registry w x one, and registry w y.
+
+What follows is reconstructed from the code at the pinned commit, and the authors have not confirmed it. On message order, the fuse produces the W challenge after the preamble, which carries the children's stored commitments. It then commits to the two bridges. It produces Y and z together and commits to the middle polynomial, and it later produces X and commits to the new polynomial. That order matches the walk, with the revdot messages of the previous chapter in between.
+
+On the claims, a static query list names all ten claims of the walk and then the two openings at the children's points, and a circuit called compute V gives each claim its value. The fuse also opens the new polynomial at each internal circuit's fixed point, so the real list has more entries than our twelve. Those values feed the right factor's check for internal circuits in the same way as an application circuit's value. A code function called finalize places internal circuits first, then bonding polynomials, internal steps and application steps, which gives the internal circuits low indices.
+
+On the decider, the test-oracle verifier samples a fresh W and compares the stored polynomial with the registry's value. In production, compression turns this into an opening of the commitment at that W, whose value the verifier computes from the registry. That is the final linear cost, which the chapter on recursion in Ragu places in the larger picture.
+
+The nested registry runs the same walk at the nested counterparts of the challenges, on the other curve of the curve cycle. Its query list has no openings at children's circuit points, which agrees with the curve cycles chapter's finding that application circuits sit only on the native side.
+
+The Ragu Book and the code differ on four points here. The first is the per-circuit commitment. The book's wiring chapter opens with a commitment to the current circuit's restriction, and its nark and its claim list include one. We found no such commitment in the fuse. The code adds the restriction directly into the right factor and reads the wiring value from the registry, as we described.
+
+The second is the list of claims. The book's registry protocol lists ten claims and stops, so it does not say how a chosen circuit's value reaches the right factor's check. The code adds the openings at circuit points, and this site follows the code.
+
+The third is domain points. The book's wiring chapter writes each circuit at a power of the root and notes that this ignores the remapping. The opening of its registry chapter says that circuits go to successive powers, while its later section and the code use bit reversal. Our earlier sections use plain powers as the book's simplification does, and on the toy domain the two agree.
+
+The fourth is memoization. The book's routines chapter describes a memoized evaluation path, and a code comment calls a multi-dimensional strategy planned under issue fifty-eight. We did not establish how much of this applies to the registry at this commit.
+
+Where this leaves us.
+
+Without a check against the circuit, a prover can commit to wiring of its own and satisfy every other part of the proof. Two restrictions of a polynomial agree at their crossing, which turns a claim about wiring into a pair of evaluation claims. A false claim either hits a rare root or passes its error forward until a decider rejects it. The registry polynomial holds many circuits, and one commitment can supply any circuit's wiring value at a fixed cost to the recursive circuit. The prover and the decider pay for reading all the circuits. Domain checks, the constant wire and header suffixes limit what the prover can select. Because no verification keys exist, the transcript depends on the circuits through a registry tag, which the code treats as temporary.
+
+This completes the three linear subprotocols that the nark chapter listed, which are evaluation claims, revdot products, and wiring. All of them produce challenges in one field and use them on commitments handled in another. So the next chapter, on endoscalars, looks at how a challenge can cross the curve cycle cheaply.

@@ -1,0 +1,259 @@
+Chapter twenty-three. Aggregation and Bundles.
+
+An earlier chapter followed one aggregate through its proof tree, and it treated the transactions around that aggregate as labelled boxes. This chapter opens those boxes. We look at what a Tachyon bundle contains on the wire, and how a wallet commits to a fee before the fee is known. We see how merging and stripping leave intact what the owner signed, how identifiers survive those changes, and what an aggregator does when blocks land mid-work.
+
+The chapter on the proof tree holds the internals of the steps that produce a stamp, so here we use those steps by what they establish. We keep the earlier bundles, an innocent aggregate called A and three wallet bundles called X, Y and Z, and we give them real toy values.
+
+Status of these designs.
+
+Tachyon has not activated on mainnet, and its design is still changing. Everything here describes the Tachyon repository at the commit this site pins, and that commit depends on a different version of Ragu from the one the Ragu chapters read. The bundle format ZIP and the aggregator protocol ZIP are empty outlines, so no normative specification exists. The book's notes leave the tachygram union algorithm and the aggregation limits to be written.
+
+Tachyon also builds against a mock of Ragu, so we describe what the proof steps declare, and we did not find real circuits enforcing it. The crate has no validator and no mempool. It has a bundle verify method for one covering bundle, while block assembly, the window check, and transaction-level balance appear only in the book and in tests.
+
+We follow the book's names, stamped and stripped, for the two bundle states, which the code calls proof stamp and pointer stamp. We say action and stamp for the book's tachyaction and tachystamp. Fuse names Ragu's operation, and merge appears only for what the Tachyon steps do to stamps.
+
+What aggregation removes and keeps.
+
+A miner wants to check one proof in place of thousands, so we should ask which parts of a transaction exist only to serve its proof. Each action's signature authorizes that action, and no proof about other transactions can replace it. The value commitments and the binding signature show that one bundle balances, and that fact also belongs to the bundle. The tachygrams must stay public, because validators compare them against the two-epoch window and absorb their commitment into the anchor chain. That leaves the proof, plus a few values that serve only to check it.
+
+The book's deep dive reaches the same conclusion, so aggregation reduces proof verification and changes nothing else that consensus checks. This gives us three requirements for the format. First, a bundle must be able to lose its proof without invalidating its signatures, so the signatures cannot cover the proof. Second, a verifier must be able to find the bundles a proof covers, and must notice if one is missing. Third, something must still identify each bundle stably while its proof changes hands.
+
+Three names describe where a bundle can stand. An autonome comes from a wallet and carries a complete proof of its own actions. An aggregate comes from an aggregator and carries a merged proof that needs inputs from other transactions. An adjunct has been stripped by a miner, so it has no proof, and it points to the aggregate that covers it. An aggregate with no actions of its own is innocent, and one with actions is based.
+
+Our four bundles use small values. Bundle A has no spends or outputs, and all of its amounts are zero. Bundle X spends twenty-five, with a max fee and a fee of five, which gives a value balance of twenty and a change note worth zero. Bundle Y spends thirty and creates an output of twenty-one. Its max fee is six and its fee is four, which gives a value balance of three and a change note worth two. Bundle Z creates an output of nine, with a max fee of three and a fee of two, which gives a value balance of minus twelve and a change note worth one. The next sections explain these amounts.
+
+The bundle on the wire.
+
+A bundle begins with one state byte, which takes the value zero for no bundle, one for stamped, and two for stripped. The reader rejects any other value. A body follows, with the same layout in both states.
+
+The body holds the value balance, which is the net value of the actions with the max fee note counted as an output. It then holds each action's value commitment and randomized key, and those two values together form the action's descriptor. After those come the value commitment of the max fee note, one signature per action, the binding signature, and an optional memo for the recipient.
+
+The trailer depends on the state, and it is where stripping happens. A stamped trailer holds the fee, a coverage indicator, an anchor, a commitment to the tachygrams, the tachygram list, and a proof of fixed size. A stripped trailer holds the same fee and a sixty-four byte pointer called the aggregate identifier.
+
+These fields divide by how they are treated, and that division satisfies the first requirement. Effecting data states what the transaction does, and authorization data shows that it may do so. The value balance, the descriptors, the max fee commitment, and the memo are effecting data. The signatures and both trailers are authorization data. The signatures cover only effecting data, so everything in the trailer can change after signing.
+
+The memo sits on the effecting side for a reason that the book states and a test confirms. Relayers rewrite authorization data during aggregation, so a memo held there could be removed while the block still committed to the same transaction. For example, bundle Y carries the memo first contact. Dropping it changes the bundle commitment, and the binding signature made over the first value fails against the second.
+
+The reader also enforces a few rules that the book's field list does not show. A stamped trailer must hold at least one tachygram, in strictly increasing byte order with no repeats. A bundle with no actions must have a zero value balance, and the max fee commitment cannot be the identity.
+
+Fees chosen after signing.
+
+The fee fields exist because a signature over a fixed fee would fix the fee at signing time. A wallet may sign on a hardware device and prove elsewhere, and the right fee may only be known when the transaction goes out. So the wallet signs a maximum once and picks the actual fee later, with the difference coming back as a new note.
+
+The max fee note.
+
+To reserve the maximum, the bundle counts it as one more output, so that the signed balance already accounts for it. Every bundle carries a max fee note, with the same fields as any note, namely the payment key, the value, and two trapdoors. The note is never spent, and the bundle publishes only its value commitment.
+
+That commitment uses two generators, which we'll call V for values and R for blinds. It multiplies V by the negative of the max fee and adds R multiplied by a blind. A blind normally comes from fresh randomness, but this one is a Poseidon hash of the payment key and the two trapdoors. So signing the commitment also fixes who will own the change. A prover who substitutes a different payment key gets a different blind and a different commitment, unless it can find a collision in Poseidon. The value balance then equals the spends, minus the outputs, minus the max fee.
+
+The binding signature.
+
+A validator cannot see the values, so it has to check this equation on commitments. An action's value commitment is its value times V plus its blind times R, where the value is positive for a spend and negative for an output. The validator's key adds up all the action commitments and the max fee commitment, and then removes the public balance times V.
+
+Now expand those commitments and collect the two generators. The multiple of V becomes the action values, minus the max fee, minus the claimed balance, and this is zero exactly when the claimed balance is right. The multiple of R becomes the sum of all the blinds. The planner knows every blind, so it can sign with this sum as a key, and the signature proves knowledge of that key. Neither key mentions the fee, so a signature made now stays valid at any fee chosen later.
+
+Bundle Y shows this modulo forty-three. It spends thirty, creates an output of twenty-one, and reserves six, so its value balance is three. The blinds are sixteen, fifteen and five, which makes the planner's key thirty-six. The point the validator derives equals thirty-six times R, so the two agree.
+
+Now suppose a bundle claims a value balance of four while the committed values still give three. The validator's key keeps a leftover term of minus one times V, and the key thirty-six no longer matches it. On our toy curve the matching key is three, found by counting. Finding it requires the discrete log of V with respect to R, which nobody can compute on a real curve. So this argument assumes that discrete log is unknown. The real generators are shared with Orchard and come from hashing to the curve, and a book footnote suggests considering a separate personalization.
+
+The fee change note.
+
+Later, a prover picks a fee no larger than the maximum. The unused part of the reservation has to stay in the pool, so the proof creates a fee change note, which differs from the max fee note only in its value. It is published only as its note commitment, which is a tachygram. A fee equal to the maximum leaves a change note of value zero, as in bundle X, and that note still publishes its tachygram. So the tachygram count does not show whether any change came back. The fee itself is public in the trailer.
+
+We can now find what a bundle contributes to its transaction. The pool loses the spends and gains the outputs and the change. Write the change as the max fee minus the fee, and the net outflow rearranges into the value balance plus the fee, which is how the wire format defines the contribution. For bundle Y at fee four, the pool loses seven, which is three plus four. Three of these leave to another pool and four pay the fee. A transaction's pools must then sum to a non-negative total, which the book assigns to transaction accounting outside the bundle.
+
+Choosing the fee.
+
+The fee reaches the proof through a fee descriptor, the pair of the max fee commitment and the fee, whose digest is a Poseidon hash. The step called Fee Fuse takes the bundle's actions header and a witness holding the max fee note's opening and the fee. It derives the blind, the max fee commitment, the fee digest, and the change commitment, and it adds the last two to the stamp's sets. Its output is a stamp. Since it accepts only an actions header as input, it cannot apply twice to one lineage. A bundle with no actions uses a step called Fee Seed, which has unit inputs and requires a max fee and a fee of zero.
+
+These steps prove a local relation and not funding, which comes from the actions, the binding signature, and transaction accounting. Now prove bundle Y at three fees. Our toy values use a stand-in for Poseidon, SHA two fifty-six reduced modulo forty-three, because the digests must be roots of polynomials modulo forty-three. At fee zero, the change note is worth six and the contribution is three. At fee four, they are two and seven. At fee six, they are zero and nine.
+
+The bundle commitment stays the same through all three, and a test asserts this on the real byte formats, along with an unchanged binding signature. So the fee can move without a new signature. But changing it rebuilds the stamp, so only a party holding the max fee note's opening and the action proofs can do it. The sources describe no protocol for negotiating a fee between a wallet and anyone else.
+
+Fee Fuse also needs a range check, because field arithmetic would otherwise wrap around. For bundle Y, take a fee of seven against a maximum of six. The change value is six minus seven, which is forty-two modulo forty-three. Fee and change still sum to six in the field, so the sum looks balanced, although the integers seven and forty-two are worth forty-nine in total. The step rejects this by requiring the max fee and the change value to lie within the maximum money amount. A real field is far larger but wraps in the same way, and a dishonest prover can pick the fee freely. Under the mock this check runs natively on integers, and a real circuit would have to constrain it.
+
+Each max fee note needs a fresh commitment trapdoor, because reusing an opening reuses the blind. Reusing an opening at the same fee also repeats the fee digest, which consensus rejects, and a test checks this for a forged stamp covering two such bundles.
+
+What a stamp covers.
+
+A stamp's header commits to an action set and a tachygram set. The action set holds one digest per action and one fee digest per bundle. The tachygram set holds two tachygrams per action and one change commitment per bundle, so its size is twice the number of actions plus the number of bundles.
+
+Each set is encoded as a polynomial with its members as roots, and then committed, as the chapter on pool state did for tachygrams. The action set must ignore order because merging combines stamps from unrelated wallets in any order, and the polynomial gives this for free. It sits alongside the ordered BLAKE two b digest of the actions, which serves the signatures, and the book stresses that the two digests are not interchangeable.
+
+For our bundles, all lifted to one common anchor, A has one digest and one tachygram, which come from its fee alone. X and Z each have two digests and three tachygrams, and Y has three digests and five tachygrams.
+
+Merging stamps.
+
+An aggregator chooses transactions, validates their stamps, aligns their anchors with the Stamp Lift step, and then applies the Stamp Merge step pairwise. An innocent aggregate proves its own zero fee first with Fee Seed and merges the others into that stamp. Finally the aggregator serializes the merged stamp and publishes its bundle as a new transaction.
+
+The merge needs no secrets from the wallets, because it takes only the two stamps and their covered descriptors from the mempool. It outputs a new proof, the union of the tachygrams, a new coverage digest, and the fee of the left stamp. That fee matters, because the merged stamp stays on the receiving bundle and keeps that bundle's fee. The other bundles carry their own fees once stripped, so the fee digests they contributed are still covered.
+
+On our stamps, A with X gives three digests and four tachygrams. Adding Y gives six and nine, and adding Z gives eight and twelve, with a trailer fee of zero throughout. The product test from the pool state chapter holds at each merge. The commitments do not grow, which is the point of committing, so the final stamp covers all of this with two curve points, an anchor, and the same fixed-size proof as a one-action autonome.
+
+Repeated values.
+
+Stamp Merge does not reject a repeated entry on its own. A code comment confirms that it proves a multiset union, so a dishonest prover can fuse overlapping stamps. The honest path cannot do this, because it builds the merged polynomial from the set union, which is not the product when inputs overlap, so its product check fails. The defence against a dishonest prover comes from what the verifier compares.
+
+Suppose a wallet publishes a second bundle, which we'll call X prime, that spends the same note as X with a fresh value of theta. Its descriptor and fee note differ, but it shares the nullifiers twenty-six and thirty-three with X. A forger can still fuse A, X and X prime, because the product polynomial has degree seven with double roots at those values, and the step checks only the product.
+
+The wire format forces the published list to be unique, so the list has five entries. The count rule asks for seven, so the first check fails, and recomputing the commitment from those five values also misses the header. This is why the book can call the tachygram count an exact test. Every action and bundle contributes a fixed number of tachygrams, and a published list has no repeats, so a stamp whose inputs shared a value always comes up short.
+
+Decompression.
+
+The sources disagree about what the aggregator actually fuses. A stamp on the wire holds a compressed proof, for bandwidth, while a step takes uncompressed children, so something must connect the two.
+
+The Tachyon book says that aggregators decompress proofs to a mutable format, merge them, and recompress before broadcasting. Its notes add that serialization is expensive and ask whether the cost grows with size. The Ragu Book, at the commit this site pins, says that compression is terminal, so a compressed proof can be verified and cannot be fused further.
+
+The Ragu code at that commit has comments describing a planned design. An aggregator profile would add circuits that verify a wallet's compressed proof inside the circuit, and an internal decompress step would then output its header. Those circuits have not landed, and the comment says they will need a larger rank.
+
+Ragu at the commit that Tachyon pins has a real compress, and we found no decompress step or profile module. The mock that Tachyon builds against has no compression. It has one proof type, which it pads to a constant size when serialized and parses back to the same type. So a stamp read from the wire can be merged directly, which works only because the mock has nothing to decompress.
+
+This site follows the Ragu code. A compressed proof cannot be fused today, decompression is planned, and our examples merge stamps while they are uncompressed. So the cost of the aggregator's real work, including its effect on proof size and rank, is not yet known. By our own inference, the same limitation reaches the unmerge step later in this chapter, since its divisors also arrive in published form.
+
+Rerandomization and hiding.
+
+Each stamp-producing operation in the crate rerandomizes its proof before release, and we confirmed this at the end of the merge function. The book's reason is that an aggregator sees its inputs, and its output should carry no link back to them. However, the Ragu book and code at the commit this site pins say that the construction does not yet establish zero knowledge or unlinkability. So we treat this as an intended property that the proof system has not yet delivered, which also affects what an aggregator could learn from the stamps it merges.
+
+Stripping.
+
+Once a merged stamp exists, its covered bundles no longer need their own stamps, but they do need to reach the chain. So a miner authoring a block replaces the stamp of each covered bundle with the aggregate's identifier and the bundle's fee, keeping every field of the body. In our example, A keeps the merged stamp, and X, Y and Z become adjuncts pointing to A.
+
+The tachygrams have not been lost, since the aggregate's stamp holds them in its own list. The fee stays in the trailer because it is part of the transaction's balance, and it is an input to the fee digest that the covering proof binds.
+
+The book and the code differ on who strips. The bundle page says that aggregators strip and merge. The aggregation page and the aggregator guide assign stripping to miners, and in the code any party can call strip on a bundle. This site follows the aggregation page, which also matches the logic, since only a block author knows which aggregate ends up in the block.
+
+An innocent aggregate can be stripped as well, if another aggregator merges it into something larger. It then contributes no actions, and it still names its covering aggregate and keeps its fee descriptor and binding signature. The reader rejects an all-zero identifier, which leaves the state byte as the only way to say no stamp.
+
+The sources also differ on what an innocent aggregate is. The deep dive gives it an empty action list, a zero balance, and a trivial binding signature. The fee and aggregation pages and the code give it its own max fee note and a stamp that starts from Fee Seed. So its validator's key is an ordinary key, and it publishes one tachygram and one fee digest. This site follows the code, and bundle A has these values.
+
+Transaction identifiers.
+
+A bundle now exists in several physical forms, as an autonome, at a different fee, or stripped with one pointer or another. These forms need one stable name, so that a wallet can recognize its transaction. They also need to be told apart, because they are different bytes. ZIP two thirty-nine already has this split. It defines a W T X I D as a T X I D followed by an authorization digest, and Tachyon routes each field to one half.
+
+The first half covers effecting data only. Tachyon's contribution to the T X I D, which the code calls the bundle commitment, is a BLAKE two b hash of four values. These are a hash of the action descriptors in wire order, the value balance, the max fee commitment, and a hash of the memo. Every signature signs a sighash built from this value.
+
+The second half covers what can change. Tachyon's contribution hashes the state byte, the signatures, and a final input of seventy-two bytes in both states. A stamped bundle fills that input with its fee, the coverage indicator, and a digest of the proof's digest, the anchor, the tachygram commitment, and the tachygrams. A stripped bundle fills it with its fee and the aggregate identifier. The book says that this hash's personalization is a placeholder until an amendment to ZIP two forty-four fixes it.
+
+Now compute these with real BLAKE two b over toy encodings, leaving out the other pools. We take A with its Fee Seed stamp, with the merged stamp, and stripped. We take Y at two fees, and stripped with three different pointers. Within each bundle, the bundle commitment stays fixed and the authorization digest never repeats.
+
+This also shows why an adjunct points to a W T X I D rather than a T X I D. The first two forms of A have the same bundle commitment, and only one of them holds a stamp that covers Y. A pointer to the first half alone could not say which stamp it means, and a stamp that covers less would not validate the adjunct.
+
+No circular dependency arises, and this is our own reading of the digest formulas. An adjunct's identifier depends on the aggregate's W T X I D, while that W T X I D depends only on the aggregate's own fields and stamp digests. So a miner can finish the aggregate first and then assign the references, and pointers need nobody's signature because they sit in the trailer. The covering aggregate must be top-level in the block, never stripped or covered in turn, which keeps its identifier stable. So a stack of aggregates flattens when it reaches a block.
+
+The sources differ on what the identifiers contain. The deep dive says that the T X I D commits to the polynomial commitment to the actions, the value balance, and a digest it calls the D A digest. The identifier and authorization pages and the code use the formula we gave. In a smaller difference, the aggregate identifier type calls the first half of its input a sighash. The book and a test comment say T X I D, and they note that the two coincide only for fully shielded transactions.
+
+This site follows the identifier page. That page links to a block layout section that the aggregation page does not have at this commit, and we found no specification of how a block's bundles are ordered or how references get resolved.
+
+Finding out what a stamp covers.
+
+A stamp carries no proof header. Within a block, a verifier collects the bundles that point to an aggregate and rebuilds the header from them. In the mempool nothing connects an aggregate to the bundles it covers, and testing a guess would take a full proof verification.
+
+The action set indicator makes this test cheap. It is the coverage field in the trailer, a BLAKE two b digest supplied by the transaction's author. One inner digest hashes the action descriptors, another hashes each bundle's max fee commitment with its fee, and an outer digest hashes those two. Entries go in sorted byte order, so that the digest depends only on the set. As a side benefit, the code tells an autonome from an aggregate by asking whether the digest matches the bundle's own descriptors alone.
+
+The indicator is not a soundness mechanism. It is a claim by the author, it strips away with the rest of the stamp, and the proof binds the action set separately. A wrong indicator can only harm its author, because others will decline to handle the transaction.
+
+So a verifier with a candidate collection applies two fast gates before the proof. It compares the indicator, and then it compares the tachygram count with twice the actions plus the bundles. Take the merged stamp on A, with its twelve tachygrams. A script enumerates every subset of the other three bundles, and only the full set passes.
+
+Two more candidates show why the gates and the proof are not redundant. One swaps Z for a different one-action bundle, and one carries Y at fee three in its trailer. Both pass the count, since the count only looks at shape, so the indicator has to catch them. If an author forged the indicator as well, the proof would still fail on the rebuilt header.
+
+Verifying a block's aggregate.
+
+We can now run the full check on our block, in the order that bundle verify uses. A validator handles each adjunct's signatures in the same way, and the crate checks those separately. First, all four bundles' action and binding signatures verify, which makes eight signatures. Second, the three adjuncts' pointers all equal the W T X I D of A. Third, the four action descriptors and four fee descriptors, none repeated, give a digest matching the trailer. Fourth, the count asks for twelve tachygrams, and twelve are published. Fifth, committing to the published list gives the commitment in the trailer. Sixth, the rebuilt header matches the one the proof was made for.
+
+The proof verification reads the carried tachygram commitment and not the list, which is why the set check has to come first. The chapter on pool state described the differing accounts of that comparison, and we follow the code. This method does not make the anchor lookup, the epoch rule, the tachygram window, or the absorption.
+
+Aggregation also changes nothing about who pays. The merged stamp on A states a fee of zero and the adjuncts state five, four and two, all covered by the one proof. So the bundles pay eleven in total, the same as if each had been mined alone.
+
+A miner cannot quietly adjust these amounts. Suppose a miner rewrites adjunct Y's trailer from fee four to fee three, still within the signed maximum of six. The bundle commitment does not change, because the fee is not effecting data, so the signatures still verify. But the fee digest changes from thirty-six to thirty, so the rebuilt action set has a different commitment, and the proof cannot verify against that header.
+
+What aggregation saves.
+
+The size of a real proof is not settled, so we count bytes using the mock's placeholder of twenty-three thousand bytes. A comment in Ragu describes a compressed proof as a few kilobytes, so these numbers probably overstate the proof's share. They also assume empty memos.
+
+Published separately, X, Y and Z take seventy thousand five hundred bytes with three proofs. Published as the aggregate A with three adjuncts, the same three transactions plus A take twenty-four thousand six hundred forty-five bytes with one proof. On a hypothetical batch of one thousand two-action bundles, each bundle falls from twenty-three thousand six hundred twenty-eight bytes to six hundred eighteen. The proof falls from one thousand copies to one, while the tachygrams and action signatures all remain.
+
+Those remaining bytes set a floor, since each action keeps its one hundred twenty-eight byte descriptor and signature and adds sixty-four bytes of tachygrams, and each bundle gains a sixty-four byte pointer. So the byte savings depend on the proof size. The verification savings do not, because validators check one proof in place of one per bundle, and they absorb one commitment into the anchor chain per aggregate.
+
+The book's notes say that the limit on one aggregate comes from the commitments rather than the block size, and the reader rejects a list whose polynomial would exceed the rank. At the production rank a polynomial has eight thousand one hundred ninety-two coefficients, so a stamp holds at most eight thousand one hundred ninety-one tachygrams. Bundles of two actions contribute five each, so one aggregate covers at most one thousand six hundred thirty-eight bundles, or three thousand two hundred seventy-six actions. This agrees with the book's order of thousands of actions. An aggregator may eventually work at a larger rank, so this limit is also unsettled.
+
+The aggregator's role.
+
+Tachyon adds one role to the usual transaction path. A wallet sends an autonome to the mempool, and gossip carries it to an aggregator, which lifts, merges, and returns an aggregate to the mempool. A miner then chooses aggregates, strips the covered bundles, and produces a block.
+
+The book expects miners to integrate this role and does not treat the peer-to-peer version as settled. Its notes ask whether aggregates have optimal qualities, whether miners will rely on the network at all, and whether they would pick aggregates or transactions first. They also record that merging into one aggregate cannot be parallelized while several aggregates can be built side by side, and that merging a small autonome and a large aggregate cost about the same.
+
+The rest of this section comes from the aggregator guide, which is advice rather than consensus rules. Several aggregators can work on the same autonomes while blocks keep landing, so the work has to survive competition.
+
+The anchor comes first. An aggregator works at a current-epoch anchor and lifts every input to it. Lifts cannot cross an epoch boundary, and a stamp cannot be published after the epoch following its anchor's epoch. So an aggregate started in one epoch is finished within the next, or it is rebuilt.
+
+Inputs also have to be disjoint. The aggregator compares the tachygrams of its candidates with each other and with its working stamp, and it merges a disjoint set. It should keep the stamps of candidates that overlapped, because a block may include one of those instead.
+
+Its reasons to aggregate are partly its own. A bundle of the aggregator's own gets mined along with what it covers, and an aggregate carrying finished proving work is more attractive for the next party to take on.
+
+Proving work should also stay reusable. Suppose an aggregator holds the merged stamp of A and the stamps of X, Y and Z. Dividing out the last three gives a stamp for A's own actions and fee, even though A's builder never published one. The guide calls this intended, because the signed actions are unchanged and the builder wanted them mined. The builder keeps no ownership of the grouping.
+
+The guide calls an aggregate transparent to a participant who holds or can derive a stamp for each of the other bundles it covers, at the fee the aggregate selected. Such a participant can split the aggregate into any subset without asking the builder. So aggregators should keep their inputs and merge order and cache recent mempool stamps until the working aggregate expires. They should publish only complete autonomes and aggregates, since a released intermediate is a divisor someone else can use.
+
+A builder could hold back a component proof, so that it alone can split its aggregate. Against this, the guide suggests a social rule. Aggregators merge another's aggregate only if it is transparent to them, or if they are willing to drop it whole, so the cost of withholding falls on the withholder.
+
+When a block lands.
+
+Suppose our aggregator holds the merged stamp, which we'll call W, and a new block includes X on its own. W repeats X's tachygrams, and consensus rejects a tachygram published twice within two epochs, so publishing W would fail. Rebuilding would discard finished work, so we want to keep the proof of the rest.
+
+The step called Stamp Unmerge removes one stamp from another, like a merge run backward. Its witness holds the quotient polynomials, and it enforces that each dividend polynomial is the product of the divisor's and the quotient's, at one common anchor. Each set polynomial is a product of linear factors, so unique factorization makes the division exact. The output header may state less than the input, which is acceptable because a step need only establish the relation it declares.
+
+On our stamps, dividing W's tachygram polynomial, of degree twelve, by that of X, of degree three, leaves remainder zero and a quotient of degree nine. The action polynomials go from degree eight to degree six, also with remainder zero. The quotient stamp has the same header we would get by merging A, Y and Z directly, and its trailer fee stays at A's fee of zero.
+
+Finding what to remove takes three comparisons. Action descriptors show which of W's bundles the block includes. Fees must be compared because a block may carry a bundle at a different fee. Tachygrams must be compared because a conflicting spend of one note has a different descriptor and the same nullifiers.
+
+The fee case needs an exact divisor, meaning the bundle as it was merged, at the fee W holds. Suppose the block carries X at fee four while W holds X at fee five. Dividing by the block's stamp leaves a nonzero remainder on both polynomials, so no quotient exists. The two versions of X still share their nullifiers, so W cannot be published either. Dividing by the cached fee five stamp of X removes X and gives the quotient we found before, and the fee in the block plays no part.
+
+Three cases.
+
+The guide sorts all situations by whether a stamp in hand or in the block covers exactly the bundles to remove. If one does, the aggregator divides once, which is the easy case. If none does, but one can be built by merging stamps held or derivable, the case is medium. Otherwise the case is hard, and the aggregator gives up a larger input containing the mined bundles, or it rebuilds.
+
+Here is the medium case on our stamps. Suppose the block includes an aggregate on a bundle T, covering T, X and Y, and T is not in our stamp. Dividing by T's stamp fails, because it has T's factors and ours does not. Merging our cached stamps of X and Y gives a divisor covering exactly what has to come out, and dividing leaves a stamp covering A and Z. Merging a stamp of T into ours and then dividing by the block's stamp reaches the same header.
+
+The guide's other situations go as follows. If the block includes exactly the autonomes or aggregate that W merged, unchanged or inside a larger aggregate, the case is easy, and the same holds for one adjunct of a merged aggregate published as an autonome. If a merged aggregate has been regrouped with other bundles, the case is medium when the needed stamps are cached, and hard otherwise. If a needed stamp is withheld, the case is hard. If the block lands past the end of the epoch after W's anchor epoch, W is dead and the aggregator rebuilds.
+
+The guide prefers an exact divisor, then a built divisor, then dropping a larger input, with a rebuild whenever that costs less. Its regrouped case is the most instructive. Suppose W merged an aggregate G covering G's own bundle, X, Y and Z. G's builder then regroups, and the block includes G's bundle with X and a new adjunct at a new fee. The aggregator divides its kept G stamp by the cached stamps of Y and Z. The result covers G's bundle at its old fee and X, which is exactly what has to come out of W, and the new fee does not enter. A test in the code covers a divisor crossing merge boundaries this way.
+
+Losing the receiver.
+
+The quotient keeps the dividend's fee, and this matters when the block mined the receiver. Suppose the block included A on its own. Dividing A out leaves a stamp covering X, Y and Z, whose trailer fee is still zero while the fees it covers are five, four and two. Placed on X, this stamp makes the verifier build X's fee descriptor with fee zero, and the indicator check fails. The guide's remedy is to merge the stamp into a bundle outside the quotient. Merging into a new bundle B with a fee of one gives a stamp with B as receiver and a trailer fee of one, covering B, X, Y and Z.
+
+At the miner.
+
+A miner's task is short by comparison. It includes eligible disjoint aggregates as they are, with every covered bundle stripped to point at them. Where two candidates overlap, it removes the overlap from one with cached stamps instead of rebuilding either, and it can spend the saved proving time on an aggregate of its own.
+
+Fee levels and payment.
+
+So far we have seen how a fee is bound and balanced, but not how large it should be or who receives what. On the first question, the book's page on ZIP three seventeen says that Tachyon's contribution to the conventional fee is under discussion and nothing has been decided. It links a draft whose pull request GitHub showed as closed without merging when we checked, so we treat the draft as one proposal and not as the design.
+
+That draft sets the contribution to the number of actions, for every bundle type. Its argument is that a transaction's fee should remain a function of its own public fields, with no knowledge of which aggregate covers it. It rejects a lower price for adjuncts because that would shift cost onto the aggregate. ZIP three seventeen's formula charges five thousand zatoshi per logical action with a grace of two, so bundles A, X and Y each come to ten thousand zatoshi, and a five-action bundle comes to twenty-five thousand. These are wallet conventions and not consensus rules.
+
+An innocent aggregate has a max fee of zero, so its Tachyon bundle can pay nothing, and any fee would need to come from another pool in its transaction. The sources do not address this directly.
+
+On the second question, a bundle's fee enters its transaction's balance like any other Zcash fee, and we found no mechanism in the sources that pays an aggregator from it. The draft explicitly leaves the aggregator's proof work unpriced and calls it a market and protocol-design concern. This suggests that aggregation may be funded by vertically integrated miners and by aggregators with bundles of their own, though no source makes this a design commitment.
+
+Why cheating fails.
+
+Now we can collect the attacks from this chapter. Each one assumes the proof system's soundness, and the mock means that the relations are declared and not yet enforced by real circuits. We also assume that BLAKE two b and Poseidon resist collisions, and that the discrete log between V and R is unknown.
+
+A wallet might claim a false balance, but the validator's key then keeps a term in V, so no signing key is known. A prover might set a fee above the maximum, and the range check stops it. A prover might redirect the fee change note, but the blind depends on the owner fields, so the max fee commitment would differ from the signed value. A prover might apply a fee twice, but Fee Fuse accepts only an actions header, and consensus rejects a repeated fee digest.
+
+A miner might rewrite an adjunct's fee, but the fee digest changes and the rebuilt header fails. A relayer might drop a memo, but the bundle commitment changes and the signatures fail. A miner might leave a covered bundle out of a block, but the rebuilt header then differs from the proof's. A miner might point an adjunct at the wrong aggregate, but the pointer check fails, and the adjunct's descriptors would be missing from the right header.
+
+An aggregator might merge stamps sharing a tachygram, but the count check or the recomputed commitment fails. An author might publish a false indicator, but others decline the transaction, and the proof binds the set regardless. An aggregator might try to remove a bundle that was never merged in, but then no quotient exists.
+
+Aggregators and miners hold no special power here, because everything they can change sits in authorization data that the proof and the rebuilt header check. An aggregator can choose what to merge, withhold component proofs, and fail to publish. These are questions of availability and incentives, so the guide treats them with conventions and not cryptography. Tests also catch forged stamps, with the caveat that the mock proof can only show a mismatch of headers.
+
+Part of this account is reconstructed from the code at the commit this site pins, and the authors have not confirmed it. The order of checks comes from bundle verify, and combining it with the adjunct and consensus checks is our reading. The claim that the block's other bundles get their signatures checked the same way comes from the deep dive, since the crate has no block validator.
+
+Where this chapter leaves us.
+
+Aggregation removes proofs and leaves signatures, value commitments, fee descriptors, and tachygrams in place, since those check facts about each bundle. The signatures cover only effecting data, and everything aggregation changes sits in authorization data. A wallet signs a maximum fee, and a proof later picks the fee and returns the difference as a change note. Merging multiplies the set polynomials, keeps the receiver's fee, and needs no wallet secrets.
+
+Decompression remains a gap, since the Tachyon book assumes it, the Ragu code has not landed it, and the Tachyon crate avoids it through a mock proof. A miner strips covered bundles to a fee and a pointer, and the T X I D half of the identifier stays stable while the authorization half tells the forms apart. The indicator and the count give two cheap checks, and the proof remains the check that matters. Aggregators work within an epoch's deadline and keep their stamps, so they can divide out whatever a block has mined. Fee levels and aggregator payment are unsettled.
+
+This completes the path of a transaction, from a note's keys to a block. The next chapter, the final recap, traces one spend through every layer of the site, and it names the chapter that explains each layer.

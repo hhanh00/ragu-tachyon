@@ -1,0 +1,225 @@
+Chapter sixteen. Endoscalars.
+
+The curve cycles chapter left a promise open. It split each fold between two circuits and let one transcript supply the challenges for both. In its toy run the challenges crossed between the circuits as small integers, and the secondary circuit used them in plain double-and-add. That chapter also noted that Ragu's code does something else, because in the code a short value maps to a scalar that is not the plain integer.
+
+This chapter supplies that map. We start from a symmetry of the curves that makes one particular large scalar free to apply, and we build a way of reading a short bit string that uses this symmetry at every step. The same string then acts as one scalar in each field of the cycle, which is what lets a challenge cross. After that we count the gates, show why distinct strings stay distinct on Pasta and fail to on the toy curves, and rerun the curve cycles fold with the real map.
+
+Parts of this chapter are reconstructed from the code at the commit this site pins, and the authors have not confirmed them. The radix-three encoding, its cost and its injectivity argument come from the Ragu Book and the code, and our script reruns them. The toy fold later in the chapter is our own small assembly of how the code uses them. Its width of five bits has no counterpart in Ragu.
+
+A few terms will recur. An endoscalar is the bit string itself, which has length one hundred forty-three in Ragu. Endoscaling means multiplying a point by the string. Lifting means computing the scalar that the string stands for in a given field. We read bit strings with the first bit as the least significant, as the code does. We also keep the names from the curve cycles chapter, so the native side has wires in one field and the nested side has wires in the other. On the toy cycle, those are the fields of size forty-three and thirty-one.
+
+What the plain integer costs.
+
+A short integer does fit in both fields, so the plain approach can work in principle. Its trouble is the price. A fuse has to fold about a hundred commitments on each side, each fold multiplies a point by the challenge, and a Ragu circuit holds only two to the eleven gates. The double-and-add from the recursive proofs chapter spends about ten gates on every bit. So one multiplication by a challenge of one hundred forty-three bits would fill most of a circuit.
+
+The way to reduce that price is to get several bits of scalar out of each point addition, and this needs a supply of multiples of the base point that cost nothing to compute. Curves whose equation sets y squared equal to x cubed plus a constant have such a supply. Using it gives up the plain integer, though, so we then have to check that the circuits still agree on what the string means.
+
+The curve's endomorphism.
+
+That curve equation sees x only through its cube. So take a cube root of one in the coordinate field, called zeta, and replace x with zeta times x. The equation does not change, which means this map sends points of the curve to points of the curve. We'll call the map phi. A cube root other than one exists when the field size is one modulo three, which holds for both toy fields and both Pasta fields.
+
+In the field of size thirty-one, the cube roots of one are one, five and twenty-five, and we take zeta equal to five. The generator with coordinates one and two maps to the point with coordinates five and two, which is on the curve.
+
+To be useful for scalar multiplication, the map has to respect addition, and we can check this on the addition formula. Apply phi to both inputs of an addition. The slope gets divided by zeta, because the difference of the x-coordinates picks up a factor of zeta. The new x-coordinate is the slope squared minus the two input x-coordinates. Since zeta cubed is one, dividing by zeta squared is the same as multiplying by zeta, so the new x-coordinate is zeta times the old one. In the new y-coordinate the zeta factors cancel, so it stays the same.
+
+So mapping two points and adding them gives the same result as adding them and mapping the sum. The tangent slope for doubling also gets divided by zeta, so doubling behaves the same way. A map from a group to itself that respects the operation is called an endomorphism. On the toy curve, we confirmed this identity on all one thousand seven hundred sixty-four ordered pairs of affine points.
+
+Now we use the fact that our curves have prime order. Every point is a multiple of one generator, and phi of that generator is some multiple of it. Because phi respects addition, the same multiple then applies to every other point. So phi multiplies every point by one scalar, which we call its eigenvalue, lambda.
+
+Applying phi three times multiplies x by zeta cubed, which is one, so lambda cubed is one in the scalar field. Since phi is not the identity map, lambda is not one. Factoring lambda cubed minus one and dividing out lambda minus one leaves the relation that lambda squared plus lambda plus one equals zero. On the toy curve with zeta equal to five, every point gives the same multiple, and lambda is six. And indeed six squared plus six plus one is forty-three.
+
+This gives us the cheap multiple we asked for. Computing six times the generator by double-and-add would take twenty-one gates for a three-bit scalar. Applying phi takes no gates, because multiplying a wire by a constant is part of a linear combination. The contrast is sharper on Pasta, where lambda is a scalar of about two hundred fifty-one bits, and multiplying by it would cost about two thousand five hundred one gates with the same method.
+
+Negation is free as well, because it only flips the sign of y. So from one point we get six multiples, which are plus and minus one, plus and minus lambda, and plus and minus lambda squared. They cost no gates beyond selecting among them.
+
+One constant for each field.
+
+Each field has two cube roots other than one, and the choice of zeta decides which root of the scalar field is the eigenvalue. On the toy cycle's first curve, for instance, zeta equal to five gives lambda equal to six, while zeta equal to twenty-five gives thirty-six.
+
+A circuit needs zeta on the coordinates of its curve, and it also needs lambda when it does field arithmetic with the same challenge. On a cycle these two roles fall on the same field, because the coordinate field of one curve is the scalar field of the other. Ragu therefore keeps one constant per field, called zeta in its code, and uses it for both roles.
+
+That only works if the choices line up on both curves, and being a cube root other than one does not by itself decide this. The toy cycle has such a choice, the constant five for the field of size thirty-one and six for the field of size forty-three. Each is the coordinate constant of its own curve and the eigenvalue on the partner curve.
+
+On Pasta, we tested the pair of constants from the pasta curves crate. Multiplying a Pallas point by one constant has the same effect as multiplying its x-coordinate by the other constant, and the same holds on Vesta with the roles swapped. Replacing one constant with its square while the other stays the same makes the first test fail. Ragu reads its constants from a dependency, zakura-udon, which computes them with a macro that we did not evaluate. Ragu's consistency test checks the pairing on both curves. The other consistent pair, the squares of these two, passes our test as well.
+
+Elements with two images.
+
+We now need a way to talk about a combination of a point and its image under phi without saying which curve the point lies on. Treat lambda as a formal symbol whose square is minus one minus lambda, and work with pairs of integers, written a plus b lambda. These form a ring called the Eisenstein integers, and products follow from the rule for lambda squared.
+
+An element of this ring acts on a point of either curve, and replacing the symbol with the curve's eigenvalue gives the same result as a scalar. Take three plus two lambda. With lambda equal to six, it maps to fifteen in the field of size forty-three. With lambda equal to five, it maps to thirteen in the field of size thirty-one. On each curve, three copies of a point plus two copies of its image under phi give the same point as that scalar multiple.
+
+The rest of the chapter builds on this fact. One element of the ring has an image in each scalar field, and the same rule computes both images from the same pair of integers.
+
+We also need to know when an element has image zero, since that decides when two different elements become the same scalar. The tool is the norm of a plus b lambda, which is a squared, minus a times b, plus b squared. It equals the squared absolute value of the element when we read lambda as a complex cube root of one. So it is never negative, it is zero only for the zero element, and the triangle inequality applies to its square root.
+
+Suppose an element maps to zero modulo a prime. Then a equals minus b lambda modulo that prime. Substituting this into the norm gives b squared times the sum of lambda squared, lambda and one, which is zero. So the image can be zero only if the prime divides the norm. In particular, a nonzero element whose norm is below the prime cannot map to zero.
+
+The element five minus lambda has norm thirty-one, and with lambda equal to five it maps to zero in the field of size thirty-one, while it maps to forty-two in the other field. A search over all coefficients from minus forty to forty found that every nonzero element mapping to zero in either toy field has a norm divisible by that field's size.
+
+Reading a string as an element.
+
+We want a rule that reads bits into an element, using only cheap multiples, with a large number of bits per point addition. Suppose we walk an accumulator by repeated multiplication by a radix, adding one digit multiple of the base point at each stage. The cleanest way to read the result back is to recognize the last digit from the element's residue modulo the radix, and then repeat on what remains. So we look for a digit set with one digit for each nonzero residue.
+
+The ring modulo three has nine residue classes, because a and b each have three residues. So a tripling walk can use eight nonzero digits, which is three bits for each tripling. The six free multiples fill six classes, and the digit one minus lambda, with its negative, fills the other two. Those last two digits are not free multiples, but they still cost little, as we will see.
+
+Halo's original walk uses doubling, with the digits plus and minus one and plus and minus lambda, which gives two bits for each doubling. A doubling walk cannot also use plus and minus lambda squared, since the ring modulo two has only four classes. Those extra digits would let two strings reach one element.
+
+Ragu's layout then reads as follows. The first two bits choose a starting unit, by giving a sign and whether to apply phi. Each later group of three bits is one digit, made of a sign and two more selector bits. The walk begins with twice the starting unit applied to the base point. At each digit, it triples the accumulator and adds the digit's multiple of the base point. Ragu uses forty-seven digits, and two plus three times forty-seven accounts for the width of one hundred forty-three. The doubling at the start uses the two leftover bits, and it also matters for a reason we reach later, which is that the starting accumulator is more than a single unit.
+
+Because each digit has its own residue, the element determines the string. Here is the decoding on a small case. Take an eleven-bit string with three digits, whose first two bits say positive sign and apply phi. Its digits are one minus lambda, then minus one, then minus lambda, and the walk gives the element six plus forty-four lambda.
+
+Now start from that element alone. Modulo three it has residue zero and two, so it must end in the digit minus lambda. Subtracting that and dividing by three leaves two plus fifteen lambda, whose residue says the digit before was minus one. That leaves one plus five lambda, whose residue says the digit was one minus lambda. What remains is two lambda, which is twice the starting unit lambda, so the first two bits come back too.
+
+Every step of that decoding is forced, so two strings cannot name the same element of the ring. We enumerated every string for up to four digits, which at four digits means sixteen thousand three hundred eighty-four strings, and no two gave the same element.
+
+One string, two scalars.
+
+Our toy endoscalar has one digit and therefore five bits. The lift function computes the element's image in a chosen field, by running the walk's formula with that field's constant in place of lambda.
+
+Take the string of five ones. Its first two bits make the starting unit minus lambda, and its remaining three bits make the digit minus one plus lambda. The element comes out as minus one minus five lambda. With lambda equal to six this is twelve in the field of size forty-three, and with lambda equal to five it is five in the field of size thirty-one. As an integer, the string is thirty-one, and neither scalar has any simple relation to that number.
+
+Other strings show the same independence. The string with integer value three lifts to eight and two, and the one with integer value eleven lifts to thirteen and six.
+
+Endoscaling a point by this string means running the walk with phi and the digit multiples. It needs no knowledge of lambda or of the scalar field, because the circuit only computes with coordinates. The result is still the multiple that the lift predicts, on each curve. For the string of five ones, the walk on the first curve ends at twelve times the base point, and the walk on the second curve ends at five times the base point.
+
+This matches the book's consistency property, and we can now say why a challenge can cross the cycle. Look at the two uses of each scalar. The scalar beta in the field of size forty-three scales polynomials over that field, whose commitments lie on the first curve. A circuit over that field computes beta directly by lifting, and it uses the result to fold values. A circuit over the other field cannot hold beta, but it does not need to, since it walks points of the first curve by the bits, and the walk acts as beta. The other pair works the same way in the opposite direction.
+
+The bits are all that the two circuits share, and a bit is zero or one in any field. Neither circuit ever handles a number from the other's field.
+
+The same equality holds at full size. We ran it with Ragu's own test value. On Pallas and on Vesta, the walk gave the same point as a direct multiplication by the lifted scalar, and each walk took four hundred eighty gates.
+
+The walk in gates.
+
+Now we count, where a gate is one multiplication and a division counts as one multiplication checked backwards. A digit step has two parts, which are computing three times the accumulator plus the digit, and picking the digit's point.
+
+Done naively, the tripling and adding is three additions at three gates each, or nine gates. Two of those gates compute y-coordinates of intermediate points that are never kept, so we try to remove them. Write out the slope of the second addition. The intermediate y-coordinate disappears from it, and we can state its slope directly in terms of the first slope and the accumulator. The third addition follows in the same way, and only its output needs a y-coordinate. The code ends up with seven gates.
+
+Choosing among eight points would normally cost gates for each coordinate of each option, and the base point's coordinates are arbitrary wires. The code avoids this by first moving the point to a related curve where its two coordinates are equal. The move multiplies x by the square of a constant and y by its cube, and this changes only the curve's constant term. Choosing the right constant makes both new coordinates equal to one value, which we'll call r. The addition formulas never read the curve's constant term, so the walk can run on the new curve and move back at the end.
+
+On this curve, the base point has three free multiples, which share the y-coordinate r and have x-coordinates r, zeta r and zeta squared r. The fourth digit comes from adding the base point to minus its image. Its slope turns out to be a constant that does not depend on r. So all four digits have coordinates of the same form, a constant times r plus a constant.
+
+Since each coordinate has that form, a selection needs only one product with r per coordinate once the bits have been combined. The combined bits are products of the digit's selector bits, and those products would cost gates of their own. The plain gadget factors the selection so that it takes three gates in total, which we use here without deriving it. We compared the selectors with direct point arithmetic for all eight digits at every affine point of both curves. All five hundred seventy-six comparisons agreed.
+
+Now run one digit step on our string. The seven gates of the tripling compute three slopes, two intermediate x-coordinates, and the final two coordinates. Moving back to the original curve gives twelve times the generator, as predicted. The tracer counted twenty gates, which are three to normalize, four for the doubling, ten for the digit and three to move back.
+
+The start of the walk is cheap for a related reason, since the tangent slope at the base point is linear in r. Two gates compute the doubled point and two more apply the sign and the twist. With forty-seven digits, the total is three plus four plus ten per digit plus three, which comes to four hundred eighty gates.
+
+A fuse walks many points by one string, so each of those walks repeats the same products of bits. Ragu hoists them into a stage that the walk circuits share, and one circuit checks them once. Each digit then needs only the two products with r, which saves one gate per digit.
+
+Here are the costs together. Double-and-add takes one thousand four hundred twenty-one gates for one hundred forty-three bits, close to ten gates per bit. Radix three with the plain selector takes four hundred eighty gates. With the hoisted selector it takes four hundred thirty-three, or three point zero three per bit. The book's figure for a radix-two walk with the endomorphism is four hundred fifty-five gates for one hundred twenty-eight bits.
+
+Our tracer counted the two radix-three figures on a Vesta point, and the results matched direct multiplication by the lifted scalar. A circuit of two thousand forty-eight gates therefore holds one double-and-add multiplication or four hoisted walks. That fits the limit of four endoscalings per circuit that the curve cycles chapter mentioned.
+
+Why distinct strings stay distinct.
+
+We showed that strings name distinct elements of the ring, but the circuits work in the fields, and a nonzero ring element can have image zero there. The divisibility rule tells us when this can happen, so we bound the norm of a difference between two strings' elements.
+
+Subtract the two elements, term by term. Units have absolute value one, and digits have absolute value at most the square root of three. So each digit's difference is at most twice that, and the powers of three form a geometric sum. Adding up these terms bounds the difference, and squaring that bounds the norm. To state the result, take five times three to the number of digits, subtract one, square that, and multiply by three. The book states this bound without these steps, so the derivation is ours. If the bound is below the field size, the difference cannot have image zero.
+
+With forty-seven digits the bound is about two to the one hundred fifty-five point two, and the Pasta group orders are about two to the two hundred fifty-four. A nonzero difference therefore cannot have a norm divisible by either order, and the strings of one hundred forty-three bits stay distinct in both fields.
+
+The toy curves are far too small for this, and that makes them a useful illustration of what the bound prevents. With one digit the bound is five hundred eighty-eight, which far exceeds both field sizes, so the argument does not apply. The thirty-two strings reach only twenty-one different scalars in each field. For one clash, two strings give elements whose difference has norm thirty-one, and both map to seven in the field of size thirty-one.
+
+The norm has a second use. The walk uses incomplete additions, which divide by a difference of x-coordinates and so fail if the two inputs are equal or opposite. Those failures require certain combinations of the accumulator and the digit to be zero. Each accumulator has absolute value at least two because of the initial doubling, and it keeps growing with each step, while digits have absolute value at most the square root of three. So none of these combinations is zero in the ring.
+
+Their norms are again below the Pasta group orders, so none has image zero, and the circuit does not need to check these denominators at all. The walk relies on this by using an unchecked bank. On the toy curves the argument does not apply, and we can watch it fail.
+
+We ran all thirty-two strings on every affine point of both curves. Every walk that finished gave the point the lift predicts. On the first curve, four strings failed with equal x-coordinates in an addition, and on the second curve six failed. In one failure, the next addition would have reached the element five minus lambda, the element of norm thirty-one we met earlier, which is the identity on that curve.
+
+The same reasoning needs a base point with nonzero coordinates, since normalization divides by y and by powers of the moving constant. A curve of prime order larger than three has no point with y equal to zero, which would have order two, and none with x equal to zero, which would have order three.
+
+Extracting bits from a challenge.
+
+A transcript produces a field element, and the circuit needs its bits. A field element does not always have a unique bit decomposition inside a circuit, because a circuit checks the weighted sum of the bits modulo the field size. If the bits have enough room to exceed the field size, a prover can choose between spellings.
+
+In the field of size forty-three, a six-bit string can name values up to sixty-three, so twenty-one field elements have two spellings, one of them the value plus forty-three. The element five, for instance, can also be written as forty-eight. These spellings have different low bits, so they would name two different endoscalars. If we require the top bit to be zero, each of the thirty-two elements below thirty-two has one spelling, and the eleven elements from thirty-two to forty-two have none and are rejected.
+
+Ragu therefore requires the value to fit below the largest power of two under the field size, and then it takes the low one hundred forty-three bits of the unique spelling. Extraction also gives the right distribution. On Pasta the rejected values make up about two to the minus one hundred twenty-nine of each field. Each string of one hundred forty-three bits has exactly two to the one hundred eleven in-range values above it, so a uniform in-range value gives a uniform string.
+
+An honest prover almost never meets a rejected value. The grinding that the statements and challenges chapter mentioned deals with the rare case for a challenge called pre-beta, the last challenge of the transcript and the one that becomes beta. There the prover re-randomizes the eval commitment and squeezes again until the value is in range.
+
+Folding with an endoscalar.
+
+Now we can rerun the curve cycles fold with the real map. First we should separate the challenges that act on foreign points from those that do not. In the fold on the first side, the values alpha and u only enter the computation of the folded value, which is native to the circuit that folds values. Only beta also scales commitments, so only beta has to be applied through a walk. The code matches this on the native side, where it uses alpha and u as full field elements.
+
+The nested accumulator needs challenges of its own in the other field, and it gets them by lifting the low bits of each native challenge. The nested alpha has no numeric relation to the native alpha, and it does not need one, since the two batch different polynomials. For beta, both sides lift the same string.
+
+We keep the curve cycles chapter's claims, two on each curve. Some toy strings hit an exceptional addition, so we picked a pre-beta whose walks all finish, and Pasta needs no such choice. Let the transcript give alpha equal to eleven, u equal to thirteen, and pre-beta equal to thirty-one. The circuit over the field of size forty-three uses alpha and u as they are, and it lifts pre-beta to beta equal to twelve. The circuit over the other field uses only lifts of the same bit strings, which are six, twenty and five.
+
+Each value follows from the curve cycles formula with its own scalars, and each point follows the same pattern with a walk in place of the double-and-add. The first circuit computes its folded value, three, with field arithmetic, and it walks the second curve's point by the bits. The second circuit computes its folded value, nine, and it walks the first curve's point by the same bits. Each point takes forty-six gates.
+
+The decider then works directly with the polynomials. It commits to the combined polynomials on each curve and evaluates them at the two points. All four numbers match, although neither circuit ever computed in the other's field.
+
+The four-bit double-and-add of the curve cycles chapter took sixty-eight gates per point for a shorter challenge. Each circuit also pays five gates to show that the bits are bits and three gates to lift them.
+
+The field value has to be the lift, because the walk acts as the lift. The plain integer now gives the wrong answer. Suppose the first circuit used the integer thirty-one as beta in its field arithmetic. The walk does not act as thirty-one, because it multiplies a commitment by twelve. The value and the point would then describe different polynomials, and the decider would reject.
+
+Transcript bridging.
+
+The book's name for sharing one transcript between the two circuits is transcript bridging. The curve cycles chapter explained why it is sound only with input consistency. We can now say how the lifted values reach the nested side and how that side is held to them.
+
+The nested circuits see no transcript. They read every challenge from a stage of their own trace, committed without blinding on the curve whose coordinates are native to the primary circuit. So its commitment is a known combination of generators, with each lifted challenge multiplying its own generator.
+
+The native circuit holds each challenge in its own field, and it cannot compute the lift, which lies in the other field. But walking a generator by the challenge's bits acts as exactly that lift, by the consistency property from earlier, and the generator has coordinates in the native field. The curve cycles chapter did this check with plain integers, and here is the real version.
+
+The stage holds the lifted values six, twenty and five, with no blinding. The circuit over the field of size forty-three holds the three transcript values as its own wires, breaks each into bits, and walks each generator by those bits. The three walks add up to the stage's commitment. That circuit has no wires modulo thirty-one, and it still confirmed a commitment to exactly those values. If the prover puts any other value in the last slot, the stage commits to a different point and the comparison fails.
+
+So the endoscaling walk has two uses in a fuse. It folds commitments, and it also certifies foreign field values. The code divides the second use by timing. Four circuits called bind challenges handle two challenges each and export their partial sum. The challenge pre-beta comes last in the transcript, after the stage holding those partial sums has been committed, so its term has to wait. The next step's circuit, called bind beta, adds it and compares the sum with the stage commitment. For the root proof, the verifier rederives the stage itself.
+
+The other challenges, including alpha and u, follow a simple division. The native circuit uses the field element, the nested circuit uses its lift from the challenge stage, and bind challenges holds the nested copy. For pre-beta, each side uses its own lift of beta and its bits for the walk, the native side on Pallas and the nested side on Vesta. Bind beta and then a further lift check hold the nested copy.
+
+One gap remains. Each walk reads the bits from a stage as well, and we have to tie those bits to pre-beta. On the native side this is direct, because a circuit called bind endoscalar extracts the bits from pre-beta again and compares them wire by wire. The nested side cannot do this, because it holds no pre-beta, only the lifted value. So its compute V circuit lifts its own bits and requires the result to equal the lifted value. This check is only as strong as the lift is injective, as the toy curves show.
+
+The string zero, zero, one, zero, zero also lifts to five in the field of size thirty-one, so a prover could load it into that circuit and pass the comparison. In the field of size forty-three that string lifts to five and not twelve, so the walk now acts as five and produces a different point. The false accumulator has a value computed with twelve and a point computed with five. Among the thirty-two toy strings, sixteen pairs agree in the smaller field and disagree in the larger one. On Pasta no such pair exists, by the norm bound. This is the reason the book cares about injectivity, beyond keeping the sample space large.
+
+Why cheating fails.
+
+We go through what a cheater can try, in the order of the earlier arguments.
+
+First, a second spelling of the challenge. A value with two bit decompositions would let a prover pick its endoscalar after the hash. The range requirement leaves one spelling. The verifier rejects a proof whose challenge is out of range, and no in-circuit assignment exists for such a value.
+
+Second, wrong lifts on the nested side. The stage is unblinded and its commitment is recomputed from the transcript's bits. Any other value changes the point, under the discrete log relation assumption for the generators of that curve.
+
+Third, other bits in a walk. The native side compares its bits directly with the transcript. The nested side compares a lift, and on Pasta only one string has that lift.
+
+Fourth, a lucky challenge. A short challenge has a smaller range, as the curve cycles chapter counted, and the lift adds a condition, which is that distinct strings must not pile up on the same scalar. Take a cheater whose error is beta minus some constant, so it passes when the string lifts to that constant. With an injective lift, one string out of thirty-two would pass. On the toy cycle the lift is not injective, and the cheater does best with the constant zero, which four strings reach, for a chance of four in thirty-two. So a collision in the lift directly raises a cheater's chance.
+
+On Pasta the lift is injective in both fields, so each root of a fixed nonzero polynomial is hit by at most one string out of two to the one hundred forty-three. The book adds up the roots charged to each challenge for one fuse step, and we recomputed its sum and the resulting figure of two to the minus one hundred twenty-six point nine eight. The book calls this a conditional accounting for one step and not a security theorem. It lists what a full argument would still have to cover, including an adversary's repeated Fiat-Shamir trials, and we do not go further than that here.
+
+Fifth, using an endoscalar for a secret. Everything so far concerns public challenges. For a secret, the structure of the expansion helps an attacker, which is why the book and the code restrict endoscalars to public values. Suppose an attacker sees the multiple of a generator that a secret string produces. The attacker tabulates the eight possible digit points, tries the four possible values of the starting term, and looks up the point minus each starting term. That is twelve operations against thirty-two for trying every string, and the search finds the string.
+
+The saving grows with the width, because the expansion splits at any digit into a head and a tail that add up. At one hundred forty-three bits, the same idea takes roughly two to the seventy-one point five work. A generic discrete log search in a group of two to the two hundred fifty-four elements takes roughly two to the one hundred twenty-seven, so a blinding factor must not be an endoscalar. A public challenge faces a different event, in which a fresh value hits a root that was fixed beforehand, and a meet-in-the-middle search does not apply to that.
+
+The argument rests on these assumptions, and it is informal. Discrete log has to be hard on both curves, and the transcript hash has to behave as a random oracle. Every commitment has to enter the transcript before the challenges that test it, which is the input consistency of the curve cycles chapter. The base points have to lie on the curve, which the circuits enforce separately. Each check also depends on a later step, so the decider has to finish the work at the root.
+
+Feedback between the walks.
+
+A circuit does at most four endoscalings, so a walk over many points spreads over several step circuits. These step circuits have traces, those traces have commitments, and the other side then has to fold those commitments too. Adding circuits on one side therefore adds work on the other side, and we need to know whether this settles at a finite number. The book treats this as a convergence problem.
+
+The book's model says that each circuit adds one endoscaling on the other curve. With a capacity of four per circuit, the terms form geometric series, and for equal base counts they multiply the first round by a factor of one point three three. The book also gives a capacity of eight, where the factor is one point one four.
+
+The code's batch has a different count. A fuse folds the commitments of both children, so one more step circuit adds two points to the other walk rather than one. We can run the feedback from zero, starting from the fixed polynomials on each side. The first round needs ten native steps and fifteen nested steps, and each round then feeds the next.
+
+The iteration stops at twenty-three native steps and twenty-six nested steps, the values that the code pins. With no feedback the first round would have been enough, with twenty-five steps in all, so the feedback multiplies the count by about one point nine six. Each step adds two points to a walk that does four per step, so the ratio per round is one half. For equal base counts the series sums to a factor of two, which agrees with that count. So the process converges in either model, and the factor is a modest constant.
+
+Endoscalars in Ragu.
+
+What follows is reconstructed from the code at the commit this site pins, and the authors have not confirmed it. The endoscalar gadget holds one hundred forty-three Boolean wires, the hoisted gadget adds two product wires per digit, and a challenge gadget carries the element together with its constrained decomposition. The native and nested step circuits walk with the hoisted gadget. The binders walk constant generators by different strings, so they use the plain gadget.
+
+On the native side, the compute V circuit extracts the string from pre-beta and lifts it for the folded value, and the prover does the same outside the circuit. The book reports Lean proofs of the gadget contracts for the walk and the lift, and it says that the sharing of staged wires and the protocol's overall soundness lie outside them. We did not run those proofs.
+
+The book and the code differ on four more points, and this site follows the code on each. The first is which challenges are endoscalars. The book's transcript bridging section sets every verifier challenge to its extracted endoscalar, viewed as a subset of the native field, and multiplies by it directly in the primary circuit. In the code, native challenges other than pre-beta stay full field elements, and a string never acts as its integer. The primary circuit multiplies by the lift. The book's endoscalar page agrees with the code on the nested lifts, and this settles the difference that the curve cycles chapter recorded.
+
+The second is how a string reaches the other circuit. The book's endoscalar page describes running extraction with the endoscalar as a public output of the native circuit and using it as a public input of the nested circuit. In the code, the bits are not a public input. The nested side holds them in a stage, and the checks we just described tie them to pre-beta. The same page's later section on hoisting describes this design.
+
+The third is out-of-range challenges. The book says a prover that derives a value from a transcript re-randomizes and tries again. In the code, only pre-beta is ground in this way. For the other challenges the lift returns an error, an event the code puts at two to the minus one hundred twenty-nine. The difference has little practical effect, given how rarely the event can occur.
+
+The fourth is the feedback factor. The book has each circuit add one endoscaling on the other curve, which gives a factor of about one point three three for a capacity of four. The book's closing arithmetic for a capacity of eight also writes the ratio inverted, although its value of one point one four is correct for the ratio taken the other way. In the code each step adds a point per child, and our iteration gives a factor near two. The reading that this explains the difference is ours, and the book may intend its model only as a simplification. This site uses the code's counts.
+
+All of this describes the Ragu revision this site pins. Tachyon, which has not activated on mainnet and whose design is still changing, pins a different Ragu revision.
+
+Where this leaves us.
+
+The curve's cube root of one gives a map that multiplies every point by one scalar, lambda, at almost no cost. Elements of the ring built on lambda have one image in each scalar field, and a radix-three walk reads a bit string as such an element, so the element determines the string. On Pasta the norm bound keeps strings distinct in both fields and rules out exceptional additions, while the toy curves show both failures. A circuit lifts a string to get a value in its own field and walks the string to act on foreign points, so one string serves both circuits with no foreign arithmetic. The primary circuit holds the nested side to the lifted values by walking generators, and the feedback between the two sides settles at twenty-three native steps and twenty-six nested steps.
+
+Several of these mechanisms depended on stages, including the challenge stage, the walk stage and the bridge stages. The next chapter, on staging, explains how a circuit commits to its trace in parts and how the partial commitments are checked.

@@ -1,0 +1,145 @@
+Chapter twelve. Split Accumulation.
+
+The last chapter kept one claim alive across a chain of proofs and left the expensive check to a single decider at the end. That worked because the accumulator carried everything the next prover needed. It had a price, though, since every step had to run a complete inner product argument for the proof it verified and another for the merge.
+
+This chapter removes those arguments from the recursive path. The recursive verifier never needs to read most of a proof. So we divide both the proof and the accumulator into a short part that the circuit reads and a long part that only a prover and a decider touch. The long part need not be short at all, which is why a step can use the non-succinct proof of chapter nine, called a nark. Bunz, Chiesa, Lin, Mishra and Spooner formalized this under the name split accumulation, and the Ragu Book says it is the form Ragu implements.
+
+Much of what follows is reconstructed, and the authors have not confirmed it. The book gives the syntax and a simplified scheme for evaluation claims. The explicit formulas, the choice of what the toy circuit reads, and the numeric run are this site's own assembly. The site could read only the abstract of the paper, so the description here follows the book.
+
+This chapter says that claims fold into an accumulator, because the book uses accumulation and folding interchangeably for what Ragu does. A fuse is still the operation of chapter two, which contains folds, and a merge still means the operation on Halo's claims. The book says both merge circuit and fuse circuit for the same object, and we say fuse.
+
+What atomic accumulation still costs.
+
+The last chapter's scheme was atomic, because the accumulator alone lets anyone produce and check the next update. To see what that costs, take eight thousand one hundred ninety-two generators, one earlier accumulator and one new proof. The circuit does six scalar multiplications to batch the proof's claims, twenty-eight for the proof's inner product argument up to the split, and twenty-nine for the merge, so sixty-three in all. Outside the circuit, the prover spends seventy-three thousand seven hundred twenty at every step, mostly on the two arguments.
+
+Both arguments exist for the same reason. An accumulation verifier sits inside a circuit, so anything it reads becomes part of that circuit, and an atomic verifier reads the whole proof it is given. The proof therefore has to be short, which forces an argument at every step, and each argument outputs one more claim for the merge to handle.
+
+If the verifier could leave most of a proof unread, the proof could stay long, and the arguments could go. Some other party would have to check the unread part eventually, and the decider is already such a party. So we need to find out which parts of a proof the recursive verifier has to read, which we can do by inspecting the verifier of chapter nine.
+
+Sorting the verifier's work.
+
+Sort that verifier's steps for openings and the revdot product by the data each one touches, and two groups appear. The first group is cheap. It does a couple of geometric sums on challenges, a few field operations on instance values, one inverse per claim, and five scalar multiplications on instance commitments and prover messages.
+
+The second group is linear, and every step in it reads a witness list. It recomputes commitments from their lists with multi-scalar multiplications, computes the revdot product, and evaluates the batched polynomial. So this cost lines up exactly with what each step reads. Chapter nine drew the same division between the instance part and the witness part of the proof, as a matter of size, and now we can use it as a plan. The circuit runs the cheap group, and the expensive group waits for a decider.
+
+The expensive group still holds several separate jobs. The evaluation check concerns the claims chapter eight knows how to batch, and this chapter defers those. The revdot step needs its own folding, in chapter fourteen, and the correctness of the wiring commitment against the circuit is the subject of chapter fifteen. The book lists the same three subprotocols as the verifier's linear work.
+
+Instances and witnesses.
+
+Chapter three introduced instances and witnesses for a whole statement, and the same words apply to one evaluation claim. Its instance is the triple of commitment, point and value. Its witness is the polynomial behind the commitment, together with the blinding factor. The relation between them has two conditions. Committing to the polynomial with that blinding factor must give the commitment, and evaluating the polynomial at the point must give the value.
+
+The instance has a fixed size, so a circuit can read it at a fixed cost. The witness is as long as the generator list, and checking the first condition takes a multi-scalar multiplication of that size. The instance alone also says nothing conclusive, because any prover can write down a triple. It becomes meaningful only when somebody with the witness runs the check.
+
+The word witness needs a warning. The book calls this a secret witness, held by the prover. In this chapter the word describes who needs the data, which is different from a promise that the data stays hidden.
+
+An accumulator with two parts.
+
+Chapter eight turned a list of evaluation claims into a single triple, and a triple is again an instance of this relation. So the output of that reduction can serve as an accumulator, if we keep the output polynomial with it. The accumulator's instance is a commitment, a point and a value, and its witness is a polynomial and a blinding factor. The circuit reads the first part, and the second part travels beside the proof.
+
+This is what separates the scheme from chapter eleven. There the polynomial could be rebuilt from public challenges, whereas here the point and value do not determine it. For the point seventeen and the value twenty-three, trying all seventy-nine thousand five hundred seven polynomials with three coefficients finds one thousand eight hundred forty-nine that pass through, and each extra coefficient multiplies that count by forty-three.
+
+A binding commitment does fix one polynomial as far as any prover can tell, but finding it would mean solving discrete logs. So a party who holds only the instance cannot run the next fold and cannot decide the accumulator. Whoever continues the computation has to receive the witness too, and that is the price of the split.
+
+The three algorithms.
+
+A scheme of this kind has three algorithms. The accumulation prover reads proofs and accumulators, both parts of each, and runs outside any circuit. It produces a new accumulator and a proof of the update. The accumulation verifier reads only instances and that proof of the update, and it runs inside the next circuit. The decider reads one accumulator, both parts, and runs once, outside any circuit. The accumulation verifier is the defining feature, because a verifier that reads only instances has no need for a short witness.
+
+To build these from chapter eight's reduction, we decide what goes in the input list and which messages form the proof of the update. A step holds an earlier accumulator and a new proof. The accumulator's instance is itself one evaluation claim, and the proof contributes chapter nine's claims about its polynomials a and b, the wiring polynomial s, and the statement polynomial k. That gives five claims. The book's list has two more for the constant wire, which our toy circuit does not use. The step has no need to batch the proof's claims separately first, because it can place them directly in this list.
+
+The accumulation prover follows chapter eight's steps, with the old accumulator taking the highest power of alpha. After receiving alpha, the prover divides each polynomial by its claim to get a quotient, combines the quotients with powers of alpha, and sends a commitment to that combination. After receiving a fresh point, it sends the five polynomials' values there. After receiving beta, it forms the new witness, which is the quotient combination weighted by the top power of beta plus the five polynomials weighted by lower powers. The blinding factors combine with the same weights.
+
+The commitment and the five values make up the accumulation proof, as in the book. The book describes it as an internal value for the circuit's prover, so it goes into the next circuit's witness and is not an output of the recursive step.
+
+The accumulation verifier derives what the new instance has to be, and its arithmetic never mentions a coefficient. For each claim, it subtracts the claimed value from the reported value and divides by the distance between the fresh point and the claim's point. Weighting those ratios by powers of alpha gives the quotient combination's value. Weighting the commitments by powers of beta gives the new commitment, and weighting the values the same way gives the new value.
+
+It accepts if the claimed new instance matches this, and if the fresh point is the challenge the transcript produced. This takes one scalar multiplication per commitment and one inverse per claim, however large the polynomials are. The two sides agree for an honest prover, because committing to the new witness and applying linearity gives the same weighted sum of commitments.
+
+The decider computes one multi-scalar multiplication and one evaluation, and it accepts if the witness matches the commitment and the value. Chapter nine's verifier performed this same check at the end, when it recomputed the batched commitment from a revealed polynomial. That chapter said the reveal fits how the proof will be used, and we can now say how. The revealed polynomial is the accumulator's witness, and the reveal gives the decider its input.
+
+A run on the toy curve.
+
+We now run a chain whose step function cubes its input and adds the input and five, starting from three, with chapter nine's eight generators and hand-picked challenges. Two simplifications apply. Each proof covers only its step's circuit, because a circuit that also held the accumulation verifier would be far too large for the toy curve. We also ignore the fact that a circuit modulo forty-three cannot do arithmetic on points whose coordinates are modulo thirty-one, which the next chapter addresses.
+
+The first fold has no earlier accumulator, so its list holds only the first proof's four claims. Running it repeats chapter nine's batching with no changes, and the instance has the point seventeen and the value twenty-three. So chapter nine's batch was the first accumulator all along.
+
+The second step applies the step function to thirty-five and outputs one, and its new proof brings four claims, with the old accumulator first in the list. The verifier sends alpha equal to twenty, and the first quotient divides the old polynomial, minus twenty-three, by the variable minus seventeen. That one quotient is the only difference from chapter nine's list.
+
+Next the verifier sends the fresh point thirty, and the prover sends the five values. The verifier derives the quotient combination's value from all five and gets thirty-seven, the same number the prover gets by evaluating directly. The old accumulator's term is the fold's link to the past, since its claimed value now sits inside this formula, so a false claimed value would make this number wrong.
+
+The verifier sends beta equal to twenty-five, and each input carries its weight into the commitment, the value and the blinding factor. The accumulation verifier has now finished, having read no polynomial, and it gets the new value thirty-one at the point thirty. The prover computes the new witness with the same weights, and that list still has eight entries. It kept its length because each fold takes a linear combination of lists of the same length, which is why a proof's size does not depend on the length of its history.
+
+The third step repeats the procedure, giving the value twenty at the point twenty-six. Suppose the chain stops here. The decider commits to the third witness and gets the commitment in the instance, and it evaluates the polynomial at twenty-six and gets twenty, so it accepts. One multi-scalar multiplication over eight generators and one evaluation stand in for opening all twelve polynomials of the three proofs.
+
+Picture this as two lanes. In the upper lane the instance passes through accumulation verifiers inside circuits, and in the lower lane the witness passes through accumulation provers outside circuits. New instances and accumulation proofs cross upward from prover to verifier, and both lanes end at the decider.
+
+A tree needs no new idea. A node with two children holds two accumulators and two proofs, and all of their claims go in one list, which is ten claims. The accumulation proof grows to one point and ten values, while the output keeps the same three-part instance and eight-entry witness.
+
+What the split costs and saves.
+
+Compare the two schemes for the opening work alone, at the same polynomial size and thirty-two bytes per value. In the circuit, with one proof and one accumulator, the atomic scheme takes sixty-three scalar multiplications and the split scheme takes six. With two of each, the counts are ninety-nine and eleven, and the split count does not grow with the polynomial size. The prover's group work at each step falls from seventy-three thousand seven hundred twenty to eight thousand one hundred ninety-two. The accumulator data the circuit reads falls from four hundred forty-eight bytes to ninety-six.
+
+The cost shows up in what passes between provers. That data grows from one thousand six hundred ninety-six bytes to one million forty-nine thousand two hundred sixteen bytes, because the next prover needs whole lists in place of a few short values. These byte counts describe our protocol at Ragu's polynomial size, and Ragu's own proofs have a different layout.
+
+Because the witness never enters a circuit, the growth affects storage and bandwidth and does not affect recursion. That trade suits a system like Ragu, where a proof stays large while it is being fused and only needs to become short when it leaves the tree. The decider's linear work is the same size as in chapter eleven and occurs once for a whole history in both schemes. The difference lies in what the steps before it had to do.
+
+Why a nark is enough.
+
+We can now rewrite the recursive relation of chapter ten. The circuit no longer checks the previous proof. It checks that the step function maps the old state to the new one, and that the accumulator was updated correctly to take the proof in, by running the accumulation verifier on instances. The witness parts go to the accumulation prover outside the circuit, so a proof of this relation can be a nark. The output handed onward is the new accumulator and the new proof. A final verifier checks that proof directly and then runs the decider. The paper's abstract states the general result, that any non-interactive argument of knowledge with a split accumulation scheme yields proof-carrying data, without requiring succinctness.
+
+The reasoning runs backward from the end, as in chapter ten. The final verifier establishes that the last circuit was satisfied, so the accumulation verifier passed on the last fold. The decider establishes that the last accumulator is true. A passing fold with a true output means, except with small probability, that its inputs were true too. Each earlier proof has its own circuit that did the same for the fold before it.
+
+Of chapter nine's two linear costs, computing the folded generator does not arise on this recursive path, because the path contains no inner product argument. Computing the wiring polynomial's value remains, because the folds establish what its commitment opens to and nothing about whether it belongs to the right circuit. The wiring chapter deals with this.
+
+The base case follows chapter ten. Our run began with no accumulator, the book uses a placeholder accumulator, and the code uses one bootstrap step. The Merkle root of initial states in the book's description has no counterpart in the code, so we leave it out.
+
+Folding schemes.
+
+Nova introduced a related formalization called a folding scheme, which its abstract describes as a reduction from checking two instances of a relation to checking one. The site could read only that abstract, so this part rests on it and on the book. The book says the two formalizations are equivalent for all practical purposes, and elsewhere it calls folding a related alternative that merges statements without running a proof's verifier during accumulation.
+
+Those wordings fit together once we write our scheme as a folding scheme. It reduces checking five instances of the relation to checking one, with a verifier that sees only instances. The accumulator's instance and witness become the running instance and witness, the proof's claims become the fresh instances, and the accumulation proof becomes the folding proof. What differs is mainly the point of view. Accumulation starts from a proof system and asks what can be postponed, whereas folding starts from a relation and asks how to combine instances of it.
+
+Not every relation folds as cleanly. The book says an accumulation proof contains the cross terms the verifier needs. Evaluation claims at one point combine linearly and need no such term, which is why our proof only has to bring the claims to a common point. A relation with a product does not combine linearly. Suppose a claim says that the inner product of two lists equals some value, and we fold two instances with a challenge. Multiplying out gives the first value, the challenge times a middle term, and the challenge squared times the second value. That middle term is the cross term, built from the lists of both instances, so the prover has to supply it.
+
+Here is a small case, with old values twenty-nine and nine, at the challenge nine. The folded lists have inner product two. The two old values alone give only twenty-seven. The prover supplies a cross term of two before it learns the challenge, and including it gives two, which matches. Nova's folding of R one C S is commonly described with a term of this kind, although its abstract does not mention one and the site has not checked this against the paper. Ragu's revdot claims have the same structure, and chapter fourteen develops this into a complete protocol.
+
+Why cheating fails.
+
+A prover here can lie in more places than in chapter eight, because the verifier no longer sees any polynomial. The toy curve permits forgeries, so the counts below model a prover who holds real polynomials and does not exploit known discrete logs, except in the last example.
+
+Start with altering the output. The verifier recomputes the new instance from the inputs, so the prover has little freedom in stating it. At the second fold, the site tried three hundred thirty-six altered runs, and the accumulation verifier rejected two hundred ninety-four. The other forty-two are shifts of one polynomial's value, where the effects happen to cancel at these challenges, so the output stays the same true claim and the prover gains nothing.
+
+The prover can still change its messages consistently. It can send a false commitment to the quotient combination and output the matching new commitment, and the verifier recomputes that same point and accepts, for all forty-two false commitments. With the honest witness, the decider rejects all forty-two. So the accumulation verifier confirms the arithmetic of the update and says nothing about whether the new claim is true. Only the decider confirms that.
+
+Next, suppose an input is false. Say the prover misstates the old accumulator's value by some error, and otherwise follows the protocol. The new commitment still commits to the true polynomial, so the error enters at one place, the old accumulator's term in the derived value. That shift gets multiplied by nonzero factors, namely the powers of alpha and beta and the inverse of a distance. So a false input produces a false output, and each later fold repeats this with the previous gap in place of the error.
+
+Take our run, but let the prover state twenty-four for the first accumulator's value, where the true value is twenty-three, a gap of one. Every later step is honest. After the second fold the stated value is twenty and the true value is thirty-one, and after the third they are nine and twenty, so the gap is thirty-two modulo forty-three both times. The accumulation verifier accepts both folds, and the decider rejects the last accumulator. Across all sixty-eight thousand seven hundred ninety-six allowed choices of challenges for that fold, the gap is never zero.
+
+So the gap survives and reaches the decider, and a chain that never runs the decider has established nothing about its openings. A prover can do better than stay honest after the lie, by altering reported values or committing to false quotients. Chapter eight counted these options, and the same bounds apply to each fold. For a real field, each fold's chance of hiding a false claim is negligible, though the chances add across folds and grow with private retries under Fiat-Shamir.
+
+A prover with a false accumulator might try to drop it, by folding an unrelated true accumulator in its place. Nothing in the fold's arithmetic forbids this. If the circuit reads the swapped instance, the accumulation verifier and the decider both accept. So the protection has to come from the circuit. The old accumulator's instance has to be part of the previous proof's public statement, and the wires holding it in the next circuit must feed both the accumulation verifier and the computation of that statement. Chapter ten met the same shared-wire requirement for the state.
+
+The order of messages matters too, and the accumulator's instance is the one transcript input chapter eight did not have, so it is the easiest to forget. Suppose the transcript leaves it out, so the prover knows all three challenges before it fixes the old value. It states the false value twenty-six, an error of three, and it reports twenty-four in place of the true twenty-eight, a shift that solves one linear equation. The errors cancel, the output is true, and both the verifier and the decider accept, although the old accumulator was false. If the prover must fix these messages before beta arrives, only two of the forty-three values of beta pass, zero and twenty-five, so a random beta rarely lands on one.
+
+Finally, the decider's check means something only because the commitment can be opened in one way. Using the toy curve's known discrete logs, a prover can state the false value thirty-two for the second accumulator and present a different witness that commits to the same point and evaluates to thirty-two, so the decider accepts it. On a real curve, such a witness would give a discrete log relation among the generators.
+
+This reasoning is informal and is not a security proof. It relies on the discrete log relation assumption and treats the transcript hash as a random oracle, with each challenge drawn after the data it tests. It assumes that the circuit ties each input instance to the previous proof, and that the decider runs honestly. The paper's abstract says its construction is proved secure in the random oracle model under the hardness of discrete logarithms. Recursion adds the further concerns chapter ten listed, and we do not analyse Ragu's scheme here.
+
+Split accumulation in Ragu.
+
+The code, at the commit this site pins, has a proof type that contains this accumulator. Its fuse folds it in the way we described, with the claims about the children's accumulators at the head of the list.
+
+The following is reconstructed from the code, and the authors have not confirmed it. The code has no separate accumulator object for this claim. The proof type keeps the polynomial as a field and computes the value by evaluating it, so instance and witness travel together. A fuse folds far more than our five claims, since the static query list alone has twenty entries and more follow for each child's stage polynomials. The quotient combination is marked as ephemeral, which matches the book's description of the accumulation proof as internal, while the values at the fresh point go into a committed stage that the proof keeps.
+
+A child's value is a slot of the unified instance, which the statement polynomial's computation covers, and the site reads this as the protection the swapped-accumulator attack called for. The documentation of the uncompressed verifier says that this verifier is the decider, and calls it a test oracle rather than a production path. In production, compression restates those checks over commitments and openings and finishes with one inner product argument per curve. So chapter seven's argument comes back once, where a proof leaves the tree, and at this commit its verifier computes the multi-scalar multiplication in full.
+
+The Ragu Book and the code differ here as well. The book's accumulator has a blinding factor, while the code's proof has none, and our run includes one so its numbers match chapter nine. The book's claim list covers the commitments we used, while the code's list covers the folded a and b, registry polynomials in place of the wiring commitment, and stage polynomials. The site found no commitment to a k polynomial there, since circuits compute its value directly. The code's unified instance has no field named for the wiring commitment, and it also holds bridge commitments and every challenge of the step. The book has one fuse circuit per curve, while the code has many internal circuits.
+
+This site follows the code. The simplified single-curve scheme remains the book's own way of conveying the core idea, and this chapter uses it in that spirit. The fold also differs in two further ways that later chapters cover. Ragu divides it between two circuits on a curve cycle, and those circuits have to agree on their challenges.
+
+The witness raises a question about privacy, because a proof that carries polynomials in the clear reveals what they contain. Neither the book nor the code claims otherwise at this commit. The book states that the current construction does not yet establish zero knowledge, in part because it lacks a randomizer at the level of the fold. Tachyon, which has not activated on mainnet and whose design is still changing, depends on fusing proofs of this kind through a different Ragu revision.
+
+Where this leaves us.
+
+Atomic accumulation forces an inner product argument at every step, because its verifier reads everything it is given. Every linear step of the verifier reads a witness list, so we split a claim and an accumulator into an instance and a witness. The accumulation verifier recomputes the new instance from instances alone, and the decider runs one multi-scalar multiplication and one evaluation. The witness keeps a fixed length and never enters a circuit, so each step can use a nark, at the price of more data between provers. A false input reaches the decider, as long as the circuit ties each input to the previous proof and the transcript absorbs the accumulator.
+
+We set aside one problem throughout, which is that the accumulation verifier performs group operations on points whose coordinates live in a different field from the circuit's wires. The next chapter introduces a pair of curves that removes that mismatch, and it shows which circuit folds what.

@@ -1,0 +1,143 @@
+Chapter eleven. Accumulation.
+
+The chapter on recursive proofs set the goal of a proof that verifies an earlier proof, and a verifier with linear steps blocks that goal. Chapter nine identified two linear steps in our verifier. This chapter removes one of them, the multi-scalar multiplication that computes the folded generator at the end of the inner product argument. Earlier chapters called this same point the final generator and the combined generator, and this site writes it as G hat.
+
+The technique does not make that computation cheaper. It postpones the computation, and it lets many postponed computations collapse into one. A prover states the output as a claim, each recursive step merges the new claim with the old one using a random spot check, and one party does the expensive work once, at the very end. The technique comes from Halo, and Bunz, Chiesa, Mishra and Spooner later gave it foundations under the name accumulation scheme.
+
+The merge protocol in this chapter is reconstructed, and the authors have not confirmed it. This site assembled it from the Ragu Book's description of Halo, the Halo two book's recursion page, and the argument in chapter seven, and a script checked its algebra. It may differ in detail from the protocols in the two papers, of which the site could read only the abstracts. Ragu does not run it, because Ragu's recursion uses a later variant.
+
+This chapter says that claims merge, following the book's wording for Halo. A merge combines two claims into one, which is different from a fuse, the proof-carrying data operation from chapter two.
+
+The step that remains.
+
+Recall the final check of the inner product argument. The left side takes two scalar multiplications per round, and one value on the right takes about one field multiplication per round, because it comes from a polynomial with one factor per round. Only the folded generator costs a linear amount, because computing it takes one multi-scalar multiplication over all the generators.
+
+Chapter seven also showed what this point is. The coefficients of that product polynomial are the weights on the generators, so the folded generator is the Pedersen commitment to the polynomial. The polynomial depends on the round challenges, so we'll call it the challenge polynomial.
+
+Two features make accumulation possible. The challenge polynomial has a description of only one scalar per round, so anyone can evaluate it at a point with logarithmic work. The commitment is also linearly homomorphic, so a combination of such points commits to the same combination of polynomials.
+
+Splitting off the expensive step.
+
+The verifier needs the folded generator only as an input to one equation, so it can test that equation with a value somebody else computed. Let the prover supply the point. The verifier then does all the logarithmic work, runs the final check with the supplied point, and stops short of the multi-scalar multiplication.
+
+What remains is one unverified statement, which we call a claim. A claim is a pair made of the supplied point and the list of round challenges, and it says that this point really is the commitment to the challenge polynomial. The verifier's conclusion now has a condition attached, because the evaluation holds provided that the claim is true.
+
+The condition matters, because a prover who chooses that point has real power over the final check. Take the false value thirty-eight from chapter seven, where the true value is thirty-seven. The statement point now carries one extra copy of U, and honest folding keeps it, so with the true folded generator the check fails. But the final scalar is four, and eleven is the inverse of four modulo forty-three. So the prover adds eleven copies of U to the point it supplies, and the right side picks up exactly the one extra U it needed. The check passes, and only the claim is wrong.
+
+So a passing final check proves nothing unless somebody eventually confirms the claim. The rest of the chapter arranges for that to happen once, however many claims arise.
+
+Deciding a claim.
+
+The direct way to confirm a claim is to run the postponed computation. Multiply out the factors of the challenge polynomial, compute the multi-scalar multiplication, and compare the result with the supplied point. We call the party who does this the decider. For the true claim from chapter seven, the points match and the decider accepts. For the forged claim, the same computation gives the honest point, which differs from the forged one, so the decider rejects.
+
+Moving this computation out of the verifier helps a recursive proof, because the decider runs outside any circuit. It does not reduce the total work, though, because a chain creates a new claim at every step. With eight thousand one hundred ninety-two generators and a hypothetical one thousand steps, checking every claim directly takes eight million one hundred ninety-two thousand scalar multiplications. The statement would also carry one thousand points and thirteen thousand challenges.
+
+The statement must stay a fixed size for recursion to work. So we need to turn several claims into one claim, cheaply enough to do inside a circuit.
+
+Testing a claim at one point.
+
+We start with one claim and look for a test cheaper than the multi-scalar multiplication. The claim says that a point commits to a particular polynomial, and earlier chapters show how to query a committed polynomial. The verifier can pick a random point, ask the prover to open the supplied point there using an inner product argument, and compare the opened value with the challenge polynomial's value.
+
+The verifier can make that comparison because the product form takes only logarithmic work. At the point twenty-nine, the two factors of our challenge polynomial are thirty-nine and two, and their product is thirty-five. Evaluating the four coefficients directly gives thirty-five as well, but that route needs every coefficient.
+
+The test catches a false claim for the reason chapter three gave. If the supplied point actually commits to some other polynomial, the difference between the two has few roots, so the opened value matches at only those roots, provided the prover fixes its point before it learns the test point. As an example, we chose a false polynomial whose difference from the true one is a cubic with three roots. The two agree at two, seven and twenty and nowhere else, so the spot check catches this claim at forty of the forty-three points.
+
+This opening differs from earlier ones in two ways. First, its witness is public. The list being opened is the challenge polynomial's coefficient list, which anyone can compute from the round challenges, so the prover needs no secret and no stored data. It pays a linear cost, but outside the circuit.
+
+Second, this opening is itself an inner product argument, so its verifier faces its own final check with its own folded generator. Splitting that check produces a new claim. For a single claim, we have therefore traded one claim for another plus some logarithmic work, which looks like no progress. The gain appears when two claims share one opening.
+
+Merging two claims.
+
+Suppose we hold two claims and would like one opening to test both. A random linear combination can do this, so take a challenge called alpha, and add the first point to alpha times the second. We'll call the result the merged commitment. If both claims are true, homomorphism says that this point commits to the first challenge polynomial plus alpha times the second.
+
+Evaluating that combination at a random point, called the merge point, gives a merged value the verifier can compute by itself, since it holds both sets of round challenges. The statement to prove is now an ordinary evaluation claim, that the merged commitment opens at the merge point to the merged value. The verifier computed every part of that statement from the two input claims, and the prover computes the witness list from the same public data.
+
+Each challenge has a separate job. The merge point exposes a wrong polynomial. The weight alpha stops two wrong polynomials from cancelling each other, since otherwise a prover could make the first too large and the second too small by the same polynomial, and the sum would be correct at every point.
+
+The argument needs one more ingredient. The input points come from the prover, so they could contain a hidden multiple of U, and a fixed U would let that term stand in for part of the value. So we weight U by a third challenge called tau, sampled after the input points, and we use tau times U as the value generator in every round.
+
+The prover now runs the inner product argument on the witness list with fresh round challenges, and the verifier splits off the final check as before. The result is one claim with the same form as each input. The order of messages keeps the prover from choosing anything after it sees the challenge that tests it. The verifier sends the merge point, alpha and tau. Each round then has the prover send two cross terms and the verifier reply with a challenge. The prover finishes with the final scalar and the supplied point.
+
+The same construction handles any number of claims, using powers of alpha as the weights. The verifier's work grows by one scalar multiplication and one factor multiplication per round for each extra claim.
+
+A complete merge on the toy curve.
+
+The first claim comes from the run in chapter seven, and the second from a fresh run on chapter six's other list. All challenges are picked by hand. Both final checks pass, so the verifier holds two claims and has not yet done any linear work.
+
+The verifier sends the merge point twenty-nine and alpha equal to sixteen. The two challenge polynomials evaluate to thirty-five and twenty-eight there, so the merged value is thirty-five plus sixteen times twenty-eight, which is ten modulo forty-three. The verifier also computes the merged commitment from the two input points. Meanwhile the prover multiplies out both polynomials from the public round challenges and combines them. Committing to the combined list directly gives the merged commitment, and evaluating it at twenty-nine gives ten, so the claim is true.
+
+The verifier then sends tau equal to twenty-two, and both sides form the statement point. The rest is the inner product argument on the combined list, even though nothing about that list is secret here. After two rounds, with challenges eight and twelve, the prover sends the final scalar seventeen and a supplied point. Both sides of the final check agree, so the verifier accepts and outputs one claim.
+
+Now suppose this is the last claim, so a decider takes over. It multiplies out the new polynomial, computes one multi-scalar multiplication, gets the supplied point, and accepts. That is the only linear group work outside the prover. We can also check what it vouches for by running the two computations it replaced, and they do give the two input points.
+
+Keeping a running accumulator.
+
+A merge turns two claims into one claim of the same form, so we can repeat it. We call the object that carries the current claim forward the accumulator. Each step produces one new claim from the proof it just verified and merges that claim into the accumulator. The first step has no earlier accumulator, which is one of the base cases the recursive proofs chapter handles. Continuing our toy run with two more claims, the decider's one check on the last accumulator covers all four input claims.
+
+Here is how this fits inside one recursive step. The previous proof's statement contains the accumulator, and the step's circuit does four things. It runs the previous proof's verifier up to the split, which yields a new claim. It derives the merge point, alpha and tau from a transcript containing the accumulator and the new claim, and it computes the merged commitment and value. It checks the merge's inner product argument up to the split, using a merge proof the prover computed outside the circuit. Finally, it places the resulting claim in its own statement as the next accumulator.
+
+Each of these takes logarithmic work, so the circuit's size does not depend on how many steps came before. Later steps have no use for the old merge proof, because the new proof vouches for the check. The circuit's group operations raise a further problem, because the curve's points do not live in the circuit's field. The curve cycles chapter deals with that, and we ignore it here.
+
+Proof-carrying data has a tree in place of a chain, so a step with two children holds two accumulators and two new claims, and the powers of alpha cover this case. Merging three of our claims at once gives the same output point as the two-claim merge, because the output point depends only on the new round challenges. The inputs affect the proof only through the merged commitment, the merged value, the cross terms and the final scalar.
+
+What each party pays.
+
+The verifier's side of a merge is now small, and the prover takes on the linear work. For one merge of two claims at eight thousand one hundred ninety-two generators, the verifier does twenty-nine scalar multiplications, most of them combining the cross terms, plus a few dozen field operations to evaluate the polynomials. The prover does about sixteen thousand three hundred eighty-four field multiplications to multiply out the inputs. It then spends thirty-two thousand seven hundred sixty-four scalar multiplications on the cross terms and on folding the generators, as the list lengths halve in each round.
+
+Over the same hypothetical one thousand claims, the verifier's group work drops from eight million one hundred ninety-two thousand scalar multiplications to twenty-nine per merge plus one decider computation. The accumulator stays at one point and thirteen challenges, which is four hundred forty-eight bytes, and each merge proof is eight hundred sixty-four bytes.
+
+Deciding needs no help from the prover. Anyone who holds the final accumulator and the public generators can run it, and the Halo two book describes this as one linear-time computation that settles an entire batch.
+
+Why cheating fails.
+
+Nothing inside the chain runs the multi-scalar multiplication, so we need to see why a false claim cannot disappear along the way. The counts below need some care, because on the toy curve every point is a known multiple of every other, so the curve itself allows forgeries. To model a real curve, the script also runs the protocol in a formal group, where two points are equal only if their coefficients on the generators are.
+
+Start with one false input, where the prover holds a real polynomial behind a wrong point and folds honestly. Take the false polynomial with three roots and merge it with a true claim. Of the one thousand eight hundred six pairs of merge point and nonzero alpha, one hundred twenty-six pass, and these are exactly the pairs whose merge point is one of the roots. Alpha plays no part, because only one input is wrong.
+
+With two false inputs, the errors might cancel, which is the case alpha exists to handle. Let the second error be the exact negative of the first. With alpha fixed at one, the errors cancel, and all forty-three merge points pass. With alpha random, one hundred sixty-six pairs pass, which are those forty-three with alpha equal to one and the pairs at the three roots. For a real curve the same reasoning gives a bound of the number of generators divided by the field size, which is negligible.
+
+A cheater can also lie about the output. A supplied point can absorb an error in the final check, as we saw, and the merge's final check has a supplied point too. Take the forged claim, whose point hides eleven copies of U, and merge it with the true second claim. The honest fold fails the final check, and the script finds no acceptances across all one thousand eight hundred six pairs and five values of tau in the formal group. To continue, the prover has to repeat its trick and add thirty-one copies of U to the output point. That passes, so the false claim has moved to the output. The decider then computes the honest point, sees the difference, and rejects.
+
+The false claim therefore survives from merge to merge, with a small chance at each merge of turning true through a lucky merge point. If it survives to the end, it meets the decider. This is the sense in which one decider check covers everything before it. A verifier who skips the decider has no such assurance, because every earlier step may be carrying a false claim.
+
+The prover could also send altered cross terms instead of folding honestly. Chapter seven's gap argument covers this, and it allows at most four surviving challenges per round. On the toy curve that fraction is large, but on a real curve it is negligible.
+
+The bound on false inputs also depends on the order of messages. Suppose the prover learns the merge point twenty-nine before it fixes its point. It picks a polynomial equal to the true one plus a term that vanishes at twenty-nine, and it commits to that. The two agree at twenty-nine, so the merge passes. If instead the point is fixed first, the merge passes only at twenty-nine, out of all forty-three merge points. So in a non-interactive proof, the transcript has to absorb both input claims in full before it produces the challenges. The round challenges belong to the claim as much as the point does, since changing them changes the polynomial that the check compares against.
+
+The last attack is the one the weight on U stops. Suppose the prover adds six copies of the first generator and six copies of U to an input point. It then holds the true polynomial plus six, and the hidden U term pays for the extra value. With tau fixed at one, the merge passes for all one thousand eight hundred six pairs, although the claim is false. At our merge point and alpha, trying all forty-two nonzero values of tau gives acceptance at one only. This point alone would not let an honestly folding prover pass a false value in chapter seven's check, but it breaks our reasoning, which needs a passing merge to mean that the input claim is literally true.
+
+This reasoning is informal and is not a security proof. It relies on the discrete log relation assumption for the generators together with U, and it assumes that the prover builds its points from the generators with coefficients it knows. It also assumes that challenges come after the data they test, which means treating the transcript hash as a random oracle, and that the decider runs honestly on the final accumulator.
+
+Recursion adds a further layer we have not analysed, because each step's statement relies on proofs that themselves rely on earlier proofs. The abstract of the accumulation scheme paper notes that Halo's authors outlined their approach without details or security proofs, and it presents foundations for that approach as the paper's purpose.
+
+Atomic accumulation.
+
+We can now give the general pattern a name. An accumulation scheme has three parts. The accumulation prover produces a new accumulator and a proof that it was formed correctly. The accumulation verifier checks the update cheaply. The decider checks the final accumulator, possibly at great expense.
+
+The scheme in this chapter has a special property, which is that the accumulator is all anybody needs. The polynomial behind a claim can be rebuilt from its round challenges, so neither the next prover nor the decider needs extra data. The book calls this form atomic accumulation, and it describes this as the original formalization.
+
+The atomic form has a cost that explains why later work moved on from it. Every proof placed into an atomic accumulator has to be partly verified inside the circuit, so that proof must already be short and its verifier sublinear, apart from the deferred part. In our setting, that means a full inner product argument for each proof at every step and one more for the merge, which puts this linear work on the prover of every step. The next chapter relaxes this by giving the accumulator a separate witness.
+
+The other linear step.
+
+Chapter nine listed two linear steps, and so far we have dealt only with the folded generator. The other is computing the wiring polynomial's value, which requires reading the whole circuit. Our spot check relies on the challenge polynomial having a short product form, and the wiring polynomial has none, so the check does not carry over directly.
+
+The Ragu Book describes how Halo handled this case. The prover supplies a claimed commitment to the wiring polynomial, and a parallel protocol reduces such claims together by random spot validation, using a consistency check across variables. Ragu has its own treatment in the chapter on wiring and the registry.
+
+Accumulation in Ragu.
+
+The code, at the commit this site pins, contains the exact objects of this chapter. It has a type called accumulator with two fields, a point and a list of challenges, in the one-sided convention of chapter seven. One method on the verifier's guard, called use g, is the split, since it takes a supplied point and returns this type. Another, called use challenges, is the direct route, which adds the whole list to the multi-scalar multiplication.
+
+The following is reconstructed from the code, and the authors have not confirmed it. First, the deferral is not in use. The site's search finds use g called only from one test, and it found no code that merges two such accumulators. The inner product argument runs at compression, and the compression verifier calls use challenges, so it computes the full multi-scalar multiplication.
+
+Second, Ragu accumulates something else. The fuse accumulates a polynomial with a claim about its value at one point, which is a batched evaluation claim of the form in chapter eight, and the proof keeps the polynomial itself. That is split accumulation, the subject of the next chapter. Third, the aggregator profile foresees circuits that verify a compressed proof, and those would face this same computation. They have not landed, and the site found nothing that says whether they would use the split, so this remains unsettled.
+
+The book and the code describe this differently. The book's appendix on SNARKs says that the proof's instance contains the accumulator state of the inner product argument, and it lists that verification as linear time, deferred via accumulation. In the code, a proof's accumulated state is a batched polynomial claim and not a point with its challenges, and the computation runs in full at compression. This site follows the code. The book's general statement that Ragu's scheme descends from Halo's is consistent with both.
+
+Names differ across sources as well, and the Halo two book writes its factors differently. So compare the placement of the inverse and the order of the rounds before you move a formula between sources.
+
+Where this leaves us.
+
+The verifier can take the folded generator from the prover and finish with logarithmic work, which leaves a claim that a decider can confirm with one multi-scalar multiplication. A random combination of two claims is an evaluation claim the verifier can state on its own, with a public witness, and proving it yields one new claim. Repeating this keeps one fixed-size accumulator across any number of steps. A false input passes only at rare challenges and otherwise forces a false output, so the chain establishes nothing until the decider has run. Ragu's code contains the claim type, but its recursion uses a different form.
+
+Atomic accumulation still runs a complete inner product argument at every step. The next chapter separates each accumulator into a public instance and a private witness, which removes that argument from the recursive path and lets the steps use a proof without any succinctness at all.

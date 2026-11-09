@@ -1,0 +1,217 @@
+Chapter nine. The complete proof.
+
+The last five chapters each built one part of a proof. This chapter puts them together and runs the result on the statement that x cubed plus x plus five equals thirty-five, with x equal to three. We compute every commitment on the toy curve and carry out every check.
+
+The result is called a NARK, a non-interactive argument of knowledge. The name leaves out the S of SNARK because this proof is not succinct, and we'll look closely at where its size and its verification cost come from. The rest of the site works to remove those costs, so the chapter ends with an exact list of the verifier steps that remain linear.
+
+What the complete proof has to do.
+
+The earlier chapters supply the parts. Arithmetization gives one equation that a valid witness satisfies, built on a revdot product. Polynomial encoding gives the polynomials behind that equation and a protocol written in terms of oracles. Polynomial commitments give a short commitment to take the place of each oracle. The inner product argument gives a short proof of one evaluation claim. Batched openings reduce many evaluation claims to one. And Fiat-Shamir, from the chapter on statements and challenges, replaces the verifier's challenges with hashes.
+
+Assembling these parts raises three questions that no single chapter answered. The first is the order of the messages, since each challenge has to come after the data it tests. The second is how the verifier knows that the commitments it holds describe the right polynomials. The third is how much of each polynomial the verifier needs to see. The NARK in the Ragu Book answers the third question by sending several whole polynomials in the clear. We follow that construction first, and later in the chapter we show the shorter proof that the same parts can produce.
+
+The protocol in this chapter comes from the book. Our account of the code is reconstructed, and the authors have not confirmed it. We found no standalone NARK in the code at the commit this site pins, and the word appears in the crates only as part of SNARK. The closest code is the uncompressed verifier, which holds a proof's polynomials and checks them directly, as the NARK does. It covers a much larger object, the proof of a recursive step, and its documentation calls it a test oracle and sends production verification through compression.
+
+A few names need fixing, because this chapter reuses them. Following the book, we'll have a left factor and a right factor of the product, which the book writes as a and b. The right factor is the polynomial that the encoding chapter called f, because f now means the combined quotient from batched openings. The letter x now means the random evaluation point, so we'll say the secret input when we mean the value three.
+
+The running example.
+
+The circuit is the one from the arithmetization chapter. It has two gates, so every polynomial has eight coefficients. We reuse that chapter's challenges, z equal to five and y equal to seven, and the secret input three.
+
+The protocol works with several polynomials, and it matters who can compute each one. Both parties can compute the public input polynomial from the statement, and its only nonzero coefficient is thirty, on the cube. The left factor is the trace, which only the prover knows. Both parties can compute the wiring polynomial once they have y, and the gate polynomial once they have z. The right factor adds three things together, the trace dilated by z, the wiring polynomial, and the gate polynomial. Only the prover can compute it, because it contains the trace.
+
+A commitment to eight coefficients needs eight generators, and the toy curve's public parameters so far have four. We add four more points at unused coordinates and keep the two extra generators from before, one for blinding and one that we've called U.
+
+Choosing how to check the revdot product.
+
+The protocol from the encoding chapter checks the revdot product by splitting the product of two polynomials into two smaller polynomials. That split keeps every polynomial within the degree limit, but the prover pays for it, because computing a product of this size takes fast Fourier transforms. The book counts at least three of them. For polynomials with two to the thirteen coefficients, each runs over at least sixteen thousand three hundred eighty-three points, and the next power of two is sixteen thousand three hundred eighty-four.
+
+There is a blunter alternative. If the prover sends the two vectors, the verifier can compute the revdot product itself with one multiplication per entry, and no product polynomial ever exists. This makes the proof much larger and removes the transforms. The book chooses this direct check for its NARK, and it keeps the split for the places in the proof-carrying data tree where succinctness matters.
+
+You might hope for a shortcut that tests the product at a random point against one committed polynomial. That doesn't work, for the reason the encoding chapter gave. With a number of gates called n, the product has degree up to eight n minus two, and the generators limit commitments to degree below four n.
+
+Committing before the challenges.
+
+The consolidated equation only means something if the trace is fixed before the prover knows z and y, as the arithmetization chapter showed. So the first message commits to the trace, and it also commits to the public input polynomial. The book blinds the polynomials that hold witness data and leaves the public ones unblinded, which amounts to a blinding factor of zero. In our run the trace uses the blinding factor seventeen. We'll discuss how much this blinding achieves later.
+
+Tying the instance to the statement.
+
+The oracle protocol treated the public input polynomial as shared knowledge, whereas the NARK has the prover send a commitment to it. A verifier who cares about the public value thirty-five therefore has to connect that commitment to that value, and the book's list of steps doesn't say how. Checking the evaluation claims doesn't do the job on its own, since those claims say only that the commitment is consistent with itself.
+
+Here is what can go wrong. A prover with the input four can commit to a public input polynomial with coefficient twenty-five in place of thirty. That is the instance of a different statement, where the cubic equals thirty. The claims about this commitment are all true, and every other check passes. The proof is valid for thirty and says nothing about thirty-five, so a verifier that accepts the commitment without comparing it would be misled. In our run the verifier closes this gap by recomputing the commitment from the statement, and we add this as an explicit step.
+
+Here the Ragu Book and the code differ. The book has the prover commit to this polynomial and then opens the commitment at zero and at y. In the code, at the commit this site pins, the uncompressed verifier computes the polynomial's value at y from the output header itself. A comment on the circuit code says that the verifier sets the constant coefficient to one. This chapter keeps the book's commitment, so that the run has the same shape as the book's protocol, and adds the comparison. The code's route needs no comparison, because the prover never supplies the instance.
+
+Building the two multiplicands.
+
+The verifier now sends z and y. These challenges turn polynomials in two variables into polynomials in one, so the prover can compute the wiring polynomial and the right factor. It sends a commitment to each one, together with the claimed revdot value. That value equals the public input polynomial at y, which is thirteen modulo forty-three in our run.
+
+The prover also sends a commitment to the left factor. In a standalone NARK the left factor is the trace, so this commitment repeats the trace commitment. That looks redundant, and the book says so in a footnote. The two names exist because they differ during recursion. There, the trace commitment holds one step's trace, and the left factor's commitment holds an aggregate of many revdot claims.
+
+The verifier could compute the wiring commitment alone, so sending it may look pointless as well. The next stages make claims about commitments, and the wiring polynomial has to have a commitment for those claims to include it. Later chapters reach a verifier that no longer sees the polynomials and holds only commitments, and these objects prepare for that.
+
+Checking the wiring and revdot product directly.
+
+The prover now sends the wiring vector, the left factor, and the right factor, along with their blinding factors. This is the step that makes the proof long. In return, the verifier's checks need no cryptographic argument, since it can recompute everything it was told.
+
+The verifier does four things. First, it computes the wiring vector from the circuit and y, and compares. The book calls this the wiring consistency protocol. Second, it checks that the left factor's commitment equals the trace commitment, because the book defines it that way in this standalone protocol. The book's verifier steps don't list this comparison, so we state it. Without it, a prover could pick a new left factor after seeing z and y, and the early commitment would constrain nothing.
+
+Third, the verifier recomputes the three commitments from the vectors, which shows that the vectors are the ones the prover committed to. Fourth, it computes the revdot product of the two factors and compares it with the claimed value. The book calls this the revdot product protocol. In our run every comparison matches, and the revdot product comes to thirteen, the claimed value.
+
+The order of the messages matters here, even though the check looks like arithmetic on public data. The prover sent the trace commitment before it knew z and y. The comparison and the recomputation together show that the left factor is the vector behind that early commitment.
+
+Tying the right factor to the trace.
+
+The revdot check accepts any right factor that produces the right number. A prover can always find one, since one linear equation leaves most of the entries free. Nothing so far requires the right factor to be the specific combination we want. The requirement is that the right factor equals the dilated left factor, plus the wiring polynomial, plus the gate polynomial.
+
+This is an identity between polynomials below the degree limit, so a test at one random point catches a difference. The prover has already fixed all three commitments, so the verifier can send a random evaluation point. The prover sends three values, and the verifier computes the gate polynomial's value alone and checks that they add up.
+
+In our run the verifier sends the point nine, and nine times z is two modulo forty-three. The prover sends nine for the left factor at two, twenty-three for the wiring polynomial, and thirty-five for the right factor. The verifier computes three for the gate polynomial and checks that nine plus twenty-three plus three is thirty-five. The dilation works as it did in the encoding chapter, with the dilated value coming from the same polynomial at a scaled point. No separate commitment to the dilated trace exists, so a prover cannot substitute a different trace in the right factor.
+
+The verifier already holds these vectors, so it could compare them coefficient by coefficient, and a standalone NARK has no need for a random evaluation here. The book keeps the evaluation form because it survives in recursion, where the vectors are gone and only commitments and evaluation claims travel forward.
+
+Batching the evaluation claims.
+
+The three values just sent, and the claimed revdot value, are claims about committed polynomials. Taken with the direct recomputations they are redundant here. We check them anyway through the machinery that recursion will rely on, since the accumulation chapters work on claims of exactly this form. The list has four claims, one each about the left factor, the right factor, the wiring polynomial, and the public input polynomial.
+
+The book's list has two further claims, about the left factor and the public input polynomial at zero, which tie down a constant wire our toy circuit doesn't have. We'll add that wire shortly and reach the six-claim form that the previous chapter previewed.
+
+Now we apply the previous chapter's reduction with its weights. The first claim takes the highest power of alpha, and the combined quotient takes the highest power of beta. The verifier sends alpha equal to eleven, and the prover commits to the combined quotient with the blinding factor five. The verifier sends the shared point seventeen, and the prover sends one value per polynomial, namely forty-two, twenty-nine, thirty-five, and twenty-nine. The verifier derives the combined quotient's value from those numbers and the original claims, and gets twenty-four. The prover gets the same number by evaluating the polynomial.
+
+Finally the verifier sends beta equal to twenty-three, and both parties combine the five inputs. The verifier computes the combined commitment and the combined value from public data, while the prover computes the combined polynomial and its blinding factor. The wiring and public input polynomials have no blinding factor, so they contribute nothing to it. The combined value comes to twenty-three, and the combined blinding factor is twenty-seven. All the evaluation claims now rest on this single claim.
+
+Revealing the combined polynomial.
+
+The previous chapter noted that the book finishes its NARK by having the prover send the combined polynomial in full, and it promised to return to that choice. In our run the prover sends the eight coefficients and the blinding factor. The verifier commits to them and gets the combined commitment, and it evaluates them at seventeen and gets twenty-three.
+
+We built an inner product argument for this exact kind of claim, so it's reasonable to ask why the NARK doesn't use one. The argument would prove the same thing with a logarithmic number of points, but in this protocol that saving is small, because the proof already contains other full vectors. For polynomials with two to the thirteen coefficients, the witness part is one million forty-eight thousand eight hundred thirty-two bytes with the polynomial revealed. Replacing the reveal with an argument of twenty-six points and one scalar brings it to seven hundred eighty-seven thousand five hundred twenty bytes, because the wiring vector and the two factors remain. The verifier's work wouldn't improve in growth either, since the argument leaves it with one multi-scalar multiplication over all the generators, the same size as recomputing the commitment.
+
+The reveal also fits how the proof will be used. Sending the polynomial places it in the witness part of the proof, and the split accumulation chapter separates a proof's instance from its witness so that the expensive check can be postponed. The inner product argument comes back at the end of the recursion, when compression ends with one such opening on each curve. Later in this chapter we run the same replacement, along with replacements for the other vectors, and that is where the saving appears.
+
+The whole protocol.
+
+Let's go through the complete sequence of messages. Both parties start with the circuit and the statement. The prover sends the commitments to the public input polynomial and the trace, and the verifier compares the first with the statement. The verifier sends z and y. The prover sends the commitments to the wiring polynomial and the two factors, plus the claimed revdot value. It then sends the vectors and their blinding factors, and the verifier runs its direct checks.
+
+The verifier sends the evaluation point, the prover sends the three values, and the verifier checks the sum that ties the right factor to the trace. Batching follows. The verifier sends alpha, the prover sends the commitment to the combined quotient, the verifier sends the shared point, and the prover sends its values there. The verifier sends beta and derives the combined commitment and value. The prover reveals the combined polynomial and its blinding factor, and the verifier checks both.
+
+Each check in this run is an assertion in the script behind this chapter. The honest prover should also pass at every challenge, not only the ones we picked, so we tested that too. We ran the whole protocol for all one thousand eight hundred forty-nine pairs of z and y, at two values of the evaluation point, moving the shared point whenever it would land on a claim point. The verifier accepted all three thousand six hundred ninety-eight runs.
+
+Removing the interaction.
+
+The N in NARK means non-interactive, and the book treats this step as a direct replacement of each challenge with a hash. The chapter on statements and challenges explains the transform, and the only thing this protocol adds is the list of what goes into the transcript. Each challenge must depend on every message that it tests, so the list follows the order we just walked through. The vectors don't need to be absorbed, because the commitments already fix them. The left factor's commitment doesn't either, because it must equal the absorbed trace commitment.
+
+We ran this using the toy Poseidon sponge from that chapter. The same witness and blinding factors now produce different challenges, so all the later values change. The six challenges come out as forty-one, twenty-five, thirteen, nine, sixteen, and fifteen. The verifier replays the same absorptions from the proof, obtains the same six challenges, and accepts. Changing only the trace's blinding factor from seventeen to eighteen changes the first absorbed message, and all six challenges change with it.
+
+Repeated trials still apply, since a cheater can try many blinding factors privately and look for a lucky set of challenges. The toy field's forty-three outputs make that easy, and a two hundred fifty-five bit field doesn't.
+
+The proof's two parts.
+
+Collecting the prover's messages, the book divides the proof into an instance part of constant size and a witness part of linear size. The linear witness is why this is a NARK and not a SNARK. The instance holds the commitments to the public input polynomial, the trace, the wiring polynomial, and the two factors, along with the claimed revdot value, the three evaluations, and the output claim. The witness holds the wiring vector, the two factors, their blinding factors, the commitment to the combined quotient, the values at the shared point, and the combined polynomial with its blinding factor. The challenges don't appear, because the verifier replays them from the transcript.
+
+The sizes are very different. Take two to the thirteen coefficients with thirty-two byte values, the size the Ragu Book's analysis gives for its preferred threshold. The instance holds six points and six scalars, or three hundred eighty-four bytes. The witness holds four vectors of eight thousand one hundred ninety-two entries and eight more values, which comes to about one megabyte. This division is more than a way of counting, because the split accumulation chapter builds a verifier that reads the instance and leaves the witness to a later check.
+
+The book's lists differ slightly from each other here. Its final step sends the aggregated blinding factors, but its witness list has no such entry. That list also writes the combined quotient's commitment with no blinding, while the book's chapter on aggregating polynomial commitments gives it a blinding factor. This site includes the blinding factor in the witness and blinds that commitment, as the previous chapter did. If that commitment were unblinded, the verifier could compute the combined blinding factor from the other two, which may be the intended reading.
+
+What the proof reveals.
+
+Four commitments carry blinding factors so that a commitment alone reveals nothing. The difference is visible on our trace. An observer who holds the unblinded trace commitment can build the trace for every candidate input and compare. Trying all forty-three inputs gives exactly one match, the true input three. An observer who holds only the blinded commitment gets no such answer, because each of the forty-three candidate traces has exactly one blinding factor that fits.
+
+This protection doesn't last, because the proof then sends the vectors. The proof contains the left factor in the clear, and the layout from the arithmetization chapter puts a wire holding the input at position three. Anyone can read the secret input three straight from the proof.
+
+So this NARK hides nothing. The book says this openly and describes the omission as intentional, since Ragu intends to prevent leakage through rerandomization and not by making this NARK zero knowledge. The book also says that a fold-level randomizer is still needed for that. This agrees with the status recorded in the chapter introducing proof-carrying data, where neither the book nor the code yet establishes zero knowledge. The blinding factors in the book's protocol therefore don't provide privacy in this standalone form.
+
+Here the Ragu Book and the code differ. The book's NARK uses these blinding factors, while at the commit this site pins, the inner product argument module omits Pedersen blinding. The compression module also states that a compressed proof is not hiding, because its openings are evaluations of the witness polynomials. A value in the system gate, which we introduce next, doesn't supply hiding either, and the book's local wiring chapter says this directly. That value's purpose is to keep combinations of commitments away from the identity point. Our toy run follows the book, so that you can see where blinding factors go.
+
+The constant wire.
+
+So far the toy circuit has moved its constant five into the instance. A real circuit needs constants inside its constraints, and Ragu provides them with a wire that holds the value one. This wire is what the book's two extra claims are about. Adding it takes one more gate, so the circuit grows to three gates and the polynomials grow to twelve coefficients, which takes four further generators.
+
+Here the book and the code differ again. The encoding chapter recorded that the NARK chapter of the book checks that the trace equals one at zero. The code and the book's local wiring chapter imply that the trace equals zero there. This site follows the code, so our claim about the left factor at zero has the value zero. The previous chapter's preview quoted the book's form, with the value one. We found no such opening in the uncompressed verifier, and the local wiring chapter explains that the gate equations already force this coefficient once the constant wire is one. So we keep the claim here only to match the shape of the book's list.
+
+The new system gate takes the first position, and the other two gates move up by one. The first constraint says that the constant wire equals the first coefficient of the public input polynomial. Another constraint now writes the constant five as five times that wire, so the public input polynomial becomes one plus thirty-five times its variable. Checking every challenge pair confirms that the consolidated equation holds at each one.
+
+The constant wire sits at the top of the trace, and its partner in the revdot product sits at position zero. This means that the wiring polynomial always equals one when its second variable is zero, which the book also states and the script confirms. The claims list now has the six entries the previous chapter previewed, on four polynomials, so one value per polynomial still suffices at the shared point. With the same challenges as before, the proof is accepted.
+
+The claim that the public input polynomial equals one at zero does real work. The constant wire is only constrained to equal that coefficient. So without a check on the coefficient, a prover can give the constant a different value and change the meaning of every constraint that uses it.
+
+Take the input four, which is false for the real statement, since it gives thirty modulo forty-three. A cheater sets the constant wire to two and commits to a public input polynomial with constant coefficient two. The constraint then adds twenty-one, four, and five times two, which makes thirty-five. Every gate and constraint holds, and the consolidated equation holds at every challenge pair. If the two constant claims are dropped from the list, the verifier accepts this proof. With the claims in the list, a false claim remains, and keeping the other challenges fixed, the verifier rejects for forty-two of the forty-three values of beta. It accepts only at beta equal to zero, which removes the combined quotient from the combined polynomial.
+
+A verifier that computes the public input value from public data with the constant fixed at one, as the code does, rejects the same proof, because the cheater's claimed value differs at every y. From here on we return to the two-gate circuit.
+
+Why cheating fails.
+
+The argument relies on the following assumptions, and it is informal. Nobody knows a relation among the generators, which is the discrete log relation assumption. Each challenge is uniform and comes after the messages it tests, which for a non-interactive proof means treating the transcript hash as a random oracle. And the verifier has tied the public input commitment to the statement.
+
+We take the false witness with input four and consider what its prover can try. All of the counts below come from running the same verifier function that accepted our honest run.
+
+The prover follows every instruction.
+
+Suppose the prover with the false witness follows every instruction. At our challenges, the verifier computes a revdot product of eighteen, while the public input value is thirteen, so the revdot check fails. Counting all pairs of challenges finds forty-three of the one thousand eight hundred forty-nine where the two numbers happen to agree, the same count as in the arithmetization chapter.
+
+The prover changes the right factor.
+
+To reach the right revdot value, the prover has to send some other right factor. The revdot check only looks at this vector, so the cheater can add any difference whose revdot product with the false trace makes up the shortfall. The most direct choice changes one entry, the partner of a single trace entry. The revdot check now passes. The evaluation check then compares two polynomials that differ by one term on the fourth power, whose only root is zero. Running the whole protocol at all forty-three evaluation points gives one acceptance, at zero.
+
+The cheater does better by spreading the difference over all eight coefficients. It can pick a difference polynomial with roots at one through seven, scaled to make up the shortfall. Running the whole protocol gives acceptance at exactly those seven points out of forty-three. A polynomial with eight coefficients has at most seven roots, so no choice can do better. For two to the thirteen coefficients on a field of about two to the two hundred fifty-four elements, the same limit gives a probability below two to the minus two hundred forty.
+
+The prover lies about an evaluation.
+
+Outside those roots, the only way past the evaluation check is to send a false value. At the point nine, the cheater can pass by sending twenty-eight for the right factor, in place of the true forty-one. That value is then a false evaluation claim about the right factor's commitment, and batching catches it. Running all forty-three values of beta with honest values at the shared point gives one acceptance, at zero.
+
+The previous chapter counted what the cheater gains by also shifting values at the shared point or by committing to a different combined quotient, and its reasoning applies here unchanged. In this standalone NARK the verifier could also find the false value by evaluating the right factor it holds. We measure the batched check alone because that is the check recursion keeps.
+
+The prover knows a challenge early.
+
+Every count so far assumes the message order, which is what stops a prover from solving for its messages. Suppose the prover knows z and y before it sends the trace commitment. Starting from the false trace, it changes the first entry by twenty-five, a value found by solving one quadratic equation. This vector isn't a valid trace, because its gates don't hold. It still satisfies the consolidated equation at this one pair, and the verifier accepts the whole proof. The same vector, committed honestly before the challenges, passes the revdot check at only forty-four of the one thousand eight hundred forty-nine pairs. This is why each challenge has to depend on the commitments before it.
+
+The prover knows a generator relation.
+
+Fixing the trace first only helps if the commitment really fixes the vector. Here is the same attack, carried out after the challenges by a prover that can open a commitment in two ways. The prover commits to the false trace and only then learns z and y. Because it knows the discrete logs of the toy generators, it can change the first two entries by eighteen and eight without moving the commitment. The changed vector satisfies the consolidated equation at this pair, and the verifier accepts, because each of its recomputations finds what it expects. On a real curve this requires solving discrete log, and the toy curve's small size is what makes it possible here.
+
+What the verifier pays.
+
+Now we can go through the verifier's work one step at a time, for polynomials with two to the thirteen coefficients. Several steps grow linearly. Computing the wiring vector from the circuit takes one term per wire in each constraint. Recomputing three commitments takes three multi-scalar multiplications, or twenty-four thousand five hundred seventy-six scalar multiplications. The revdot product takes eight thousand one hundred ninety-two field multiplications. Recomputing the combined commitment from the revealed polynomial takes eight thousand one hundred ninety-two scalar multiplications, and evaluating that polynomial takes the same number of field multiplications.
+
+The other steps are cheaper. The public input value costs one term per public input. Deriving the combined quotient's value takes one inverse and a few multiplications per claim. Computing the combined commitment and value takes five scalar multiplications and field operations, which is constant. The gate polynomial's value grows only logarithmically, for a reason worth walking through.
+
+Start from the definition of the gate polynomial at the two points, and split it into two sums over the gates. A change of index lets you factor out the parts that don't depend on the index. What remains are two geometric sums, one in the evaluation point times z and one in the evaluation point divided by z. This matches the book's form for nonzero z. Each geometric sum has a closed form that repeated squaring computes in a logarithmic number of multiplications. In our run the two sums are three and twenty, and the formula gives three, which matches the direct sum.
+
+The wiring vector has no comparable shortcut, since its entries come from an arbitrary circuit. Our circuit has eight nonzero wiring coefficients across its four constraints, and each contributes one term to the sum. A circuit with more wiring has more terms, and no term can be skipped.
+
+The multi-scalar multiplications can be merged, though this only saves a constant factor. The verifier picks a random number and checks that one combined vector commits to the same combination of the commitments, in place of recomputing each one. If any vector doesn't match its commitment, the difference is a nonzero polynomial in that random number, so a random choice exposes it. The code's uncompressed verifier does this. In our run, with the random number eight, one multi-scalar multiplication did the work of four.
+
+A verifier of this form is fine as a final check, but it can't be placed inside a recursive proof at reasonable cost, because each of its linear steps would become part of a circuit. The next chapter explains this problem in detail. The book groups the linear work into three subprotocols, namely wiring consistency, the revdot product, and the evaluation check.
+
+A short proof from the same parts.
+
+We already have replacements for two of those three. The revdot product can use the split from the encoding chapter, at the cost of the prover's transforms, and the evaluation check can use the inner product argument. Applying both shows what the third item leaves behind. The verifier never receives the wiring vector here, because it only needs one value of the wiring polynomial, which it computes alone. We no longer need the right factor or the wiring and public input commitments, so the claims concern only the trace and the two pieces of the split.
+
+This section is reconstructed, and the authors have not confirmed it. It is our own assembly of the book's oracle protocol with the batching and inner product chapters. It omits blinding, as the inner product argument at the commit this site pins does, and it uses the symmetric argument from the inner product chapter. Ragu doesn't run this exact protocol. Its compression follows the same pattern on a larger set of folded claims.
+
+The first steps mostly repeat the earlier chapters, with every oracle replaced by a commitment. The prover commits to the unblinded trace, and the verifier sends z and y. The prover commits to the two pieces of the split, and the verifier sends the evaluation point nine. The prover sends five evaluations. The verifier computes the wiring, gate, and public input values alone, then checks the split, where both sides come to three, and the target, where both sides come to thirteen.
+
+Batching runs as before, with alpha, a commitment to the combined quotient, the shared point, the values there, and beta. Now the prover has to prove the output claim without revealing the combined polynomial. The inner product argument takes three rounds for eight coefficients. Its round challenges are unrelated to the shared point, and we pick them by hand. At each round the prover sends two points, and both sides fold, so the list shrinks from eight entries to four, then two, then one. The prover sends the final scalar, which is six. The verifier computes the coefficients of the challenge polynomial from the three round challenges, then one multi-scalar multiplication over all eight generators to get the combined generator. Its final check passes, so it accepts.
+
+The proof is now short. For two to the thirteen coefficients it holds thirty points and nine scalars, or one thousand two hundred forty-eight bytes, in place of about one megabyte.
+
+The verifier hasn't improved as much as the proof has. Most of its steps are now constant or logarithmic, including the gate polynomial, the checks, the batching, combining the round points, and evaluating the challenge polynomial. Three rows stay linear. The wiring value takes one term per nonzero wiring coefficient. The coefficients of the challenge polynomial take about eight thousand one hundred ninety-two field multiplications. And the combined generator takes one multi-scalar multiplication of that same size.
+
+Those rows come down to two costs, once we treat the coefficients as part of the combined generator. The first is computing the wiring value, because the verifier has to read the whole circuit, and the wiring has no structure it can exploit. The second is computing the combined generator, which is the final generator from the inner product chapter. This site writes it as G hat and the book writes it as G zero. The generators have no structure either, as the inner product chapter explained.
+
+These two steps are the targets of what follows. The accumulation chapter postpones the combined generator, and the chapter on wiring and the registry handles the wiring value. The revdot folding chapter covers how most steps avoid the split and its transforms.
+
+The NARK in Ragu.
+
+As we said at the start, the code has no type or function for this standalone protocol, since Ragu's real proofs cover a recursive step with many polynomials. Several of its checks can still be located in the uncompressed verifier. The revdot check appears for each claim the proof carries, and the code compares each sparse revdot product with the matching public input value.
+
+The rest of this section is reconstructed from the code at the commit this site pins, and the authors have not confirmed it. The proof stores the two factors as separate polynomials from its traces, which matches the separation that the book explains, and we return to this in the revdot folding chapter. A batched check compares the stored commitments with their polynomials, and it includes the combined polynomial, as our final check does.
+
+The verifier computes the public input value itself, as we described earlier. The module documentation says that the claimed revdot value and the combined value are derived from the polynomials and never read from the proof, whereas the book's instance lists them as prover messages. The same documentation calls this verifier a test oracle, available only with a test utilities feature. Production proofs go through compression, which the chapter on recursion in Ragu covers.
+
+Where this leaves us.
+
+The prover commits to the instance and the trace before it sees z and y, and the verifier ties the instance to the statement. The prover then commits to the wiring polynomial and the right factor and sends the vectors, so the verifier can recompute the wiring and the commitments and compute the revdot product directly. A check at a random point ties the right factor to the trace, wiring, and gate polynomials. The evaluation claims batch into one claim, which the book's NARK finishes by revealing the combined polynomial.
+
+The resulting proof has a constant-size instance and a linear-size witness, and it hides nothing, despite its blinding factors. A cheater can pass only at rare challenges, as long as each challenge follows the messages it tests and nobody knows a relation among the generators. Replacing the direct checks with the split and the inner product argument makes the proof logarithmic in size, and it leaves the verifier two linear steps, computing the wiring value and computing the combined generator.
+
+A verifier with linear steps can check a proof, but it can't fit inside the next proof at reasonable cost. The next chapter takes up proofs about verifiers, and shows why these two steps block them.

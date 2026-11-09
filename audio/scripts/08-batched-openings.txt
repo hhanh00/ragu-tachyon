@@ -1,0 +1,191 @@
+Chapter eight. Batched openings.
+
+The inner product argument proves one evaluation claim about one committed polynomial. A complete proof makes several such claims, about different polynomials at different points, and running the argument once per claim multiplies its cost. In this chapter we reduce any number of claims to a single claim, so that the argument runs only once.
+
+The reduction has two stages. The first moves every claim to one fresh random point with the help of quotient polynomials. The second combines the resulting claims at that point using a random linear combination. The Ragu Book calls these stages alpha batching and beta batching after their challenges, and the literature calls the whole technique a batched opening or a multi-opening.
+
+Why a proof makes many claims.
+
+The next chapter assembles a complete proof, and the final step of that proof in the Ragu Book lists the claims that the verifier needs checked. We'll meet those polynomials properly in that chapter, so for now only the shape of the list matters. It has two claims about one polynomial, one claim each about two others, and two claims about a fourth. That makes six claims about four polynomials at four points. Later chapters add more, because a recursive step also has to handle the claims it inherits from earlier proofs.
+
+Separate openings are expensive. Each one costs the verifier a linear amount of curve work, and for a polynomial with two to the thirteen coefficients, each one carries twenty-six group elements. With thirty-two byte values, six separate arguments carry one hundred fifty-six group elements, or four thousand nine hundred ninety-two bytes. One batched argument carries the same twenty-six group elements plus one extra commitment and four scalars, for nine hundred ninety-two bytes. Both counts leave out the small constant number of extra values that each argument carries.
+
+We describe one claim by three things, namely a commitment, a point, and a value. The claim says that the polynomial behind the commitment takes that value at that point. Both parties hold these triples, and only the prover holds the polynomials. The goal is a short exchange after which both parties hold a single triple, and a false input claim must lead to a false output claim, except with negligible probability.
+
+One naming warning helps here. The commitments chapter used the letter P for a statement point, which combined a commitment with a claimed value. The Ragu Book uses P for a plain commitment, so we'll say the combined commitment, and its statement point would be that commitment plus the output value times U.
+
+Combining claims at different points.
+
+The random linear combinations from the chapter on statements and challenges already solve the problem when all the claims use one point. Suppose two polynomials have claims at the same point. The verifier picks a random number and asks about the first polynomial plus that number times the second. It can work out the combined commitment and the expected combined value alone, because commitments and evaluations combine with the same coefficients.
+
+This method stops working when the points differ, because a combination of polynomials has no single point at which the combined claim makes sense. Here is an example. The prover claims that one polynomial has the value thirty-seven at the point nine, and that a second polynomial has the value twenty at the point five. Both claims are true. Take the multiplier six, and work modulo forty-three as usual. The combination has the value thirty-six at nine and the value thirty-five at five, while the combined claim comes to twenty-eight. The number matches neither value. The value at nine would need the second polynomial's value at nine, which is seven, and nobody has said anything about that.
+
+So we need a way to convert a claim at its own point into a claim at a point shared by all the others. The verifier's challenge can supply such a point. What's missing is a way to restate the claim as a fact that holds everywhere, so that we can test it anywhere.
+
+Writing a claim as a division.
+
+A claim says that a polynomial takes a certain value at a certain point. Equivalently, the polynomial minus that value has a root at that point. Each root gives a linear factor, so the claim holds exactly when the polynomial minus the value equals X minus the point, times some other polynomial. We call that other polynomial the quotient of the claim.
+
+To see how the prover computes the quotient, and why a false claim has none, take a polynomial with four coefficients. Its quotient has degree two, so it has three coefficients of its own. Multiply out the factored form and match each power of X on the two sides, which gives four equations. The first three equations fix the quotient from the top down. The top coefficient of the quotient equals the top coefficient of the polynomial. Each lower coefficient equals the next coefficient of the polynomial, plus the point times the quotient coefficient you just found.
+
+The claimed value plays no part in those three equations. Only the last equation mentions it, and rearranging that equation says that the claimed value must equal the polynomial evaluated at the point. So the system has a solution exactly when the claim is true. This procedure is called synthetic division, and the same pattern works for any number of coefficients.
+
+Here it is with numbers, modulo forty-three. Take the polynomial with coefficients seven, two, five, three, starting from the constant term, and the point nine. The top quotient coefficient is three. The next is five plus nine times three, which reduces to thirty-two. The next is two plus nine times thirty-two, which is again thirty-two. One more line of the same kind gives seven plus nine times thirty-two, which is thirty-seven. That last line recovers the value of the polynomial at nine, and the quotient has coefficients thirty-two, thirty-two, three.
+
+Now suppose the prover claims thirty-eight at nine instead. The first three lines don't involve the claimed value, so they produce the same quotient. The last line still computes thirty-seven, which contradicts the claim. No polynomial can repair this. At the point nine, X minus nine is zero, so the factored form is zero whatever the quotient is, while the polynomial minus thirty-eight equals forty-two at that point.
+
+So a false claim has no quotient polynomial. The fraction still exists as a rational function, with a pole at the claimed point, and no polynomial can reproduce a pole. The protocol relies on that difference.
+
+Moving one claim to a new point.
+
+The factored equation is an identity between polynomials, so it holds at every point. At any new point other than the original one, we can divide by the nonzero difference between the two points. This says that the quotient's value at the new point equals the polynomial's value there minus the claimed value, divided by the difference of the points.
+
+That relation gives us a test at a point unrelated to the original. The prover commits to the quotient first, which fixes it. The verifier then picks a random new point, and the prover sends the polynomial's value there. The verifier computes what the quotient's value has to be from the relation. What remains are two claims at the new point. The original commitment must open to the sent value, and the quotient's commitment must open to the computed value. The original point now appears only in the verifier's arithmetic, and in no remaining opening.
+
+Take a small example, using the second polynomial from before, whose claim is the value twenty at the point five. The prover divides and commits to the quotient, and the verifier sends the new point seventeen. The prover sends eleven, the polynomial's value at seventeen. The verifier computes eleven minus twenty, divided by seventeen minus five, which is ten modulo forty-three. Evaluating the quotient directly at seventeen confirms the ten.
+
+For one claim this looks like a step backward, because it replaced one opening with two. The gain appears with several claims, since every claim can use the same new point, and then the same-point method from earlier applies to all of them.
+
+The test also behaves well against a false claim. Whatever polynomial the prover commits to differs from the rational function, so the relation gives the wrong value at most new points. To count the exceptions, multiply through by the difference of the points. The relation then holds only where two polynomials agree. One is the committed polynomial times X minus the point, and the other is the original polynomial with the claimed value subtracted. They differ because a false claim has no quotient, and the commitment limits the degree of their difference to at most the number of coefficients. So the difference has at most that many roots, and the prover's chance of passing is at most the number of coefficients divided by the size of the field.
+
+Alpha batching.
+
+With many claims, a separate commitment to each quotient would add one curve point per claim to the proof. Commitments add the way polynomials do, so the prover can send one commitment to a combination of the quotients instead. Our running example has three polynomials with one claim each. The first has the value thirty-seven at nine, the second has the value twenty at five, and the third has the value forty-one at two.
+
+The combination cannot be a plain sum, because errors at a shared point can cancel. Two false claims at the same point have remainders over the same denominator, and a cheater can choose those remainders to be opposite. For example, the true values of the first two polynomials at nine are thirty-seven and seven. A cheater claims thirty-eight and six, so both claims are false, but the errors are opposite. The sum of the two polynomials minus the sum of the two claimed values still has a root at nine, and division leaves no remainder. The result is a genuine polynomial, which the cheater can commit to and open at any point.
+
+Giving each quotient a different random weight prevents this, for the same reason that powers of one challenge worked in the chapter on statements and challenges. After the claims are fixed, the verifier sends a challenge called alpha, and the prover forms a weighted sum of the quotients using powers of alpha. With three claims, the first quotient gets alpha squared, the second gets alpha, and the third gets a weight of one. We'll call this combined quotient f. The first claim takes the highest power because that is the order Ragu's code uses, and we'll compare it with the book's order shortly.
+
+These weights rule out the cancellation we just saw. With the weights alpha and one, the two opposite errors leave a remainder of alpha times forty-two, plus one. Trying all forty-three values of alpha shows that only alpha equal to one removes the remainder, and that value is the plain sum.
+
+The prover now computes the combined quotient for the running example. Take alpha equal to eleven, so that alpha squared is thirty-five. Combining the quotients gives a polynomial with coefficients three, twenty-five, twenty-six. Each quotient's degree is two less than the number of coefficients, so the result fits within the generators, with a zero in the top position. The prover commits to it and sends one curve point. That commitment fixes the combined quotient before the next challenge. The prover has not sent any of the individual quotients, and the verifier doesn't need them.
+
+Moving every claim to one point.
+
+The verifier now sends a random point, which we'll call the shared point. Earlier we found a relation that gives one quotient's value at a new point. The combined quotient is a weighted sum of the quotients, so the same weights carry over to its value. For each claim, subtract the claimed value from the polynomial's value at the shared point, divide by the difference of the two points, and multiply by the claim's weight. The combined quotient's value is the sum of those results.
+
+The verifier already holds everything in that formula except the polynomials' values at the shared point. So the prover sends those values, and the verifier computes the combined quotient's value for itself. The formula divides by the difference between the shared point and each original point, which fails if the shared point lands on an original point. On a real curve this has negligible probability, and the compression verifier rejects if it happens.
+
+Take the shared point seventeen. The prover sends fourteen, eleven, and one, and the verifier's formula gives thirty modulo forty-three. The prover, who holds the combined quotient, gets the same thirty by direct substitution, so the verifier has obtained this value without seeing the polynomial.
+
+Let's take stock of where the argument has got to. The verifier now holds one claim per polynomial plus one more for the combined quotient, and all of them use the shared point. The obstacle from earlier has gone, because no remaining opening refers to the original points. The original claims have not disappeared, though. Each original point and claimed value now sits inside the formula for the combined quotient's value, and a false claimed value makes that number wrong.
+
+Beta batching.
+
+Since all the claims now use one point, a random linear combination finishes the job. After the prover has sent its values, the verifier sends a challenge called beta, and the prover forms one combined polynomial. With three claims, the combined quotient gets beta cubed, the first polynomial gets beta squared, the second gets beta, and the third gets a weight of one.
+
+The verifier cannot compute this polynomial, but linearity gives it everything else. The homomorphic property gives the combined commitment, using the same weights on the commitments. The combined value comes from applying the same weights to the values at the shared point. The output is a triple made of the combined commitment, the shared point, and the combined value, which is exactly the kind of claim the inner product argument proves.
+
+Take beta equal to twenty-three. Using only group operations and field arithmetic, the verifier gets the combined commitment and the combined value thirty-two. The prover combines the coefficients, and committing to the result gives the same point, while evaluating it at seventeen gives the same thirty-two.
+
+The combined quotient needs a weight of its own, distinct from the weight of every polynomial. If two inputs share a weight, an error in one can cancel an error in the other for every beta. The book's formulas leave this point open, because they don't state where the index starts.
+
+Here the Ragu Book and the code differ. The book writes both sums as powers of the challenge indexed by the claim, adds the combined quotient with no power at all, and doesn't state the range of the index. The compression verifier, at the commit this site pins, gives the first claim the highest power of alpha, gives the combined quotient the highest power of beta, and gives the last polynomial a weight of one. This site follows the code. A different order of distinct weights only relabels the inputs. So the book's formula read with the powers of beta starting at one is equally good, and that is the form the Halo two book uses for its final polynomial.
+
+Reading the book's sum from a power of zero would not be safe, since the combined quotient and the first polynomial would then both have a weight of one. We don't suggest the authors intend this reading, and the code's distinct weights have no such collision. The collision comes from the beta sum alone, so the range of the alpha sum makes no difference to it.
+
+The toy curve shows why the index matters. Suppose a cheater claims twenty-one for the second polynomial at five, where the true value is twenty, and suppose both sums start from zero. The cheater commits to the honest combined quotient under those weights. At the shared point seventeen, the derived value misses by twenty-six. The cheater then sends eighteen in place of the true fourteen for the first polynomial, a shift of four. That shift changes the derived value and also changes the first polynomial's term in the combined value, and the two changes add up to exactly the miss. No power of beta appears in this equation, so the forged message passes for all forty-three values of beta. The attack works at thirty-nine of the forty allowed shared points, which is one thousand six hundred seventy-seven of the one thousand seven hundred twenty pairs of challenges.
+
+The complete protocol.
+
+Now we can put the two stages together and follow what happens to the claims. Three claims at three different points become four claims at the shared point, including one about the combined quotient, and then they become one claim about the combined polynomial.
+
+The messages run in this order. Both parties start with the claims, and the verifier sends alpha. The prover computes the quotients and their combination and sends its commitment. The verifier sends the shared point, and the prover sends its values there. The verifier sends beta. The prover computes the combined polynomial, and the verifier computes the combined quotient's value, the combined commitment, and the combined value. Both parties then hold the single output claim.
+
+The soundness of the protocol depends on this order, as we'll see shortly. Under Fiat-Shamir, each challenge becomes a hash of a transcript that has absorbed everything before it, including the claims themselves. The worked examples here use chosen challenges so that the numbers stay readable.
+
+To finish our toy run, the prover reveals the combined polynomial, and the verifier checks directly that its coefficients commit to the combined commitment and that it evaluates to thirty-two at seventeen. Both checks pass. These final steps are the expensive ones. The NARK in the Ragu Book really does finish this way, with the prover sending the combined polynomial in full, and the next chapter returns to that choice. A succinct proof replaces the reveal and its checks with one inner product argument for the output claim, as compression does in the code.
+
+Why cheating fails.
+
+The argument relies on three assumptions. Commitments are binding under the discrete log relation assumption. The final opening is sound. And Fiat-Shamir challenges behave like uniform random values that nobody can predict before the preceding messages are fixed, which is the random oracle assumption.
+
+Take one false claim in the running example, namely twenty-one for the second polynomial at five, where the true value is twenty. We'll follow what a cheater can try at each stage, and we'll count its success on the toy field by trying every challenge.
+
+The cheater reports true values.
+
+A cheater who runs the honest division gets a perfectly good combined quotient, because division ignores the claimed value. The false value only shows up later, inside the verifier's formula. At the shared point seventeen, the verifier derives four, while the committed polynomial's true value there is thirty, a gap of twenty-six. We tried every pair of challenges, with forty allowed shared points and forty-three values of beta. The gap is nonzero at all forty shared points, and the only passing runs are the forty that have beta equal to zero.
+
+The gap is never zero here, because it equals a nonzero weight times a nonzero remainder, divided by the difference of the points. The check passes at beta equal to zero only because that value removes the combined quotient from the combined polynomial altogether. A random beta avoids that value, except with a chance of one over the size of the field.
+
+The cheater lies about a value.
+
+To close the gap, the cheater can change a value that it sends at the shared point. This moves the error out of the formula for the combined quotient and into the term for that polynomial, where beta catches it instead. At seventeen the cheater sends twelve for the second polynomial, in place of the true eleven. It chooses that shift of one so that the derived value equals the committed thirty. In effect it reports values of the second polynomial plus one, a polynomial that does satisfy the false claim, while its commitment still holds the original. The output claim now carries that shift. With beta equal to twenty-three, the combined value and the true value differ by twenty-three, so the check fails. Of the forty-three values of beta, only zero passes.
+
+The cheater can also spread its lies across all the values. The difference between the combined value and the truth is then a polynomial in beta, whose coefficients are the individual errors. All of its coefficients are fixed before beta is chosen, and its degree is at most the number of claims. If any coefficient is nonzero, at most that many values of beta make it vanish. On the toy field we tried every possible triple of values against every beta, and no triple passes for more than three values, which agrees with the degree of three.
+
+The cheater commits to something else.
+
+The remaining option is to commit to something other than the quotients, chosen so that the formula holds with true values at as many shared points as possible. Clearing denominators turns this requirement into a polynomial equation in the shared point. Its degree is at most the number of coefficients minus one, plus the number of distinct original points. The equation isn't identically zero as long as the combined fraction has a pole. So the cheater can match only that many shared points. In our example only one claim is false, which leaves one pole, and the count equals the number of coefficients, which is four.
+
+The cheater can reach that limit by interpolation. It builds a polynomial that matches the verifier's formula at the shared points three, eleven, seventeen, and thirty. If the challenge lands on one of those four, the cheater reports true values and passes for every beta. If it lands anywhere else among the forty allowed points, this polynomial doesn't match. We tried every polynomial of degree at most three, and none matches the formula at more than four points.
+
+Combining the counts bounds the best cheater on the toy curve. It wins on at most four of the forty shared points outright, and on at most three of the forty-three betas at each of the other thirty-six. That comes to at most two hundred eighty of the one thousand seven hundred twenty pairs of challenges. These numbers are large only because the field has forty-three elements.
+
+The cheater hopes for a cancelling alpha.
+
+We saw earlier that false claims at a shared original point can cancel for one particular alpha. If they do, the combined fraction has no pole, and the cheater holds a genuine combined quotient that passes everything afterward. The leftover remainder at such a point is a nonzero polynomial in alpha, with degree at most the number of claims minus one, so at most that many values of alpha remove it.
+
+Adding the three stages gives a bound on the cheater's chance. The numerator is the number of claims minus one, plus the number of coefficients minus one plus the number of distinct points, plus the number of polynomials. The denominator is the size of the field. For two to the thirteen coefficients, with the six claims, four points, and four polynomials from the start of this chapter, the numerator comes to eight thousand two hundred four. For a field of about two to the two hundred fifty-four elements, as with the Pasta curves, the bound falls below two to the minus two hundred forty.
+
+Ragu's fuse step draws beta from a one hundred forty-three bit endoscalar, which we'll return to at the end of this chapter. With that range, the beta term alone is about two to the minus one hundred forty-one, and it dominates the sum. Fiat-Shamir also lets a cheater retry privately, so the chance grows with the number of attempts, as the chapter on statements and challenges explains. We make no claim here about Ragu's overall security level.
+
+Each challenge follows its message.
+
+All of these counts assume the cheater doesn't know a challenge when it sends the message that the challenge tests. The protocol fails if any challenge arrives early, and each of the three challenges shows this.
+
+Suppose the cheater learns alpha equal to eleven before it makes two claims at the point nine. It claims thirty-eight for the first polynomial and thirty-nine for the second. Both claims are false, but their errors are chosen so that the weighted remainder vanishes modulo forty-three. The weighted combination is then divisible, which gives a genuine combined quotient. This cheater passes for all forty-two shared points and all forty-three values of beta, a total of one thousand eight hundred six of one thousand eight hundred six runs.
+
+Next, suppose the cheater learns the shared point seventeen before it commits. The interpolated polynomial from earlier matches the formula at that point, so the cheater commits to it, reports true values, and passes for all forty-three values of beta.
+
+Finally, suppose the cheater learns beta equal to twenty-three before sending its values at seventeen. It sends thirty-eight for the second polynomial, a shift of twenty-seven, which it solves from the one linear equation that makes the total error vanish at this beta. The check passes. Moving to beta equal to twenty-four makes the same message fail.
+
+Binding at the end.
+
+The check on the output claim means something only because the combined commitment can be opened in one way. Every polynomial so far was fixed by its commitment, and a prover who knows a relation among the generators loses that restriction. Using the known discrete logs of the toy generators, a prover can adjust the first two entries of the combined polynomial. The new list commits to the same point but evaluates to thirty-three at seventeen, not thirty-two. A prover with this ability could satisfy the final check for a wrong value, which is why the discrete log relation assumption is necessary.
+
+Claims that share a polynomial or point.
+
+The running example gave each claim its own polynomial, while the list at the start of this chapter had two claims each about two of its polynomials. The protocol needs only a small change for this. The prover's value at the shared point depends on the polynomial and not on the original point, so it sends one value per polynomial, and each claim about that polynomial reuses the value. As a result, the formula for the combined quotient still has one term per claim, whereas the combined polynomial has one term per polynomial. This explains the proof size we counted at the beginning, since six claims need only four values.
+
+Here is an example. Add a fourth claim, that the first polynomial has the value twelve at the point two. This claim reuses the first polynomial, and it also shares the point two with the third claim. The combined quotient gains one term, with the new quotient at the bottom of the weights, and its commitment changes. The prover still sends only the three values fourteen, eleven, and one, because both claims about the first polynomial use the same fourteen. The verifier now derives thirty-two for the combined quotient, the output value at beta equal to twenty-three is twenty-eight, and opening the combined polynomial confirms the output.
+
+Two claims may also share a point, as the third and fourth claims do here. The verifier then needs only one inverse for that point, and the alpha weights keep the claims apart. Two claims about the same polynomial at the same point with different values can't both be true, and the code rejects such a list before batching.
+
+Here the Ragu Book and the code differ again. The book notes that only one evaluation per polynomial is needed, but its formulas for the combined polynomial and value still index the powers of beta by claim. The prover at the commit this site pins loops over polynomials, so each polynomial appears once in the combination. This site follows the code.
+
+Blinding factors.
+
+The book's protocol uses hiding commitments, so each commitment and the combined quotient's commitment carry blinding factors. Blinding factors combine with the same weights as the polynomials, as the commitments chapter showed. The prover therefore computes the combined blinding factor from those weights, and the verifier's formula for the commitment doesn't change in form.
+
+The toy curve confirms this. With blinding factors seventeen, twenty-nine, and eleven for the three polynomials and five for the combined quotient, the weights give a combined blinding factor of twenty-nine. Committing to the combined polynomial with it gives the same point the verifier computes.
+
+The warning from the commitments chapter applies here as well. At the commit this site pins, the inner product argument code omits this term, and the fuse step commits to the combined quotient with no blinding factor.
+
+Relation to Shplonk and Halo two.
+
+The Ragu Book credits this technique to Shplonk, a paper by Boneh, Drake, Fisch, and Gabizon. That paper works with KZG commitments and treats polynomials opened at sets of points. In its second scheme, the prover commits to a weighted sum of fractions. Each numerator is a polynomial minus a polynomial that interpolates the claimed values on its set of points, and each denominator vanishes on that set. When each set holds one point, the interpolating polynomial is the constant claimed value and the denominator is X minus the point. The result is our combined quotient, with the weights in a different order.
+
+The two protocols then part ways. Shplonk's verifier sends a random point, and instead of receiving values there, it builds a commitment to a polynomial that must vanish at that point. Every coefficient of this polynomial is a number the verifier can compute, so it can derive the commitment from the input commitments and the commitment to the combined quotient. The relation that shows this polynomial vanishes for honest provers is the same relation we used for the combined quotient's value. The paper finishes with one KZG opening at the random point.
+
+We can run this form on our example, using our shared point and our alpha weights, and taking a Pedersen commitment to a constant as that constant times the first generator. The constructed polynomial evaluates to zero at seventeen, and combining the commitments and claimed values gives the same point as committing to the polynomial directly. The prover sent no values at the shared point for this check.
+
+Ragu instead has the prover send the values and combines them under beta. This matches the multipoint opening in Halo two, which also forms a combination of quotients, evaluates it at a fresh challenge using the opened polynomials' values, and adds the result to those polynomials under one more challenge. Halo two first groups polynomials by their set of query points and interpolates over each set, whereas Ragu gives every claim its own term and needs no interpolation.
+
+This comparison is our own reading of these sources. We could not retrieve the text of the Shplonk paper when checking this chapter, so the formulas we described for it are unverified against the paper. Neither the Ragu Book nor the code explains why Ragu sends the values instead of using Shplonk's polynomial.
+
+Batching in Ragu.
+
+The clearest place to see this protocol in the code is the compression path, whose module comment describes the same steps. The prover divides without using the claimed value, as we predicted. It then writes the commitment to the combined quotient, squeezes the shared point, writes the values, and squeezes beta.
+
+The verifier computes the combined quotient's value and the combined value with two loops, using Horner's rule, which is how the weights arise. Each pass through the first loop multiplies everything so far by alpha and adds the next claim's term, so the first claim ends up with the highest power. The second loop starts from the combined quotient's value and folds in each polynomial's value with beta, so the combined quotient gets the highest power of beta.
+
+The next point is reconstructed from the code, and the authors have not confirmed it. The fuse step runs the same reduction with the same weights, spread across several files, with the verifier's arithmetic in a circuit. It differs from our description in two ways that later chapters cover. The values at the shared point go into a committed stage rather than being sent directly, which is the subject of the chapter on staging. And beta comes from a one hundred forty-three bit endoscalar rather than a full field element, which is the subject of the chapter on endoscalars.
+
+The chapter on split accumulation wraps this protocol so that the output triple becomes a running accumulator, and the chapter on curve cycles divides its arithmetic between two circuits. We stop before both, since each depends on recursion, which we haven't reached.
+
+Where this leaves us.
+
+A claim holds exactly when the polynomial minus the value is divisible by X minus the point, so a true claim has a quotient and a false one doesn't. The verifier can compute a quotient's value at a new point from the polynomial's value there, which moves the claim to that point. Alpha batching commits to one combination of all the quotients, with random weights that stop errors at a shared original point from cancelling. The prover then sends one value per polynomial at a random shared point, and the verifier derives the combined quotient's value. Beta batching combines everything at that point into one triple, with a distinct weight for every input. A false claim survives only if a challenge lands on one of a small number of bad values, provided that each challenge comes after the message it tests.
+
+Together with the inner product argument, this gives a single short opening for all of a proof's evaluation claims. The next chapter assembles the arithmetization, the polynomial encoding, the commitments, and this batching into one complete proof.

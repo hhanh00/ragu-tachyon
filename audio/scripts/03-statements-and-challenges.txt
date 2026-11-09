@@ -1,0 +1,267 @@
+Chapter three. Statements and Challenges.
+
+The previous chapter set proof-carrying data as the goal, where each step of a computation hands over its output together with a proof. Before building any proof, we need to say precisely what a proof is about and what it means for one to work. This chapter supplies that vocabulary.
+
+It also introduces the three tools that every later chapter uses. The Schwartz-Zippel lemma explains why checking a polynomial at one random point tells us about the whole polynomial. Random linear combinations replace many claims with one. The Fiat-Shamir transform then removes the verifier's live participation by deriving its random choices from a hash.
+
+Statements, instances, and witnesses.
+
+Suppose a prover wants to convince a verifier of a claim, which the next chapter uses as its running example. The prover says, I know a number in the field of forty-three elements such that its cube, plus itself, plus five, equals thirty-five.
+
+This claim has a public part and a secret part. The number thirty-five is known to both parties, and we call this public part the instance. The secret number is known only to the prover, and we call this secret part the witness. The rule connecting them is a relation, which is a test that takes an instance and a witness and answers yes or no. A statement is then a claim that a given instance has a witness in the relation.
+
+The relation has to be cheap to evaluate, since it is the test the verifier would run if it were handed the witness. Finding a witness from the instance can be much harder. In our example the field is small enough to search. Evaluating the cubic at all forty-three elements finds that it reaches thirty-five only at the number three, so three is the only witness for this instance. The number four gives thirty, so four falls outside the relation. Some instances have no witness at all, and the instance two is one of them.
+
+Later chapters use a second relation, the one behind every elliptic curve commitment. The instance is a point on a curve, the witness is a scalar, and the relation holds when that scalar times a public generator equals the point. We work on the toy curve, which has forty-three points. Its coordinates are computed modulo thirty-one, and its scalars are computed modulo forty-three because adding a point to itself forty-three times returns the identity.
+
+For an example, take the secret scalar twelve, and let the public point be twelve times the generator. The relation holds for twelve and fails for thirteen, since thirteen times the generator is a different point.
+
+The two relations differ in one respect that affects what a proof must establish. The group has prime order, so every point is a multiple of the generator. So a witness for the public point always exists, and the claim that some scalar satisfies the relation tells the verifier nothing. The useful claim is that the prover knows the scalar, and the next section gives this difference a name.
+
+The prover could convince the verifier by sending the witness, and the verifier could run the relation. We want to avoid that for two reasons. The witness may be secret, as the spending keys in a Zcash transaction are. It may also be enormous, because in proof-carrying data the witness for one step includes everything needed to check the previous steps. So a proof has to be shorter than the witness and has to keep it hidden.
+
+Completeness and soundness.
+
+We judge a proof system by how it treats honest and dishonest provers, and a useful system has to satisfy two requirements at once. Completeness says that a prover with a valid witness who follows the protocol always convinces the verifier. Soundness says that a prover making a false statement rarely convinces the verifier, however it deviates from the protocol.
+
+Each requirement alone is easy to meet. A verifier that accepts everything is complete but not sound, and a verifier that rejects everything is sound but not complete. Sending the witness satisfies both but fails the goals we just stated, so the real work is meeting both requirements with a short message that hides the witness.
+
+We allow soundness to fail with a small probability, called the soundness error. Accepting a small error is what makes short proofs possible, as this chapter shows repeatedly. The error has to be small enough that no one could expect to see it happen, and a large field achieves that, as we'll see.
+
+Three refinements of soundness appear in later chapters, and we state them here informally. Knowledge soundness says that a prover who convinces the verifier must actually know a witness. We need this property for the curve relation, where a witness always exists. Computational soundness says that soundness holds only against provers with realistic computing power. A proof system with this weaker guarantee is called an argument, and Ragu's proofs are arguments, because they rest on hardness assumptions that we list near the end of this chapter. Zero knowledge says that the verifier learns nothing from the proof beyond the truth of the statement.
+
+This site explains why cheating fails and which assumptions that depends on, but it does not give formal definitions or security proofs.
+
+An interactive proof.
+
+The clearest way to see these properties is to run a protocol. We use Schnorr's protocol for the curve relation, because it is short enough to follow every step. Ragu's proof is a different and much larger protocol, but it has the same shape. The prover commits to something, the verifier answers with randomness, and the prover responds.
+
+The prover wants to show that it knows the secret scalar behind the public point. Sending the scalar would reveal it, so the prover has to send something derived from the scalar that can be checked against the public point. One candidate is the scalar times a number chosen by the verifier, which we'll call the challenge. The verifier can check this against the challenge times the public point. This fails immediately, since the verifier can divide by the challenge and recover the secret.
+
+Adding a random mask repairs this. The prover's response becomes the mask plus the challenge times the secret. The mask hides the product in the same way a one-time pad hides a message. But now the verifier cannot check the response without some information about the mask, so the prover announces the mask times the generator ahead of time. We'll call that the announced point.
+
+Multiplying the response by the generator shows why this is enough. Because scalar multiplication distributes, the response times the generator splits into two pieces. One piece is the mask times the generator, which is the announced point. The other is the challenge times the secret times the generator, which is the challenge times the public point. So the check is that the response times the generator equals the announced point plus the challenge times the public point. The verifier holds all of those values, so it can run the check. This derivation also establishes completeness, because an honest prover passes for every mask and every challenge.
+
+The protocol has three messages, and their order is part of the protocol. First, the prover picks a random mask and sends the announced point. Second, the verifier sends a random challenge. Third, the prover sends the response, and the verifier runs the check.
+
+Here is one run with our secret twelve. The prover picks the mask twenty-nine and sends the announced point. The verifier sends the challenge sixteen. The prover's response comes to six modulo forty-three, and the verifier computes both sides of the check and gets the same point.
+
+Why the order matters.
+
+The verifier has to send the challenge after receiving the announced point. To see why, rearrange the check to isolate the announced point. It equals the response times the generator, minus the challenge times the public point. So a cheater who knows the challenge ahead of time can pick any response and compute an announced point that makes the equation hold.
+
+Suppose a cheater holds only the public point and learns in advance that the challenge will be sixteen. It picks the response twenty-three first and then computes the matching announced point. The check passes, and the cheater never used the secret. Sending the announced point first removes this option, because that point is then fixed before the challenge exists.
+
+Why a cheater fails.
+
+Consider a cheater who sends some announced point and has prepared one response. The check involves one unknown, the challenge, and it holds for exactly one value of the challenge because the public point generates the group. Testing every pair of point and response against all forty-three challenges on the toy curve confirms this. So a cheater with one prepared response succeeds with probability one in forty-three.
+
+A cheater might instead hope to prepare a different response for each challenge. Suppose it could answer two different challenges for the same announced point. Write out both checks and subtract them, and the announced point cancels. What remains says that the difference of the responses, times the generator, equals the difference of the challenges, times the public point. The two challenges differ, so we can divide, and that gives the public point as a known multiple of the generator. In other words, the cheater can compute the discrete log of the public point.
+
+Let's see that on the toy curve. Keep the same announced point. The prover answers the challenge sixteen with the response six, and it answers the challenge thirty-one with the response fourteen. Modulo forty-three, the difference of the responses is thirty-five and the difference of the challenges is twenty-eight. Dividing thirty-five by twenty-eight gives twelve, which is the secret.
+
+This gives us knowledge soundness in an informal sense. A prover who answers more than one challenge for a given announced point can compute the secret. Anyone who cannot compute the secret is limited to one challenge out of forty-three, which on a Pasta curve is one out of about two to the two hundred fifty-four. The argument assumes that discrete log is hard. On the toy curve anyone can solve discrete log by counting, so these numbers show the mechanism and offer no security.
+
+What the verifier learns.
+
+The response gives away nothing about the secret, because the mask is uniform and is used once. Fix the challenge at sixteen and let the mask range over the field, and the response takes each of the forty-three values exactly once.
+
+We can also compare two lists. The first holds the pairs of announced point and response that an honest prover can produce for this challenge. The second holds the pairs a simulator produces, by picking the response first and computing the announced point from it. The two lists contain the same pairs.
+
+That second comparison is informative. The same trick that lets a cheater forge when it knows the challenge early also lets anyone produce transcripts with the correct distribution without knowing the secret. A transcript that anyone could have produced cannot teach the verifier anything about the secret. That is the informal reason the protocol is zero knowledge for a verifier who picks its challenge honestly. Reusing a mask would destroy this, since two responses with the same mask reveal the secret through the subtraction we just did.
+
+Counting the roots of a polynomial.
+
+Schnorr's protocol relied on a linear equation in the challenge, which has one solution. Most protocols on this site check polynomial equations of high degree, so we need to count the solutions of those equations. The count rests on one algebraic fact about roots, which is that each root gives a linear factor.
+
+Take a polynomial whose value at some point is zero. Subtracting that zero value changes nothing, so we can write the polynomial as itself minus its value at that point. Term by term, this gives a sum in which each coefficient multiplies a difference, the variable to a power minus the point to the same power. The constant term cancels. Every remaining difference contains the factor of the variable minus the point, as multiplying out confirms. For the second power, it's the familiar difference of squares. Pulling out that common factor writes the polynomial as the variable minus the point, times a new polynomial of degree one lower.
+
+Now suppose the polynomial has a second root, different from the first. Substituting it into the factorization gives zero on the left, and on the right the difference of the two roots times the new polynomial's value there. In a field, a product of two nonzero values is never zero. The difference of the roots isn't zero, so the new polynomial must vanish at the second root. So every other root of the polynomial is a root of the factor.
+
+We can repeat the argument on that factor, which has degree one lower. A nonzero constant has no roots, so the process removes at most as many roots as the degree before it stops. This proves that a nonzero polynomial of a given degree over a field has at most that many roots.
+
+For example, a cubic with roots one, two, and three loses a degree with each root removed, and it ends at the constant two, which has no roots.
+
+The field assumption is essential, because without it the cancellation step fails. Work modulo eight, which is not a prime. The degree two polynomial, the variable squared minus one, has the four roots one, three, five, and seven. At the point three it factors as two times four, which is zero modulo eight, even though neither factor is zero.
+
+Counting all the monic cubics over the toy field, whose leading coefficient is one, confirms that none reaches four roots and that many stay below three. A protocol's guarantee has to hold against the worst polynomial a cheater could choose, so we use the bound rather than the typical count.
+
+Testing polynomials at a random point.
+
+The root count gives us a cheap test for equality. Take two different polynomials of degree at most some bound, and pick a uniformly random point. If the two agree at that point, the point is a root of their difference. The difference is a nonzero polynomial with degree at most that bound, so it has at most that many roots. So the chance of agreement is at most the degree divided by the size of the field.
+
+This is the one-variable case of the Schwartz-Zippel lemma. Comparing two polynomials coefficient by coefficient takes time proportional to their size, whereas this test compares one field element from each side.
+
+The test is more useful for identities that are expensive to check directly. Suppose a prover claims that one polynomial is the product of two others. Multiplying the two out takes a number of field multiplications that grows with the square of the degree in the schoolbook method. Checking the claim at one point requires only three evaluations and one multiplication.
+
+Now suppose a cheater sends the product plus some error polynomial. The test passes exactly at the roots of the error. With a product of degree six, the bound is six in forty-three. An error of the variable squared plus one has no roots in this field, so the test catches it at every point. A product of six linear factors passes at six points, which reaches the bound exactly.
+
+Two conditions make the bound meaningful. The first is that the polynomials must be fixed before the point is chosen, for the same reason as the ordering in Schnorr's protocol. The bound counts the roots of a fixed polynomial, and a prover who sees the point first can build a polynomial with a root there. It sends the true product plus the variable minus that point. This differs from the true product, yet it agrees at that point, so the test passes. The chapter on polynomial commitments builds the tool that fixes a polynomial without revealing it.
+
+The second condition is that the degree must be well below the field size. The variable to the forty-third power, minus the variable, is not the zero polynomial, yet it evaluates to zero at all forty-three points of our field. Real fields leave plenty of room. With degree two to the thirteen over a field with more than two to the two hundred fifty-four elements, such as either Pasta field, the probability is below two to the minus two hundred forty-one.
+
+Polynomials in several variables.
+
+The checks in later chapters often involve more than one challenge, which turns the polynomial being tested into a function of several variables. The consolidated equation in the next chapter, for example, uses two challenges. So we need the same kind of bound for several variables.
+
+The relevant size measure is the total degree, the largest sum of exponents among the monomials. X squared times Y, for instance, has total degree three. The Schwartz-Zippel lemma covers a nonzero polynomial in several variables, with each variable chosen uniformly and independently from the field. It says the chance of a zero is at most the total degree divided by the size of the field.
+
+The bound does not grow with the number of variables, so it is worth going through the two-variable argument. Longer lists of variables follow by repeating it.
+
+Call the variables X and Y, and group the terms by powers of X. Each power of X then has a coefficient that is a polynomial in Y. Take the highest power of X whose coefficient is a nonzero polynomial, and call that coefficient the leading coefficient. If that power is some number, then the leading coefficient's degree is at most the total degree minus that number, because the power of X already uses up that much of the total.
+
+Now picture choosing Y first and X second. Two cases can occur. In the first case, the chosen Y is a root of the leading coefficient. By the root count, this happens with probability at most the leading coefficient's degree over the field size. We give up on these rows and assume the worst, which is that the polynomial vanishes for every X.
+
+In the second case, the chosen Y is not a root of the leading coefficient. Then fixing Y leaves a one-variable polynomial with a nonzero leading coefficient, and its degree is the power of X we picked. It has at most that many roots, so a uniform X hits one with probability at most that power over the field size. Adding the two probabilities, the power of X cancels out, and the total is the total degree over the field size.
+
+Picture both cases as a forty-three by forty-three grid, using the polynomial Y minus five, times X squared minus Y. The only bad row is the row where Y equals five, and all forty-three of its points are zeros. The other forty-two rows hold at most two zeros each, tracing a parabola, and they contribute forty-three zeros in total. The sum of eighty-six stays below the limit of one hundred twenty-nine. For more variables, we treat one variable as X and the rest as a group, and the same two cases apply with the lemma for one fewer variable in place of the root count.
+
+Over this grid, the probability bound becomes a limit on the number of zeros, equal to the total degree times forty-three. The polynomial X minus one, times X minus two, reaches that limit exactly. It ignores Y and vanishes on two whole columns of the grid, which gives eighty-six zeros against a limit of eighty-six. So the bound cannot be improved in general.
+
+To test every case rather than selected ones, we can move to the field of five elements. All fifteen thousand six hundred twenty-four nonzero polynomials of total degree at most two stay within the limit of ten zeros.
+
+Random linear combinations.
+
+A proof system has to check a large number of equations, since a circuit has thousands of gates and each one contributes a claim that some error, the difference between two sides, equals zero. A proof that handled every equation separately would be very long. So we want one equation that fails whenever any of the original equations fails.
+
+Adding the errors does not work, because they can cancel. The errors one and forty-two are both nonzero, but they add to zero modulo forty-three. Fixed weights known in advance do no better. With the weights one and two, a cheater picks the errors two and forty-two, and the weighted sum is again zero modulo forty-three.
+
+The remedy for both is to choose the weights at random after the errors are fixed, so that the cheater has nothing to plan around. There are two standard ways to do this.
+
+In the first, the verifier picks a separate uniform weight for each claim and checks that the weighted sum is zero. Suppose one of the errors is nonzero, and fix all the other weights to any values. The check then becomes a linear equation in the remaining weight, with exactly one solution. A uniform weight hits that solution with probability exactly one over the field size, however many claims there are.
+
+Independent weights require one random value per claim. In the second approach, a single challenge stands in for all of them, by using its powers as the weights. The weighted sum is now a polynomial in the challenge whose coefficients are the errors. If any error is nonzero, this polynomial is nonzero, with degree at most one less than the number of claims. So the random-point test gives an error of at most that degree over the field size.
+
+The verifier sends one field element rather than one per claim, and the cost is a larger soundness error that a large field absorbs. The next chapter applies this form to circuit gates and constraints.
+
+Combining evaluation claims.
+
+The same technique combines claims about polynomials. Suppose a prover claims a value for each of two polynomials at the same point. Evaluation is linear in the coefficients, so the first polynomial plus a random multiple of the second evaluates to the first value plus that multiple of the second value. The verifier can therefore pick the multiplier and test one combined claim. The errors in the two claims combine in exactly the two-claim form of the check we just saw.
+
+Here the true values at the point nine are thirty-seven and seven, and a cheater claims thirty-eight and nine, with errors one and two. At the multiplier six, the combined polynomial evaluates to thirty-six while the combined claim comes to six, so the check fails. Only the multiplier twenty-one hides these errors, because that is the single solution of one plus two times the multiplier equals zero.
+
+As with every challenge, the errors must be fixed before the multiplier is known. A cheater who sees the multiplier six first keeps the second error at two and solves for a first error of thirty-one. It then claims twenty-five and nine. Both claims are false, yet the combined claim comes to thirty-six, which matches the combined polynomial's true value.
+
+In linear algebra terms, one row replaces a system of equations, because a random list of weights combines the rows. The technique applies wherever claims combine linearly, which includes the curve points in Pedersen commitments. The chapters on batched openings, accumulation, and folding all build on it.
+
+Removing the verifier with Fiat-Shamir.
+
+Interaction is a problem for proof-carrying data. A proof has to travel with its data and convince anyone who later receives it, including parties that did not exist when the prover ran. A live verifier cannot do that. A recording of an interactive run does not help either, because we saw that anyone can write a valid transcript once the challenge is known in advance.
+
+The observation behind the Fiat-Shamir transform is that the verifier in these protocols contributes nothing but random values. Protocols with this property are called public coin, since the verifier's coins are visible and it keeps no secrets. The challenge needs only two properties, which are that it looks random and that nobody can predict it before the prover's message is fixed. A hash of the prover's message has both properties, provided the hash behaves like a random function.
+
+So the transform replaces each verifier message with a hash of everything sent so far. We keep this running record in an object called a transcript, with two operations. Absorbing adds a value to the record, and squeezing produces a challenge that depends on everything absorbed so far. Prover and verifier run the same sequence of operations, so they obtain the same challenges.
+
+For Schnorr's protocol, the sequence has four parts. Start the transcript with a tag that names the protocol. Absorb the public point. Absorb the announced point. Then squeeze the challenge.
+
+The toy examples use a small hash over the field of forty-three elements, which we'll describe shortly. On real curves, moving values between the two fields of a curve cycle takes more care, and the chapters on curve cycles and endoscalars cover that step.
+
+Let's run it. The prover starts the transcript with the tag and the public point, computes the announced point with mask twenty-nine, and absorbs it. Squeezing gives the challenge ten, and the response comes to twenty modulo forty-three. The prover publishes the announced point and the response as the proof. The verifier replays the same transcript steps, gets the challenge ten, and confirms the equation.
+
+The proof is now a single message that anyone can check at any time.
+
+The challenge depends on the commitment, which restores the ordering Schnorr's protocol needs. A prover cannot choose the announced point after the challenge, because a different point produces a different challenge. Changing the announced point in our run moves the challenge from ten to five, and the old response no longer satisfies the check. Later challenges also depend on all earlier messages, because the transcript keeps its state between squeezes.
+
+Omitting data from the transcript.
+
+The transform is safe only when the transcript includes everything the verifier would have seen before choosing the challenge. Leaving out a value lets a prover choose that value after seeing the challenge, which is the earlier attack in a new form. These mistakes have happened in deployed code. Trail of Bits named the class Frozen Heart in its disclosure of such flaws in implementations of Girault's proof of knowledge, Bulletproofs, and PLONK.
+
+Suppose first that the transcript absorbs the tag and the public point but not the announced point. The challenge is then fixed before the commitment exists, so the early-challenge forgery works directly, with no search. Our flawed transcript gives the challenge thirty-nine. The cheater picks the response thirty-one, solves for the announced point, and both sides of the check agree. The flawed verifier accepts. A verifier that also absorbs the announced point derives the challenge twenty-six instead and rejects the same proof.
+
+This breaks the protocol completely, since a cheater can forge a proof for any instance. The same mistake in a polynomial protocol has the same effect. If the evaluation point does not depend on a polynomial's commitment, the prover can change the polynomial to fit the point.
+
+Suppose instead that the transcript absorbs the announced point but not the public point. Bernhard, Pereira, and Warinschi call this variant weak Fiat-Shamir and examine its pitfalls. The cheater can no longer choose the announced point after the challenge, but it can now choose the statement afterward, by rearranging the check to solve for the public point.
+
+On the toy curve, the cheater starts from a public generator as the announced point. The flawed transcript gives a challenge without looking at any instance. Picking a response and solving gives a new public point, and the check holds. The cheater now has a valid proof for that point, and it never needed that point's discrete log.
+
+The cheater cannot aim at a specific point this way. But a weak transcript also lets an observer adapt someone else's proof to a related statement, and in that case the observer does choose the target. The challenge does not change when the instance changes. So the observer can add a multiple of the generator to the public point and add the challenge times that multiple to the response, and the equation still balances.
+
+Suppose an honest prover publishes the response thirty-five under the flawed transcript, whose challenge is twenty-two. An observer shifts the public point by seven times the generator and computes a new response of thirty-five plus twenty-two times seven, which is seventeen modulo forty-three. The new response passes for the shifted point. The witness for that point is the secret plus seven, and the observer does not know it. A verifier would nevertheless accept this proof as evidence that someone does.
+
+Tags address a less direct problem. If two protocols use the same message format, a proof made for one would also pass in the other, even when the two assign different meanings to the same equation. Starting the transcript with a tag gives each protocol its own stream of challenges, a practice called domain separation. In our run, changing the tag moves the challenge from ten to twelve, and the response twenty fails the check.
+
+Our rule follows from these three cases. The transcript has to include the protocol tag, all public parameters that the tag does not already fix, the full instance, every prover message, and all earlier challenges. The transcript state includes those earlier challenges automatically.
+
+Repeated trials.
+
+The transform also changes the soundness error in a way that is easy to miss. In an interactive run, a cheater gets one attempt, because the verifier sees each failure. In a non-interactive proof, a cheater can try as many transcripts as it likes on its own machine and publish only one that works. This is called grinding.
+
+The toy field makes grinding visible, because each attempt has a chance of about one in forty-three. A cheater repeats the early-challenge trick. It guesses a challenge, picks a response, computes the announced point, and tests whether the hash of the transcript returns its guess. In the site's search, attempt nineteen succeeds, and the honest verifier accepts this proof even though the search never touched the secret.
+
+So a cheater with many attempts has a success probability of up to about the number of attempts times the soundness error of a single attempt. The defense is a field large enough for that product to remain tiny. Suppose a cheater can compute two to the one hundred twenty-eight hashes, and each attempt faces the random-point error at degree two to the thirteen over a field above two to the two hundred fifty-four. Each attempt succeeds with probability below two to the minus two hundred forty-one, and all attempts together succeed with probability below two to the minus one hundred thirteen.
+
+These numbers only illustrate how grinding scales, and we make no claim here about the overall security level of Ragu. The Ragu Book raises the same point in one of its discussions, noting that a complete accounting has to include an adversary's repeated Fiat-Shamir trials.
+
+Poseidon and the random oracle assumption.
+
+Fiat-Shamir needs a hash function, and the choice matters more in recursive proofs than elsewhere. In a recursive proof, the verifier's work runs inside a circuit, so each challenge must be recomputed inside a circuit too. The next chapter explains that a circuit's main cost is its number of field multiplications. A hash such as S H A two five six works with bits and thirty-two bit words, and expressing those operations as field equations takes tens of thousands of constraints for each compression. Ragu instead uses Poseidon, a hash designed to work directly with field elements and to need few multiplications.
+
+Poseidon is built from a permutation of a small array of field elements, called the state. A construction called a sponge turns this permutation into a transcript. The state starts at zero and is split into rate cells, which interact with the outside, and capacity cells, which do not.
+
+Absorbing adds input into the rate cells. Once they are full, or when the prover wants a challenge, the sponge applies the permutation. Squeezing reads values out of the rate cells and applies the permutation again when they run out. The capacity cells prevent a prover from controlling the whole state, because input can reach them only through the permutation.
+
+The permutation.
+
+Each round of the permutation performs three operations on the state. First, it adds a fixed round constant to every cell, which makes the rounds differ and blocks attacks that exploit repeated structure. Second, it applies the S-box, which raises a cell to the fifth power, to some of the cells. This is the only nonlinear step, and it provides the mixing that linear algebra cannot undo. Third, it multiplies the state by a fixed invertible matrix, which spreads each cell's influence to all the others.
+
+The exponent has to make the S-box invertible, because otherwise the round would lose information. Raising to a power is a bijection on a field exactly when the exponent shares no factor with the field size minus one. Over the field of forty-three elements, squaring takes only twenty-two distinct values and cubing takes fifteen, while the fifth power takes all forty-three, because five shares no factor with forty-two. The same reasoning rules out smaller exponents on the Pasta fields.
+
+Computing a fifth power takes three multiplications, which are the square, then the fourth power, then the fourth power times the original. So the S-box is the part of Poseidon that costs gates, which suggests applying it sparingly. Poseidon does so by running two kinds of rounds. Full rounds apply the S-box to every cell, and partial rounds apply it to the first cell only. A permutation places half of its full rounds at the start, all of its partial rounds in the middle, and the remaining full rounds at the end.
+
+A toy Poseidon.
+
+Our examples use a small instance over the field of forty-three elements, with three cells, of which two are rate cells, along with eight full rounds and eight partial rounds. We derive its round constants from S H A two five six and use a Cauchy matrix for the mixing step. This instance has the structure of Poseidon and none of its security, because its parameters were chosen to fit on a page and its outputs have only forty-three possible values.
+
+Running the sponge over the whole transcript from our Fiat-Shamir example absorbs seven elements, which are the tag's length, the two tag elements, and the coordinates of the two points. That takes four permutations, the last of which runs when the prover squeezes. The first entry of the resulting state is the challenge ten we saw earlier.
+
+The assumption.
+
+The Fiat-Shamir argument treats the hash as a random oracle, an imaginary function that returns an independent uniform value for each new input. In that model, a prover has no way to predict a challenge other than computing the hash on the full transcript, and the challenges behave as a verifier's random choices would. The Ragu Book models Poseidon this way.
+
+This assumption is stronger than collision resistance. A Pedersen commitment, for example, is collision resistant under the discrete log assumption, yet it would make a poor source of challenges. Its output moves predictably when its input changes, and a prover could exploit that structure to steer a challenge. A random oracle has no structure of this kind.
+
+No real hash function is a random oracle, because a real hash has a short public description that anyone can analyze. So the assumption is a modeling choice with known limits. Goldwasser and Tauman built a secure identification scheme whose Fiat-Shamir signature version is secure with a random oracle but insecure under every concrete hash. More recently, Khovratovich, Rothblum, and Soukhanov gave a practical attack on a G K R based argument made non-interactive with a concrete hash, producing accepting proofs of false statements.
+
+Neither result targets Ragu, and both show that the assumption needs scrutiny for each protocol. Confidence in Poseidon specifically comes from public cryptanalysis rather than from a proof.
+
+The Ragu Book lists three assumptions, and later chapters refer back to them. The first is the discrete log relation assumption, which says nobody can find a nontrivial linear relation among independently chosen curve generators. The chapter on polynomial commitments uses this for binding. The second is the random oracle assumption, which says Poseidon behaves like a random oracle when deriving Fiat-Shamir challenges. The third is knowledge soundness, which says an efficient prover who produces a valid commitment and evaluation proof knows the underlying polynomial. This is the same kind of property we saw in Schnorr's protocol, applied to the polynomial commitment scheme.
+
+The transcript in Ragu.
+
+Ragu's transcript has the structure we've described, with a few differences that come from its goal of keeping in-circuit hashing cheap. The operation that combines two proofs is called fuse in the code and in much of the Ragu Book, while some pages of the book say merge. This chapter uses fuse, following the code.
+
+The next few points are reconstructed from the code at the commit this site pins, and the authors have not confirmed them. The transcript wraps a Poseidon sponge over the circuit field. A comment in the test vectors states that Ragu's instance has five cells with a rate of four, and a test fixes the cost of one permutation at two hundred eighty-eight gates. The constants themselves live in a dependency outside the repository, and we did not read them.
+
+The transcript constructor absorbs the length of the tag and then the tag itself in sixteen byte chunks. There are two tags, ragu P C D v one for the fuse protocol and ragu I P A v one for compression. The book explains that these tags version the protocol, so proofs made under an earlier tag stop verifying under a later one.
+
+The fuse prover alternates between absorbing a commitment and squeezing challenges, in the pattern from our Fiat-Shamir example. It absorbs the tag and a sequence of eight bridge commitments, with one or two challenges squeezed after each, and the last challenge is called pre beta.
+
+The later chapters explain what each commitment and challenge does. We read the word bridge as reflecting that these commitments are recorded in a form the transcript's field can absorb, which the chapters on curve cycles and endoscalars explain.
+
+The in-circuit cost explains one further choice. Each recursive step has to recompute these challenges inside a circuit, and Ragu divides that work across two internal circuits, hashes one and hashes two, by saving the sponge state between them. The chapter on recursion in Ragu returns to this split.
+
+Absorption without length prefixes.
+
+Ragu's sponge adds input to the state and records no message lengths, so a trailing zero in the buffer has no effect on the result. We can see this on the toy sponge, which follows the same absorption rule. Absorb the seven elements from our transcript. The seventh waits in the buffer alone, so absorbing a zero after it leaves the sum unchanged, and both runs squeeze the challenge ten.
+
+General-purpose transcript libraries prevent this ambiguity by prefixing each message with its length. Ragu prefixes only the tag, and its source comments give efficiency as the reason. The code argues that this is safe because the circuit code fixes how many elements are absorbed at each point and the verifier replays that exact sequence. So a prover has no way to attach a message of a different length, and protocols with different sequences have different tags.
+
+An honest prover that retries.
+
+One challenge in that sequence has a special property. The fuse prover grinds pre beta, re-randomizing the eval commitment and squeezing again until the value falls in the range an endoscalar requires. We treated repeated attempts as a cheater's tool, and here the honest prover uses them to meet a range condition. The chapter on endoscalars explains that requirement.
+
+The Ragu Book and the code differ on two details here. The book's transcript chapter says that Ragu uses the permutation as a fixed-length hash rather than as a full sponge. The code at the pinned commit has a sponge type that alternates absorbing and squeezing over one protocol run, and its documentation restricts it to fixed-length inputs. We read the book as describing the absence of length handling, and this site says sponge, following the code.
+
+The book's configuration guide also gives an illustrative figure of about two hundred eighty constraints for two Poseidon hashes, whereas the test counts two hundred eighty-eight gates for one permutation. The two figures may count different things, and this site uses the test's number.
+
+Ragu and Tachyon are both still changing. Tachyon has not activated on mainnet, and the details here describe one commit rather than a settled specification.
+
+Where this leaves us.
+
+Let's collect the steps. A statement claims that a public instance has a secret witness in a relation, and a proof system has to be complete and sound, with a small soundness error. Schnorr's protocol shows why the challenge has to come after the commitment.
+
+A nonzero polynomial over a field has at most as many roots as its degree, so two different low-degree polynomials rarely agree at a random point. The Schwartz-Zippel lemma extends this to several variables. A random linear combination, usually built from powers of one challenge, replaces many claims with one.
+
+The Fiat-Shamir transform replaces the verifier's challenges with hashes of a transcript, which must include all public data and every prover message. Non-interactive proofs allow repeated trials, so the soundness error has to remain small after multiplying by the number of hashes a cheater can compute. Ragu derives its challenges with Poseidon, which it models as a random oracle.
+
+We still have no way of expressing a real computation as a polynomial claim. The next chapter takes the statement we began with and rewrites it as equations over a field, ending with a single equation that the tools from this chapter can check.

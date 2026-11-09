@@ -1,0 +1,199 @@
+Chapter seventeen. Staging.
+
+Up to now a circuit's trace has been one polynomial, committed all at once. The curve cycles chapter already had to break that habit, because a nested commitment only works if it covers part of a trace that some other circuit runs on. That chapter promised the full mechanism here.
+
+In this chapter we split a trace into pieces that get their own commitments, find out what can go wrong when the pieces are added back together, and build the check that prevents it. Then we use the pieces for the two jobs Ragu needs them for, which are sharing data between circuits and committing to data before a challenge. The chapter closes with a difference that the curve cycles chapter left open, because the book adds the commitments of the pieces and we found no such addition in the code.
+
+Much of what follows is reconstructed from the code at the commit this site pins, and the authors have not confirmed it. That covers the trace layout, the masks, and the closed form of the masks. The small circuits are our own, because the toy curves have too few points to serve as generators for one of Ragu's real circuits. The script behind this chapter runs each of them with the real gate and wiring equations.
+
+A word on names before we start. The book calls the pieces stage polynomials and the remainder the final trace, while the code's module documentation says staging polynomials and writes the remainder with the letter f. This site says stage polynomial and final trace, because f already means the combined quotient from the chapter on batched openings. We say primary and secondary for the two circuits of a cycle until the last part of this chapter, which uses the code's words, native and nested.
+
+Two jobs for a partial commitment.
+
+Two situations in a recursive step call for committing to only part of a trace. The first is a challenge in the middle of a circuit. Suppose a circuit holds many wires and would like to check something about them with a random linear combination. The challenge must depend on those wires, or the prover could pick the wires to suit the challenge. So the circuit has to hash them, and hashing inside a circuit is expensive.
+
+A commitment offers a cheaper route, since it binds all the wires under the same assumption as any Pedersen commitment and takes only two coordinates to hash. The toy sponge shows the size of the saving. One of its permutations costs ninety-six gates before counting anything else, and it takes in two values at a time. Hashing eight wires therefore takes four permutations and three hundred eighty-four gates. Hashing the two coordinates of a commitment to those same eight wires takes one permutation and ninety-six gates, and that cost stays the same however many wires the commitment covers.
+
+The same trade appears in Ragu itself. The first transcript circuit absorbs three bridge commitments with three permutations, and the stages behind those commitments hold many more wires than the two coordinates of each point.
+
+The second situation is data that several circuits have to read. The recursive proofs chapter noted that Ragu divides its verifier into many small circuits, and these circuits work on the same child proofs. Passing the shared data through public inputs would make every shared wire a term of the public input polynomial, which a verifier has to evaluate, and it would also publish any wire that is meant to stay secret. It would be better for each circuit to read the data as if it were part of its own witness.
+
+Both jobs need the same thing, which is a commitment to some of the wires of a trace, made before the rest of the trace exists.
+
+Splitting a trace.
+
+Commitments add, so we can divide a trace into parts that each get their own commitment. We write the trace as a stage polynomial plus a final trace. The prover commits to the stage and to the final trace, and it does not need to commit to their sum, because the commitment to a sum is the sum of the commitments.
+
+We need a small circuit to work with. Keep the secret value three from the arithmetization chapter, and start with the statement that its square plus one equals ten, which takes one multiplication. The trace has four gates, each with four wires, and we'll refer to the wires of a gate in order as the first, second, third, and fourth wire. Gate zero is the system gate. We reserve gate one for the stage, which holds the secret input and also its square, because the next circuits will use that square. This chapter never uses the blinding generator, for a reason we'll reach shortly.
+
+Now read the two parts gate by gate to see which part supplies each wire. In gate zero, the stage puts the value ten on the first wire, and the final trace puts twenty-five there, along with the constant one on the fourth wire. In gate one, the stage holds three on the first wire and nine on the fourth wire, and the final trace holds nothing. Gate two belongs entirely to the final trace, with three, three, and nine on its first three wires. Gate three is unused.
+
+Gate two is the multiplication of three by three to give nine. Its two copies of the input come from the wiring, through rows saying that each input wire equals the first wire of gate one. So the circuit's constraints reach across into the wires of the stage. That reach is the purpose of the arrangement, because the final trace never has to hold the input in the reserved slot.
+
+Gates that hold free values.
+
+The consolidated equation from the arithmetization chapter applies to the sum of the parts, and it includes a gate check for every gate. A stage's gate has to pass that check for whatever values the stage holds, because the prover commits to the stage before anything else about the circuit is known.
+
+The code's wire allocator achieves this with a particular shape. It writes each value to the first wire of a new gate, sets the second and third wires to zero, and writes the next value to that gate's spare fourth wire. This is why a stage carries two values per gate. The two gate equations then read first wire times zero equals zero, and zero times fourth wire equals zero, and these hold for any values. So a stage's gates do no checking of their own. They are storage, and any meaning the values have comes from constraints in the circuits that read them.
+
+The system gate needs separate care. A real circuit has the constant one on the fourth wire of gate zero, but a stage has no such wire. So a stage that held only zeros would commit to the identity point, and a stage with predictable entries could cancel in a combination of commitments. To prevent this, the prover places a random value, called alpha, on the first wire of gate zero in each stage. That is the ten we saw a moment ago. This entry takes the place of the blinding generator in this chapter, and it is not there for hiding, as the chapter on the NARK recorded. The final trace has its own entry there and supplies the constant one. Gate zero passes because its second and third wires are zero.
+
+With those two points settled, the consolidated equation applies to the sum as it does to any trace. The two sides agree at every pair of challenges, while the final trace alone fails at nearly all of them, which shows that the circuit reads its input from the stage polynomial and not from the final trace.
+
+Overlapping the stage.
+
+The split has a weakness. Adding polynomials adds their coefficients in every position, so nothing so far stops the final trace from putting a value in a slot reserved for the stage. To see what that buys a cheater, consider three equations over the field of forty-three elements. The cube of a number, plus the number, plus five, equals thirty-five, and this has the single solution three. The square of a number plus one equals ten, and this has the solutions three and forty, so it shares the value three with the first equation. The square of a number plus one equals seventeen, and this has the solutions four and thirty-nine, neither of which solves the first equation.
+
+Suppose a stage holds three, which the cubing statement needs, and a cheater wants to claim the last equation about that same stage. No single input makes both true, but a stray entry can change what the second circuit reads. The prover leaves the stage commitment alone, so the stage still says three. Then it puts the value one in the reserved slot of the final trace, and its gate two now multiplies four by four to give sixteen. The sum holds four in that slot, and the circuit for the false equation accepts it at every challenge pair, while the commitments still add up. The commitment says one input and the circuit ran on another.
+
+A commitment check cannot find the problem, because a commitment to a sum equals the sum of the commitments however the entries overlap. So we need a check that looks at where a polynomial's nonzero entries sit.
+
+The stage mask.
+
+The requirement is linear in the polynomial's entries. A stage must be zero at every wire of every gate outside its reserved range, apart from the system gate. Call those the forbidden positions. Requiring many values to be zero is the task that a random combination handles, so we could weight each forbidden entry by a power of a random challenge, y, and ask for the total to be zero. If all the forbidden entries are zero, this holds for every y. If any of them is nonzero, the total is a nonzero polynomial in y of low degree, which has few roots.
+
+This combination can be written as a revdot product, and that matters because revdot products are the claims that Ragu's accumulators fold. The revdot product pairs each position with its mirror position, counted from the other end of the list. So we define a public list that holds a power of y wherever the mirror position is forbidden, and zero everywhere else. Its revdot product with the stage gives exactly the combination we wanted. This public list is called the stage mask.
+
+The mask is an ordinary wiring polynomial, for a circuit with one constraint per forbidden wire, each saying that the wire is zero. The code's test version of this circuit numbers each row to match its partner position, so every term of the mask has the same exponent on both of its variables.
+
+Compare this with the consolidated equation, and notice what is missing. A stage polynomial does not satisfy gates or the circuit's constraints on its own, so the claim has no dilation and none of the extra terms of the circuit's equation. It also has no public inputs, so its target is zero. The full claim is that the revdot product of the stage with its mask equals zero.
+
+For our stage, which reserves gate one, the forbidden wires are the eight wires of gates two and three. The stage has nonzero entries at only three positions, and their partners are positions where the mask has zeros. So the product is zero, and it stays zero at all forty-three values of y.
+
+The final trace has its own mask, which forbids gate one, and we can already apply it to the attack we just saw. The stray entry contributes y to the ninth power to the product. That is zero only when y is zero, so forty-two of the forty-three values of y catch it.
+
+The cheater has more freedom than this, because it can also fill the other three wires of gate one in the hope of building roots. We tried every choice, and the best has five nonzero roots out of the forty-two nonzero values of y. Among the choices that also leave gate one satisfied, as the circuit needs, the best has four. The bound for this size of circuit is fifteen in forty-three, and the best rate we found is five in forty-three, which is those four roots plus y equal to zero. On a field of about two to the two hundred fifty-four elements, with a list of two to the thirteen entries, the same bound falls below two to the minus two hundred forty.
+
+The book's description of the mask differs from the code here. The book first says that wires outside the reserved range should be zero, and then says the mask enforces that everything must be nonzero inside the range. The code, at the commit this site pins, forces wires to zero outside the range and says nothing about wires inside it. This site follows the code, and it reads the word nonzero in the book as a slip for zero outside.
+
+A closed form for the mask.
+
+Evaluating the wiring polynomial was one of the verifier's two linear costs in the chapter on the NARK, since an arbitrary circuit has no structure to exploit. A mask does have structure, because it depends only on the product of its two variables, which we'll call t. That makes it far cheaper, and we can derive the form the code uses.
+
+Start from all the powers of t up to the length of the list, and remove the ones that are not forbidden. That removes four powers for the system gate and four for each reserved gate. Within a gate the powers pair off at a fixed distance, half the length of the list, so they factor. The reserved gates become a short factor times a geometric sum over the range. The full sum and the system gate's term do not depend on the stage, and the code calls them the global mask. The remaining term is the notch for this stage. Each geometric sum has a closed form that takes a logarithmic number of multiplications.
+
+A small run confirms the formula. With t equal to twenty, our stage's mask has a global term of eighteen and a notch of twenty-five, so the formula gives thirty-six modulo forty-three. Adding up the eight forbidden powers directly gives the same value.
+
+The saving grows with the circuit. A circuit of two to the eleven gates and a stage of one hundred gates has a mask with seven thousand seven hundred eighty-eight nonzero coefficients. The closed form needs only a few powers of t and two geometric sums. The registry computes the shared global term once, and each mask contributes only its notch.
+
+A mask for every polynomial.
+
+Masks have to cover the final trace as well, because the overlap attack put its stray entry there. The final trace has the same kind of mask, with the reserved range running from the end of the last stage to the top of the trace.
+
+Stages also stack. A stage names its parent and starts where the parent ends, and a stage takes half as many gates as it has values, rounded up. Later in this chapter we add a second stage at gate two, which may use only that gate, and the final trace above it may use only gate three.
+
+The system gate sits outside every mask, which is why each polynomial can have its own random entry there. A mask covers all four wires of its reserved gates, so a stage could in principle put values on the second and third wires. That gains nothing, because the gate equations on the sum still apply to that gate, and circuits read stage data only from the first and fourth wires.
+
+Sharing one mask claim.
+
+A recursive step has two children, so it inherits the same stage twice, once from each. Each stage needs its mask claim checked. We can combine these claims because the mask claim is linear in the polynomial. Multiply the left child's stage by a challenge, z, add the right child's stage, and take the revdot product with the one mask. The target stays zero, because mask claims have no public inputs that would need combining too.
+
+We tried this with our stage as the left child's and a second stage as the right child's. The fold's product with the mask is zero at every pair of challenges, so one claim did the work of two.
+
+The folded claim still catches a bad stage. Put a stray eleven in gate three of the right stage. Among all the challenge pairs, the folded claim passes only at the forty-three pairs where y is zero. A cheater could place two stray entries at one position, one per child, and these can cancel each other at a single value of z, since their combination has degree one in z.
+
+The same step does not work for a circuit's own claim, because the trace appears twice in that equation. Substitute a random combination of two traces into the quadratic part, and three kinds of term come out, namely one with the square of the challenge, one with the challenge itself, and one without it. The middle term mixes the two traces, and it has nothing to match it on the target side.
+
+Here is that failure on our circuit. Fold two honest traces of the squaring circuit, one with input three and one with input five. The two claims are both true, but at our challenges the folded product is thirty while the folded target is twenty-four. The two sides agree at only two of the forty-three values of the folding challenge. So circuit claims go through the error terms of the revdot folding chapter, and each one stays a separate entry going into that fold. Mask claims skip that cost, which the code's documentation lists as a property of gate-free claims.
+
+The code also folds across circuits. Any polynomials with the same reserved range can share a mask, so the final traces of all the circuits that end on the same last stage fold into one claim.
+
+The book and the code order the weights differently. The book's combined claim puts the challenge on the second polynomial. The code's fold gives the first polynomial the highest power of the challenge, as its module documentation also shows. This site follows the code, and the two orders are equally sound.
+
+Two circuits on one stage.
+
+We can now do the second job, sharing data. Two circuits read the same stage by having the same stage polynomial inside their traces. The second circuit here is the cubing statement from the arithmetization chapter, with the input and its square read from the stage. It has one gate checking that the input times itself equals the square, and another gate computing the square times the input. Each circuit has its own final trace and its own wiring, and each consolidated equation holds at every pair of challenges.
+
+The verifier holds three commitments and not four, because the stage commitment appears once and serves both traces. Neither statement mentions the input in its public inputs, and yet the shared commitment ties the two statements to one value.
+
+The difference shows when a prover tries the false pair of claims from the overlap attack. With separate traces, the prover can use three for the cubing circuit and four for the circuit that claims seventeen, and each trace passes its own equation at every challenge pair. The verifier has no way to see that the inputs differ. With one shared stage the prover has to pick one input, and we saw that no single value satisfies both equations. The overlap was the only way around this, and the final mask closes it.
+
+A circuit does not have to read every stage below its own. The builder can skip a stage, which keeps the layout the same but leaves those wires out of the circuit's constraints. The polynomial then does not join the circuit's sum at all.
+
+Linking stages with a bonding polynomial.
+
+Sometimes the same value sits in two different stages, and the two copies need a check. Soon we'll have a second stage carrying a copy of the square that a circuit reads, and something has to tie it to the square in the first stage. A circuit with one gate could do this, but the requirement is only a linear equation between wires, so it needs no gates at all.
+
+The code provides for this case with a bonding polynomial. A bonding polynomial is the wiring polynomial of a circuit that has only constraints, with no gates and an empty instance, and its claim has the same shape as a mask claim. A stage mask is the special case whose constraints each say that one wire is zero. The general case can compare stage wires with each other, and the claim applies to the sum of the stages involved.
+
+Such a polynomial is not allowed to reference the constant wire, so it vanishes when its y variable is zero. That is why its row numbering starts at one. Take two stages that both hold nine, one on the fourth wire of gate one and one on the fourth wire of gate two. The only row says that the difference of those wires is zero, and it sits at the first power of y. So the product is y times the difference, which is zero at all forty-three values of y. If the second stage holds twenty instead, then only y equal to zero hides the difference.
+
+Apart from the masks, Ragu's one such polynomial comes from the nested loading circuit. It requires each point used by the nested walk to equal the same point in the bridge stage that brought it in. Because the claim is linear, a grouped fold sums the stages within each child and combines the two children with the challenge z.
+
+What a mask does not check.
+
+A mask looks only at where entries sit, and it ignores their values. A stage whose wires are supposed to form a curve point or a bit passes its mask for any value. For example, a stage over the field of thirty-one elements that should hold a point of the toy curve passes its mask for all nine hundred sixty-one pairs of coordinates. Only forty-two of those pairs lie on the curve.
+
+Constraints written while a stage is being built do not help, because the framework discards them. So some circuit that reads the stage has to state those constraints as its own. The code gives each reader a choice. Loading a stage as enforced emits the checks in that circuit, and loading it as unenforced relies on some other circuit to do so. The circuits read the same stage polynomial, so one reader's check protects them all. For example, the compute V circuit enforces the preamble while the other circuits load it unenforced, and the bind endoscalar circuit enforces curve membership for the points stages.
+
+Stages across the cycle.
+
+Now we turn to the first job, a challenge that depends on the stage. The curve cycles chapter explained the difficulty. The stage commitment is a point on the toy curve, so its coordinates lie in the field of thirty-one elements, and the sponge that derives challenges has wires in the field of forty-three elements. The fix was a nested commitment, and we can now say exactly what that object is. It is a commitment to a stage of the circuit over the field of thirty-one elements, and the book calls it a nested staged commitment. Its stage holds foreign coordinates as ordinary wires, so it follows every rule we've covered, including the layout, the random entry, and the mask.
+
+The run takes four steps. First, commit to the stage on the main curve. Second, place the two coordinates of that commitment in gate one of a stage belonging to the other circuit. Third, commit to that stage on the other curve, which gives the nested commitment. Fourth, absorb the nested commitment's coordinates into the sponge and squeeze out a challenge, which we'll call w. In our run, w comes out as eleven.
+
+In this way the challenge depends on the input and its square through two commitments, and the sponge absorbed only two wires. The other circuit reads the coordinates as its own witness, so it can run the deferred group operations on them. In our small version, its gate two is the first gate of adding the stage commitment to a fixed point, and it checks that nineteen times twenty is eight modulo thirty-one. Its consolidated equation and both of its masks hold, and the toy curve has too few points for the two remaining gates of the addition.
+
+The mask gives input consistency across the cycle in the same way as before, so a prover cannot run this circuit on other coordinates than the ones the transcript absorbed. Suppose the prover adds seven to the reserved slot in the final trace of this circuit, so that its gates run on the coordinate twenty-nine while the nested commitment still holds twenty-two. Only y equal to zero hides the entry, and the same holds for all thirty nonzero amounts.
+
+Back on the side with forty-three elements, the challenge lets the prover commit to the next stage and finish the trace. Here we use w to compress two wires of the stage into one combined value, the input plus w times the square. Two wires make a small example, and the same reduction applies however many wires the stage holds. Three plus eleven times nine gives sixteen, modulo forty-three. The prover commits to a second stage holding sixteen and nine at gate two. The final trace holds one more gate, which multiplies eleven by nine, and linear rows of the wiring make eleven and sixteen public and check the combined value. The full trace satisfies the consolidated equation at every pair of challenges.
+
+This combining circuit reads the square from the second stage, so it relies on the bonding polynomial to tie that copy to the first stage. The order of the commitments is what makes the combined value meaningful, and a target value shows why. Suppose the prover wants the combined value to be four. With the stage fixed at three and nine, only one of the forty-three values of w gives that result, namely twenty-four. If the prover could see the challenge eleven before fixing the stage, it would set the stored square to four and reach the target for certain.
+
+Instead, every new square changes the stage commitment, then the nested commitment, then the challenge. We ran that whole chain for the forty-two values that give a usable commitment, and one of them, thirty-nine, reaches the target. A search of about forty-three tries succeeds on a field of forty-three elements, which is the repeated-trials problem from the chapter on statements and challenges. The same search has no realistic chance on a field of two hundred fifty-five bits.
+
+The challenge itself reaches the secondary circuit by the route of the curve cycles and endoscalars chapters. In the code, that route is one more stage, committed with its random entry set to zero, so that the primary circuit can recompute its commitment from the challenges.
+
+The book and the code differ on how each side encodes these inputs. The book gives two mirrored encodings, one for each circuit, and treats them by symmetry. It places one commitment in the preamble as an advice wire and the rest of the data on public input wires. The code, at the commit this site pins, is not symmetric, because only the native side has a transcript. Bridge stages play the part of the book's first encoding, and we found no separate second encoding on the nested side, which squeezes nothing. The roles of the wires are also reversed, because the bridge commitment is a public value in the unified instance and stage outputs stay private to the prover. The book's own public inputs chapter agrees with the code on that last point. This site follows the code.
+
+Adding the stage commitments.
+
+The curve cycles chapter recorded a difference that we can now settle. The book asks for two things about staged traces, that the parts do not overlap and that their commitments add up to the commitment to the overall trace. The masks handled the first. In the book's form, the second works like this. The nested commitment to the stage and the commitment to the final trace are points on the other curve. So the next circuit over the field of forty-three elements can add them with three gates, and the sum matches the commitment to the whole trace.
+
+The purpose of this check is to tie the trace that the circuit's claim is about to the stage commitments that the transcript absorbed. A prover who committed to one whole trace and to unrelated stages would fail it.
+
+The code reaches the same goal without a separate commitment to the whole trace. A proof stores one commitment per stage and none for the whole, so there is no second object to compare. Instead, each circuit's claim is defined on the sum of its polynomials. The compute V circuit's claim, for example, sums its own trace with the preamble, query, and eval stages.
+
+These claims then fold into one polynomial, a weighted sum of the traces, by the method of the revdot folding chapter. Two things follow. The prover can compute the commitment to the folded polynomial with a small multi-scalar multiplication over the stored commitments. And the verifying circuit recomputes the folded polynomial's value at a random point from the values of its parts, with each stored polynomial and the folded polynomial opened at that point.
+
+Here is that run for our two circuits, with weights five and eight and an opening point of two. The stage belongs to both traces, so it takes the weight thirteen, while the two final traces take five and eight. The prover gets the folded commitment from three scalar multiplications, and committing to the full polynomial gives the same point. The stage has value nineteen at the opening point, and the two final traces have forty-two and twenty-one. So the verifying circuit computes five times the sum of nineteen and forty-two, plus eight times the sum of nineteen and twenty-one, which is twenty-three modulo forty-three. It compares that with the opening of the folded polynomial, which is also twenty-three.
+
+A polynomial identity checked at a random point is enough, as in the chapter on polynomial encoding, and the addition is linear, so it costs no gates. Evaluating at the shared point also means that a stage read by several circuits needs only one opening.
+
+A cheater who breaks the tie between stage and claim gets caught here. Suppose the prover folds a squaring trace with stage input four, while the stage commitment in the proof still holds three. The polynomial it commits to then differs from the expected combination by a nonzero polynomial of degree fourteen. Of the forty-three opening points, two hide the difference.
+
+Here the book and the code differ, and what follows is reconstructed from the code at the commit this site pins, not confirmed by the authors. The book checks the sum in circuit, in the next circuit on the other field, and its chapter on the polynomial commitment scheme puts both kinds of check in the next secondary circuit. In the code we found no such addition of points. The sum holds by definition of each claim, and the openings tie the stored commitments to the folded claim. The stage checks are revdot claims on the native side and on the nested side, and the parent folds each with the rest of that side's claims. This reading is ours, and the site follows the code. The book's version remains a good way to understand the requirement, which is why this chapter and the curve cycles chapter show it.
+
+Why cheating fails.
+
+Each part of this chapter counted one attack, so here we list what the protection rests on and add one more attack. A prover can try to overlap the parts, and the stage and final masks catch that. It can try to give circuits different inputs, but they read the same stage polynomial, and the opening check ties the folded claim to the stored commitments. It can try to change a stage after seeing a challenge, but the commitment fixes the stage first, and through the bridge stage the commitment fixes the challenge.
+
+It can also try to supply a mask that suits its polynomial, but the registry fixes the mask for each stage, so it cannot select a different range. Checking against the wrong range fails in any case. If we check the first stage against the mask of the second, which forbids gate one, the product vanishes at only three of the forty-three values of y.
+
+The bonding polynomials also differ from circuit wiring in a way that blocks a substitution. A bonding polynomial vanishes when its y variable is zero, and a circuit's wiring equals one there. So a verifier that fixes the constant term to one for a circuit claim cannot be satisfied by a bonding polynomial in its place.
+
+No circuit checks any of these claims in the step that makes it. They join the accumulator, so a false stage leaves a false claim that the next step folds, and the decider rejects it at the end. The last step has no parent to do the checking, so the uncompressed verifier checks the root's own revdot claims, which include its mask claims with target zero.
+
+The argument rests on a few assumptions, and it is informal. Nobody knows a relation among the generators of either curve, so the commitments bind. The transcript hash behaves as a random oracle, each challenge comes after the commitments it depends on, and the challenges y and z come after the stage polynomials they test. A mask's check is only as strong as the degree over the field size, which is negligible for real parameters.
+
+Staging in Ragu.
+
+Our small circuits match the structure of the real ones. The application's own circuit has a single trace with no stages, and the internal circuits are where staging happens. What follows is reconstructed from the code at the commit this site pins, and the authors have not confirmed it.
+
+The native stages form a tree rooted at the points binding stage, and the nested stages form one chain through the bridge stages to the challenge stage.
+
+Each native circuit's claim sums its own trace with the stages it reads, and each final mask covers all the circuits ending on one stage. The next chapter lists them circuit by circuit.
+
+Each endoscaling step sums the first two nested stages, the nested collapse and compute V circuits hold every stage, and the loading polynomial covers the points stage and six of the bridges. The prover randomizes the random entry of each ordinary stage, as the system gate required.
+
+Every stage mask and final mask is one claim across both children, with no dilation and target zero, and the saving is visible in the claim count. In the standard profile, the native side has thirty-three internal circuits, of which twenty-three are endoscaling steps, along with eleven stage masks and five final masks. The count of revdot claims per fuse is eighty-six. Each internal circuit counts once per child, and each mask counts once across both children, which saves sixteen claims.
+
+All of this applies to the Ragu revision this site pins. Tachyon has not activated on mainnet and its design is still changing. It pins a different Ragu revision and runs its steps against a mock of Ragu, so nothing at its pinned commit executes these stages.
+
+Where this chapter leaves us.
+
+We split a trace into stage polynomials and a final trace, each with its own commitment, so that some wires are fixed before the others exist. Stage values sit in gates that accept any values, so meaning comes only from the circuits that read them, and one reading circuit has to enforce it.
+
+Adding parts can hide an overlap that no commitment check sees, so each part has a mask, a gate-free revdot claim that forbidden wires are zero. A mask has a closed form, and it folds across polynomials without error terms because its claim is linear with target zero. Circuits share data by including the same stage in their sums, bonding polynomials compare wires between stages, and a nested staged commitment lets the transcript absorb a commitment's coordinates. The book adds stage commitments to reach a trace commitment, while the code ties each sum to the stored commitments by openings at a random point.
+
+We now hold every part that the internal circuits use, namely folding, the registry, endoscalars, and stages. The next chapter assembles them into the recursive step that Ragu runs.
