@@ -14,6 +14,7 @@ with contextlib.redirect_stdout(io.StringIO()):
     import nark
 from nark import (GENS, K_POLY, Q, R_FALSE, R_HONEST, TOY, Transcript, U, add, commit, ev, g_coeffs, inv, lin, msm, mul,
                   revdot, table, vec)
+from pcd_intro import L as LIST
 from pcd_intro import tally
 from toy_curve import B_DUAL, P, curve_points, show
 from toy_curve import add as add_any
@@ -332,9 +333,15 @@ def verifier_costs(n, bits):
 LINEAR_ROWS = ('s', 'g', 'Ghat')
 
 
-def verifier_gates(n, bits, linear=True):
+def merge_gates(n, bits):
+    """The verifier's side of one merge in accumulation.md: 2k + 3 scalar multiplications."""
+    return (2 * lg(4 * n) + 3) * m_gates(bits)
+
+
+def verifier_gates(n, bits, linear=True, merge=False):
     costs = verifier_costs(n, bits)
-    return sum(v for key, v in costs.items() if linear or key not in LINEAR_ROWS)
+    total = sum(v for key, v in costs.items() if linear or key not in LINEAR_ROWS)
+    return total + (merge_gates(n, bits) if merge else 0)
 
 
 # The formulas must agree with the trace of the toy level-1 circuit.
@@ -351,11 +358,11 @@ def next_n(gates):
     return n
 
 
-def growth(bits, linear, children=1, f=2, levels=6, start=2):
+def growth(bits, linear, children=1, f=2, levels=6, start=2, merge=False):
     """Level i+1's circuit holds the step and one verifier per child of level i."""
     rows, n = [], start
     for level in range(levels):
-        gates = f + children * verifier_gates(n, bits, linear) if level else f
+        gates = f + children * verifier_gates(n, bits, linear, merge) if level else f
         n = next_n(gates) if level else start
         rows.append((level, gates, n))
     return rows
@@ -402,6 +409,10 @@ def fragments():
     gate_m2 = next(g_ for g_ in split_rows if g_[1] == PI0['c2_x'] and g_[2] == m2)
     gate_k = next(g_ for g_ in g if g_[3] == 'k' and g_[0] == (CHAIN[1] - 5) % Q)
     assert gate_left[1] == (9 + 23 + 3) and (m1 + m2) % Q == left
+    k_const = (CHAIN[1] - 5) % Q
+    assert K_POLY == [0, 0, 0, k_const, 0, 0, 0, 0] and TOY.rows[3] == {('a', 0): 1, ('c', 1): 1}
+    frag['k-gate'] = (f'The third gate in the table below computes the inner proof\'s public input, and its form comes from Chapter 09. The short proof uses Chapter 09\'s circuit without the constant wire. Its last constraint, the one weighted by $Y^3$, reads $z_0 + z_0^3 = z_1 - 5$, because the constant 5 of the step moves to the public side. Chapter 09 wrote the start value as $x$, but here $x$ names a challenge, so we use the chain\'s $z_0$ instead. '
+                      f'The instance is therefore $k(Y) = (z_1 - 5)\\,Y^3$, which for $z_1 = {CHAIN[1]}$ is the ${k_const}Y^3$ of that chapter. The circuit computes $y^3$ with 2 gates and multiplies it by $z_1 - 5$. Forming $z_1 - 5$ from the wire $z_1$ is a linear operation and costs nothing, so the product costs the one gate shown.')
     frag['example-gates'] = table(['Part', 'Left wire', 'Right wire', 'Output wire', 'What the gate computes'], [
         ['Step', f_rows[0][0], f_rows[0][1], f_rows[0][2], '$z_1 \\cdot z_1$'],
         ['Step', f_rows[1][0], f_rows[1][1], f_rows[1][2], '$z_1^2 \\cdot z_1$'],
@@ -412,10 +423,19 @@ def fragments():
     ])
     frag['example-eqs'] = (f'Three linear constraints then finish this part, and they cost no gates. The step requires ${f_rows[1][2]} + {CHAIN[1]} + 5 = {CHAIN[2]}$ modulo 43, which is the public $z_2$. The split check requires ${m1} + {m2} = {left}$. '
                            f'The target check requires the proof\'s $c_1(0) = {PI0["c1_0"]}$ to equal the computed $k({CH["y"]}) = {OUT["k"]}$.')
+    x7v, x8v = pow(CH['x'], 7, Q), pow(CH['x'], 8, Q)
+    assert (gate_m1[0], gate_m2[0]) == (x7v, x8v)
+    frag['split-recap'] = (f'With $4n = 8$, $x = {CH["x"]}$ and $z = {CH["z"]}$, the run had $r(x) = {PI0["r_x"]}$, $r(xz) = {PI0["r_xz"]}$, $s(x, y) = {OUT["s"]}$, $t(x, z) = {OUT["t"]}$, '
+                           f'$c_1(x^{{-1}}) = {PI0["c1_inv"]}$ and $c_2(x) = {PI0["c2_x"]}$, and the powers $x^7 = {x7v}$ and $x^8 = {x8v}$.')
 
     d0 = BASE_DUAL
-    frag['scalar-mul'] = (f'Take the point $P\' = {show(d0)}$ on $E\'$ and the scalar ${SCALAR}$, written in binary as ${bin(SCALAR)[2:]}$. The circuit spends {sm_per["bit"]} gates to show that the digits are bits, {sm_per["double"]} on doublings, {sm_per["add"]} on additions and {sm_per["select"]} on selecting by each bit, for a total of {len(tr_sm.gates)} gates. '
-                          f'Its output wires hold ${show(sm_out)}$, which equals ${SCALAR} \\cdot P\'$ computed outside the circuit. In general a scalar of $b$ bits costs $10b - 9$ gates here. That is {m_gates(6)} gates for the 6-bit scalars of $\\F_{{43}}$ and ${m_gates(255):,}$ gates for a 255-bit scalar.')
+    frag['scalar-mul'] = (f'The toy proof\'s scalars are elements of $\\F_{{{Q}}}$, which have {Q.bit_length()} bits. The curve $E$ cannot run inside this circuit, so we measure the cost per bit on $E\'$ and apply it to {Q.bit_length()}-bit scalars. '
+                          f'Take the point $P\' = {show(d0)}$ on $E\'$ and the scalar ${SCALAR}$, written in binary as ${bin(SCALAR)[2:]}$. The circuit spends {sm_per["bit"]} gates to show that the digits are bits, {sm_per["double"]} on doublings, {sm_per["add"]} on additions and {sm_per["select"]} on selecting by each bit, for a total of {len(tr_sm.gates)} gates. '
+                          f'Its output wires hold ${show(sm_out)}$, which equals ${SCALAR} \\cdot P\'$ computed outside the circuit. '
+                          f'For a scalar of $b$ bits whose top bit is 1, the circuit starts the running point at $P\'$, so the top bit needs no doubling, addition or selection. Each of the other $b - 1$ bits costs {sm_per["double"] // 4} gates for the doubling, {sm_per["add"] // 4} for the addition and {sm_per["select"] // 4} for the selection, and every one of the $b$ bits costs 1 gate for its bit check. '
+                          f'So the scalar costs $b + ({sm_per["double"] // 4} + {sm_per["add"] // 4} + {sm_per["select"] // 4})(b - 1) = 10b - 9$ gates here, which is ${m_gates(255):,}$ gates for a 255-bit scalar. '
+                          f'For the toy proof\'s {Q.bit_length()}-bit scalars that gives $10 \\cdot {Q.bit_length()} - 9 = {m_gates(Q.bit_length())}$ gates, which is the stand-in price we use for each of its scalar multiplications. '
+                          f'The stand-in is needed because the scalars of $E\'$ itself have only {(len(EP) + 1).bit_length()} bits, since $E\'$ has {len(EP) + 1} points.')
 
     # The toy verifier, measured.
     names = [('s', 'Compute $s(x, y)$', True), ('t', 'Compute $t(x, z)$', False), ('k', 'Compute $k(y)$', False),
@@ -430,9 +450,26 @@ def fragments():
             out.append([label, f'${costs[key]:,}$', '**Linear**' if is_lin else ('Logarithmic' if key in ('t', 'split', 'ipa', 'hash', 'small_group') else 'Constant')])
         return out
 
+    # The derivation of the linear rows on the toy circuit.
+    rows_ = TOY.rows
+    terms = sum(len(r_) for r_ in rows_)
+    first_terms = len(rows_[0])
+    toy_n = 2
+    xs, ys, ws = 4 * toy_n - 2, len(rows_) - 2, terms - first_terms
+    assert xs + ys + ws == TOY_COSTS['s'] == 10 * toy_n - 6 and len(rows_) == 2 * toy_n and terms == 4 * toy_n
+    assert LEVEL1.count('s') == TOY_COSTS['s']
+    kk = k_toy
+    assert TOY_COSTS['g'] == (kk - 1) + (4 * toy_n - 1) and TOY_COSTS['Ghat'] == 4 * toy_n * m_gates(6)
+    frag['linear-rows'] = (f'For $s(x, y)$, the circuit first needs the powers $x^2, \\ldots, x^{{{4 * toy_n - 1}}}$, which take {xs} gates, and the powers $y^2, \\ldots, y^{{{len(rows_) - 1}}}$ for the {len(rows_)} constraints, which take {ys}. '
+                           f'Our circuit has {terms} wiring terms. Each one multiplies a power of $y$ by a power of $x$, which takes a gate, except the {first_terms} terms of the first constraint, whose power of $y$ is $y^0 = 1$. Multiplying by the wiring coefficient is free because the coefficient is a constant. That gives ${xs} + {ys} + {ws} = {TOY_COSTS["s"]}$ gates.\n\n'
+                           f'For the coefficients of $g$, the first coefficient is the product of the {kk} inverted challenges $u_j^{{-1}}$, which takes {kk - 1} gates, and each of the other {4 * toy_n - 1} coefficients is an earlier coefficient times one $u_j^2$, which takes one gate. That gives ${kk - 1} + {4 * toy_n - 1} = {TOY_COSTS["g"]}$.\n\n'
+                           f'The point $\\hat{{G}}$ is a sum of {4 * toy_n} generators, each scaled by one coefficient of $g$, so it costs {4 * toy_n} scalar multiplications at {m_gates(6)} gates each, which is ${TOY_COSTS["Ghat"]}$.')
+    frag['linear-general'] = (f'The same counting works for any $n$. The powers of $x$ take $4n - 2$ gates. If a circuit keeps our density of $2n$ constraints and $4n$ wiring terms, with two terms in the first constraint, the powers of $y$ take $2n - 2$ gates and the wiring terms take $4n - 2$. '
+                              f'So $s(x, y)$ costs $(4n - 2) + (2n - 2) + (4n - 2) = 10n - 6$ gates, which is {TOY_COSTS["s"]} at $n = {toy_n}$. With $k = \\log_2 4n$ challenges, the coefficients of $g$ cost $(k - 1) + (4n - 1)$ gates, and $\\hat{{G}}$ costs $4n \\cdot m$ for a scalar multiplication of $m$ gates.')
+
     toy_total = sum(TOY_COSTS.values())
     frag['toy-costs'] = table(['Verifier step', 'Gates for $4n = 8$', 'Growth in $n$'], cost_rows(TOY_COSTS) + [['Total', f'${toy_total:,}$', '']])
-    frag['toy-total'] = (f'The step itself took {LEVEL1.count("F")} gates, and verifying the proof of that same step takes ${toy_total:,}$. The field rows of this table come from running the gates on the values of the Chapter 09 proof, and a check confirms that the trace and the formula agree. The hash row is {hash_perms(3)} permutations at {PERM_GATES} gates each, and the scalar multiplications count {4 + 2 * 3 + 2 + 8} at {m_gates(6)} gates each.')
+    frag['toy-total'] = (f'The step itself took {LEVEL1.count("F")} gates, and verifying the proof of that same step takes ${toy_total:,}$. The field rows of this table come from running the gates on the values of the Chapter 09 proof, and the script confirms that each count from the run equals the formula for that row. The hash row is {hash_perms(3)} permutations at {PERM_GATES} gates each. The last two rows are scalar multiplications at {m_gates(6)} gates each, {TOY_COSTS["small_group"] // m_gates(6)} of them in the first and {TOY_COSTS["Ghat"] // m_gates(6)} in the second.')
 
     # Production size.
     prod = verifier_costs(2048, 255)
@@ -440,7 +477,80 @@ def fragments():
     linear_part = sum(prod[key] for key in LINEAR_ROWS)
     assert prod['Ghat'] == 8192 * 2541 and total > 2 * 10 ** 7
     assert prod['g'] > 2048 and 8192 > 2048
-    frag['prod-costs'] = table(['Verifier step', 'Gates for $4n = 2^{13}$, 255-bit scalars', 'Growth in $n$'], cost_rows(prod) + [['Total', f'${total:,}$', '']])
+    # Each formula must reproduce both the toy and the production counts.
+    formulas = {
+        's': ('$(4n - 2) + (2n - 2) + (4n - 2)$', lambda n_, k_, m_: 10 * n_ - 6),
+        't': ('$3$ inversions, $8$ products, and $5$ powers by square-and-multiply', None),
+        'k': ('$y^2$, $y^3$, then one product', lambda n_, k_, m_: 3),
+        'split': ('$1$ inversion, $2k - 2$ for $x^{4n-1}$, $1$ for $x^{4n}$, $3$ products', lambda n_, k_, m_: 2 * k_ + 3),
+        'batch': ('$5$ inversions and $5$ products for the quotients, $4$ for $\\alpha$, $3$ for $\\beta$', lambda n_, k_, m_: 17),
+        'ipa': ('$k$ inversions, $2k$ squares, $2k - 1$ for $g(u)$, $k - 1$ powers of $u$, $1$ for $\\hat{a} \\hat{b}$', lambda n_, k_, m_: 6 * k_ - 1),
+        'g': ('$(k - 1) + (4n - 1)$', lambda n_, k_, m_: (k_ - 1) + (4 * n_ - 1)),
+        'hash': ('$(2k + 11)$ permutations at $96$ gates', lambda n_, k_, m_: (2 * k_ + 11) * PERM_GATES),
+        'small_group': ('$(2k + 6) \\cdot m$', lambda n_, k_, m_: (2 * k_ + 6) * m_),
+        'Ghat': ('$4n \\cdot m$', lambda n_, k_, m_: 4 * n_ * m_),
+    }
+    for n_, bits_ in ((2, 6), (2048, 255), (64, 255)):
+        costs_ = verifier_costs(n_, bits_)
+        for key, (_, fn) in formulas.items():
+            if fn is not None:
+                assert fn(n_, lg(4 * n_), m_gates(bits_)) == costs_[key], (key, n_)
+    assert TOY_COSTS['t'] == 11 + 9 and prod['t'] == 11 + 69
+    SMALL = ('t', 'k', 'split', 'batch', 'ipa')
+    small_fn = lambda k_: 14 * k_ + 24
+    for n_ in (2, 64, 2048, 2 ** 17):
+        c_ = verifier_costs(n_, 255)
+        assert c_['t'] == 6 * lg(4 * n_) + 2
+        assert sum(c_[key] for key in SMALL) == small_fn(lg(4 * n_))
+    prod_rows = []
+    for row, (key, _, _) in zip(cost_rows(prod), names):
+        if key in SMALL:
+            continue
+        row.insert(1, formulas[key][0])
+        prod_rows.append(row)
+        if key == 's':
+            prod_rows.append(['Other field work: $t(x, z)$, $k(y)$, the split and target checks, $f(u)$ and $v$, the IPA scalars and $\\hat{b}$', '$14k + 24$',
+                              f'${sum(prod[key] for key in SMALL):,}$', 'Logarithmic'])
+    k_prod = lg(4 * 2048)
+    split_parts = (1, 2 * k_prod - 2, 1, 3)
+    assert sum(split_parts) == 2 * k_prod + 3 == prod['split'] and TOY_COSTS['split'] == 2 * 3 + 3
+    small_prod = small_fn(k_prod)
+    detail_rows = [(f'Compute $t(x, z)$', formulas['t'][0], '$6k + 2$'), ('Compute $k(y)$', formulas['k'][0], '$3$'),
+                   ('Split and target checks', formulas['split'][0], '$2k + 3$'), ('Derive $f(u)$ and $v$', formulas['batch'][0], '$17$'),
+                   ('IPA scalars and $\\hat{b}$', formulas['ipa'][0], '$6k - 1$')]
+    frag['other-field'] = (f'The five small field rows of the toy table, which compute $t(x, z)$, $k(y)$, the split and target checks, $f(u)$ and $v$, and the IPA scalars and $\\hat{{b}}$, together cost $14k + 24$ gates. '
+                           f'That is {TOY_COSTS["t"] + TOY_COSTS["k"] + TOY_COSTS["split"] + TOY_COSTS["batch"] + TOY_COSTS["ipa"]} at $k = 3$, matching the toy table, and {small_prod} at $k = {k_prod}$, or {100 * small_prod / total:.3f} percent of the production verifier\'s gates, so none of the conclusions below depend on them. '
+                           f'The next table merges them into one row, and the box below lists their parts for readers who want them.\n\n'
+                           f'::: details Parts of the five field rows\n\n'
+                           f'Each of these rows is a fixed number of inversions and products plus a few powers computed by square-and-multiply. A power $x^e$ computed that way costs one squaring for each bit of $e$ after the first, plus one product for each further bit that is 1. '
+                           f'The exponent $4n - 1 = 2^k - 1$ has $k$ bits, all equal to 1, so $x^{{4n-1}}$ costs $(k - 1) + (k - 1) = 2k - 2$ gates.\n\n'
+                           f'The split and target checks show how the counting goes. The inversion that gives $x^{{-1}}$ costs 1 gate. The circuit computes $x^{{4n-1}}$ with $2k - 2$ gates, and one more product turns that into $x^{{4n}}$. '
+                           f'The split check then needs the three products shown in the table of example gates, and the target check is a linear comparison that costs nothing. '
+                           f'So the row costs $1 + (2k - 2) + 1 + 3 = 2k + 3$ gates, which is {TOY_COSTS["split"]} at $k = 3$, as in the toy table. The other rows follow the same pattern.\n\n'
+                           + table(['Verifier step', 'Parts', 'Gates'], [list(r_) for r_ in detail_rows]) +
+                           f'\n\n:::')
+
+    frag['prod-costs'] = table(['Verifier step', 'How the count arises, with $k = \\log_2 4n$', 'Gates for $4n = 2^{13}$, 255-bit scalars', 'Growth in $n$'], prod_rows + [['Total', '', f'${total:,}$', '']])
+    # Where 2k + 6 and 2k + 11 come from.
+    n_beta = len(nark.spolys)
+    assert (4 + 2 * k_prod + 2) == 2 * k_prod + 6 and n_beta + 1 == 4
+    tag_len = 1 + len(nark.TAG)
+    phases = [(f'the {tag_len} elements of the domain tag and the 2 coordinates of $R$', tag_len + 2),
+              ('the 4 coordinates of $C_1$ and $C_2$', 4), ('the 5 evaluations', 5), ('the 2 coordinates of $F$', 2),
+              ('the 3 values at $u$', 3)]
+    per_phase = [-(-e // 2) for _, e in phases]
+    fixed_perms = sum(per_phase)
+    assert all(hash_perms(k_) == fixed_perms + 2 * k_ for k_ in (3, 13, 19))
+    parts = [f'{name} take {cnt}' for (name, _), cnt in zip(phases, per_phase)]
+    phase_text = ', '.join(parts[:-1]) + ', and ' + parts[-1]
+    settled = verifier_costs(2 ** 17, 255)
+    settled_total = sum(v for key, v in settled.items() if key not in LINEAR_ROWS) + 2
+    k_set = lg(4 * 2 ** 17)
+    frag['log-rows'] = (f'The other rows depend on $n$ only through $k = \\log_2 4n$, the number of rounds of the inner product argument. Two of them, the scalar multiplications and the transcript replay, hold almost all of their gates, and Section 6 relies on both, so we derive their counts. The scalar multiplications come from three places. '
+                        f'Forming $P$ takes {n_beta} multiplications by $\\beta$, one for each of the three commitments folded into the running point, and $v \\cdot U$ takes one more, which makes the 4 that Chapter 09\'s cost table lists. '
+                        f'Each of the $k$ rounds of the inner product argument scales $L_j$ by $u_j^{{-2}}$ and $R_j$ by $u_j^2$, which makes $2k$. The final equation scales $\\hat{{G}}$ by $\\hat{{a}}$ and $U$ by $\\hat{{a}}\\hat{{b}}$, which makes 2. The total is $4 + 2k + 2 = 2k + 6$, or {2 * k_prod + 6} at $k = {k_prod}$.\n\n'
+                        f'For the hash, recall that the toy sponge holds 2 field elements of input at a time and [permutes only when it has to](./statements-and-challenges.md#_11-poseidon-and-the-random-oracle-assumption), which happens when a third element arrives or when a challenge is requested. A squeeze after new input yields 2 challenges. So a group of $e$ absorbed elements followed by a squeeze costs $\\lceil e / 2 \\rceil$ permutations in all, the last of which is the squeeze. '
+                        f'The transcript has five such groups before the inner product argument. Of these, {phase_text}, which makes {fixed_perms}. Each round of the argument then absorbs the 4 coordinates of $L_j$ and $R_j$ and squeezes $u_j$, which takes 2. The total is $2k + {fixed_perms}$ permutations.')
     frag['prod-budget'] = (f'The linear rows account for ${linear_part:,}$ of the ${total:,}$ gates, which is {100 * linear_part / total:.1f} percent. A circuit at this size has room for $n = 2,048$ gates. The coefficients of $g$ alone need ${prod["g"]:,}$, and $\\hat{{G}}$ would exceed the limit even if a scalar multiplication cost one gate, because there are $8,192$ of them.')
 
     # Removing a linear step: a wrong circuit.
@@ -463,7 +573,7 @@ def fragments():
     field_checks(tr_real, pi_other, CHAIN[1])
     assert not tr_real.ok() and dict(tr_real.checks)['target'] and not dict(tr_real.checks)['split']
     assert s_real != s_other
-    frag['drop-s'] = (f'The value $x = 4$ does not satisfy our statement, since $4^3 + 4 + 5 = {F(4)}$, not 35. It does satisfy a different circuit, $x^3 + {lam} x = 30$, which differs from ours in one wiring coefficient. A prover who builds its proof from that other circuit passes the split and target checks if the verifier reads $s(x, y) = {s_other}$ from the proof. When the verifier computes the value from our circuit it gets ${s_real}$, and the split check fails.')
+    frag['drop-s'] = (f'The start value $z_0 = 4$ does not satisfy our statement, since $4^3 + 4 + 5 = {F(4)}$, not 35. It does satisfy a different circuit, $z_0^3 + {lam} z_0 = 30$, which differs from ours in one wiring coefficient. A prover who builds its proof from that other circuit passes the split and target checks if the verifier reads $s(x, y) = {s_other}$ from the proof. When the verifier computes the value from our circuit it gets ${s_real}$, and the split check fails.')
 
     # Removing a linear step: a claimed G-hat.
     honest_v, P_pt = nark.sv, nark.sP
@@ -515,30 +625,8 @@ def fragments():
     tr_fx = Trace()
     field_checks(tr_fx, pi_false_fixed, CHAIN[1], CH)
     assert not tr_fx.ok()
-    frag['free-challenge'] = (f'Take the false trace with $x = 4$ and the statement 35. Of the {Q * Q} pairs $(z, y)$, {len(passing)} satisfy the revdot equation for this trace, the same count as in [Chapter 09](./nark.md#the-prover-follows-every-instruction). All of them have $y = 0$, because the gates of this trace hold and only the constraint weighted by $y^3$ fails. If the circuit read its challenges from the witness, the prover could set $(z, y) = ({pair[0]}, {pair[1]})$, and every field check in the level-1 circuit would pass. At the hand-picked pair $({CH["z"]}, {CH["y"]})$, the same false trace fails.')
+    frag['free-challenge'] = (f'Take the false trace with $z_0 = 4$ and the statement 35. Of the {Q * Q:,} pairs $(z, y)$, {len(passing)} satisfy the revdot equation for this trace, the same count as in [Chapter 09](./nark.md#the-prover-follows-every-instruction). All of them have $y = 0$, because the gates of this trace hold and only the constraint weighted by $y^3$ fails. If the circuit read its challenges from the witness, the prover could set $(z, y) = ({pair[0]}, {pair[1]})$, and every field check in the level-1 circuit would pass. At the hand-picked pair $({CH["z"]}, {CH["y"]})$, the same false trace fails.')
     frag['hash-cost'] = (f'Replaying the transcript for $4n = 8$ takes {hash_perms(3)} permutations of the toy sponge. The sponge has {sum(nark.SCHEDULE)} S-boxes per permutation, each computing $v^5$ with {SBOX_GATES} gates, so the replay costs ${hash_perms(3) * PERM_GATES:,}$ gates.')
-
-    # Tampering with the inner proof.
-    keys = ('r_x', 'r_xz', 'c1_0', 'c1_inv', 'c2_x')
-    tampered, caught = 0, 0
-    for key in keys:
-        for val in range(Q):
-            if val == PI0[key]:
-                continue
-            tampered += 1
-            tr = Trace()
-            field_checks(tr, dict(PI0, **{key: val}), CHAIN[1])
-            caught += not tr.ok()
-    assert tampered == 5 * 42 and caught == tampered
-    wrong_state = 0
-    for z1 in range(Q):
-        if z1 == CHAIN[1]:
-            continue
-        tr = Trace()
-        field_checks(tr, PI0, z1)
-        wrong_state += not tr.ok()
-    assert wrong_state == 42
-    frag['tamper'] = (f'Starting from the honest level-0 proof, we changed each of its five evaluations to each of the 42 other values and ran the field checks of the level-1 circuit, which makes {tampered} altered proofs. All {caught} left the circuit unsatisfied. We also kept the proof and replaced its public state $z_1 = {CHAIN[1]}$ with each of the 42 other values, and all {wrong_state} failed the target check. In these runs the challenges stay fixed, and a real transcript would also change them.')
 
     # ---- Growth ----
     bits = 255
@@ -549,9 +637,18 @@ def fragments():
     rows = []
     for (lv, ga, na), (_, gb, nb) in zip(lin_rows, log_rows):
         rows.append([lv, f'${big(ga)}$', f'${power(na)}$', f'${gb:,}$', f'${power(nb)}$'])
-    frag['growth'] = table(['Level', 'Gates with the linear steps', 'Size $n$ needed', 'Gates without them', 'Size $n$ needed'], rows[:6])
+    frag['growth'] = table(['Level', 'Gates with the linear steps in the circuit', 'Size $n$ needed', 'Gates with the linear steps moved out', 'Size $n$ needed'], rows[:6])
     fixed = log_rows[-1][2]
-    frag['growth-fixed'] = (f'Without the linear steps, the size settles at $n = {power(fixed)}$ and stays there, because a circuit of that size can verify a proof from a circuit of the same size.')
+    assert fixed == 2 ** 17 and settled_total == log_rows[-1][1]
+    merge_rows = growth(bits, False, levels=10, merge=True)
+    merge_fixed = merge_rows[-1][2]
+    assert merge_rows[-2][2] == merge_fixed and merge_fixed > fixed
+    frag['growth-fixed'] = (f'With the linear steps moved out, the size settles at $n = {power(fixed)}$ and stays there, because a circuit of that size can verify a proof from a circuit of the same size. '
+                            f'At that size $k = {k_set}$, and the scalar multiplications and the transcript replay hold ${settled["small_group"] + settled["hash"]:,}$ of the ${settled_total:,}$ gates, so what remains in the circuit is almost entirely group operations and hashing.\n\n'
+                            f'The last two columns leave out a cost. Moving a linear step out of the circuit does not make it disappear, because the circuit must then check that the postponed claim was handled correctly. '
+                            f'The [next chapter prices](./accumulation.md#what-each-party-pays) the verifier\'s side of the merge that postpones $\\hat{{G}}$ at $2k + 3$ scalar multiplications. '
+                            f'Adding those to the verifier at every level moves the settled size from ${power(fixed)}$ to ${power(merge_fixed)}$, and whatever replaces the computation of $s(x, y)$ adds more. '
+                            f'So the settled size in the table is a lower bound. What this section needs is only that some settled size exists, and it does, because each added cost is still logarithmic.')
     slope_b = 14 + 4 * m_gates(bits)
     slope_one = 14 + 4
     frag['slope'] = (f'Counting the coefficient of $n$ in our rows gives 10 gates per $n$ for $s(x, y)$, 4 for the coefficients of $g$, and $4m$ for $\\hat{{G}}$, where $m$ is the cost of one scalar multiplication. So $c = 14 + 4m$. With $m = {m_gates(bits):,}$ that is $c = {slope_b:,}$, and even the impossible $m = 1$ gives $c = {slope_one}$.')
@@ -563,20 +660,44 @@ def fragments():
     tree_lin = growth(bits, True, children=2)
     tree_log = growth(bits, False, children=2, levels=8)
     assert tree_log[-1][2] == tree_log[-2][2]
-    frag['tree-growth'] = (f'With the linear steps, level 1 already needs ${power(tree_lin[1][2])}$ gates, where the chain needed ${power(lin_rows[1][2])}$, and level 2 needs ${power(tree_lin[2][2])}$. Without them the size again settles, now at $n = {power(tree_log[-1][2])}$ compared with the chain\'s ${power(fixed)}$. Doubling the verifier work added {lg(tree_log[-1][2]) - lg(fixed)} to the exponent.')
+    frag['tree-growth'] = (f'With the linear steps, level 1 already needs ${power(tree_lin[1][2])}$ gates, where the chain needed ${power(lin_rows[1][2])}$, and level 2 needs ${power(tree_lin[2][2])}$. With them moved out, the size again settles, now at $n = {power(tree_log[-1][2])}$ compared with the chain\'s ${power(fixed)}$. Doubling the verifier work added {lg(tree_log[-1][2]) - lg(fixed)} to the exponent.')
     assert lg(tree_log[-1][2]) >= lg(fixed)
 
-    # Ragu-shaped node counts for the tally of chapter 02.
-    entries = 8
-    balanced_nodes, balanced_real = 2 * entries - 1, 2 * entries - 2
-    balanced_unit = 2 * balanced_nodes - balanced_real
-    chain_nodes, chain_real = entries, entries - 1
-    chain_unit = 2 * chain_nodes - chain_real
-    assert (balanced_nodes, balanced_real, balanced_unit) == (15, 14, 16) and (chain_nodes, chain_real, chain_unit) == (8, 7, 9)
-    frag['tree-shapes'] = table(['Shape', 'Nodes', 'Inputs carrying a tally', 'Unit inputs', 'Proofs verified inside circuits', 'Proofs the final verifier checks'], [
-        ['Balanced tree', balanced_nodes, balanced_real, balanced_unit, 2 * balanced_nodes, 1],
-        ['Chain', chain_nodes, chain_real, chain_unit, 2 * chain_nodes, 1],
-    ])
+    # The Append step of a chain: input (l, h, s) and (), witness v, check L_h = v, output (l, h + 1, s + v).
+    def append(hdr, v):
+        assert LIST[hdr[1]] == v
+        return (hdr[0], hdr[1] + 1, hdr[2] + v)
+
+    before = tally(0, 4)
+    after = append(before, LIST[4])
+    assert after == tally(0, 5)
+    frag['append'] = (f'For example, `Append` takes $({before[0]}, {before[1]}, {before[2]})$ and the unit header, checks $L_{{{before[1]}}} = {LIST[4]}$, and outputs $({after[0]}, {after[1]}, {after[2]})$.')
+
+    # Ragu-shaped node counts for the tally of chapter 02, found by building both shapes.
+    entries = len(LIST)
+
+    def count(nodes):
+        real = sum(1 for kind in nodes for slot in kind if slot == 'tally')
+        unit = sum(1 for kind in nodes for slot in kind if slot == 'unit')
+        return len(nodes), real, unit
+
+    ENTRY, JOIN, APPEND = ('unit', 'unit'), ('tally', 'tally'), ('tally', 'unit')
+    balanced = [ENTRY] * entries
+    width = entries
+    while width > 1:
+        balanced += [JOIN] * (width // 2)
+        width //= 2
+    chain = [ENTRY] + [APPEND] * (entries - 1)
+    hdr = tally(0, 1)
+    for pos in range(1, entries):
+        hdr = append(hdr, LIST[pos])
+    assert hdr == tally(0, entries)
+    bn, br, bu = count(balanced)
+    cn, cr, cu = count(chain)
+    assert (bn, br, bu) == (15, 14, 16) and (cn, cr, cu) == (8, 7, 9)
+    assert br + bu == 2 * bn and cr + cu == 2 * cn
+    frag['tree-shapes'] = (f'For the {entries}-entry tally, the balanced tree has {bn} nodes ({entries} `Entry` and {bn - entries} `Join`), so its circuits verify {br + bu} proofs, {bu} of them bootstrap proofs behind unit inputs. '
+                           f'The chain has {cn} nodes (1 `Entry` and {cn - 1} `Append`), and its circuits verify {cr + cu} proofs, {cu} of them bootstrap proofs. Both shapes end with one proof for the final verifier.')
 
     # ---- Base cases ----
     image = {F(a_) for a_ in range(Q)}
@@ -609,11 +730,20 @@ def fragments():
     at_target = {(start, a_) for h, start, a_ in closure3 if h == i_target}
     assert len(at_target) == Q
     assert [a_ for start, a_ in at_target if start == Z0] == [CHAIN[i_target]]
-    frag['base-designs'] = table(['Design', 'Base-case rule', 'Header', 'Values a proof can claim for $z_5$'], [
-        ['1', 'The prover sets a flag, and the flag skips the verifier', '$z$', f'{len(design1)} of {Q}, any output of $F$, at any claimed step'],
-        ['2', 'The flag requires $i = 0$', '$(i, z)$', f'{len(design2)} of {Q}'],
-        ['3', 'The flag requires $i = 0$ and $z = z_0$', '$(i, z_0, z)$', f'{Q} headers overall, and exactly 1 once the verifier requires $z_0 = {Z0}$, namely $z_5 = {CHAIN[i_target]}$'],
+    frag['base-designs'] = table(['Design', 'Base-case rule', 'Header', 'States a valid proof can claim'], [
+        ['1', 'The prover sets a flag, and the flag skips the verifier', '$z$', f'{len(design1)} of {Q} (any value in the image of $F$)'],
+        ['2', 'The flag requires $i = 0$', '$(i, z)$', f'{len(design2)} of {Q} at $i = {i_target}$'],
+        ['3', 'The flag requires $i = 0$ and $z = z_0$, and each step copies $z_0$ unchanged', '$(i, z_0, z)$', f'1 value at $i = {i_target}$, namely $z_{i_target} = {CHAIN[i_target]}$, once the verifier requires $z_0 = {Z0}$'],
     ])
+    reach, sizes = set(range(Q)), [Q]
+    for _ in range(i_target):
+        reach = {F(a_) for a_ in reach}
+        sizes.append(len(reach))
+    assert sizes[1] == len(design1) and sizes[-1] == len(design2)
+    assert all(a_ > b_ for a_, b_ in zip(sizes, sizes[1:]))
+    frag['base-count'] = (f'The counts come from running each rule over all of $\\F_{{{Q}}}$. In the first design a flagged step may take any of the {Q} field elements as its input, and $F$ maps them onto {sizes[1]} values, so those are the states a proof can claim. '
+                          f'In the second design the prover still picks any start, but then has to apply $F$ {i_target} times to reach $i = {i_target}$. Each application shrinks the set of reachable values, from {Q} to ' + ', '.join(str(v) for v in sizes[1:-1]) + f' and finally {sizes[-1]}. '
+                          f'The third design has {len(at_target)} headers at $i = {i_target}$, one for each start, and the verifier\'s comparison with $z_0 = {Z0}$ leaves one.')
 
     # ---- Init-state root, with the toy sponge ----
     def H(a_, b_):
@@ -629,8 +759,11 @@ def fragments():
         return lv, H(lv[0], lv[1]), H(lv[2], lv[3])
 
     # A search for a leaf tag whose tree has no repeated value keeps the table readable.
-    LEAF_TAG = next(t for t in range(1, Q) if len({*tree(leaves, t)[0], *tree(leaves, t)[1:], H(*tree(leaves, t)[1:])}) == 7
-                    and 0 not in {*tree(leaves, t)[0], *tree(leaves, t)[1:], H(*tree(leaves, t)[1:])})
+    # The tag must also differ from every list value and every root in the table, so a reader can tell it apart.
+    def shown(t):
+        return {*tree(leaves, t)[0], *tree(leaves, t)[1:], H(*tree(leaves, t)[1:])}
+
+    LEAF_TAG = next(t for t in range(1, Q) if t not in LIST and len(shown(t)) == 7 and 0 not in shown(t) and t not in shown(t))
     lh, r01, r23 = tree(leaves, LEAF_TAG)
     root = H(r01, r23)
 
@@ -643,16 +776,18 @@ def fragments():
     same = sum(1 for v in range(Q) if v != leaves[2] and root_with(2, v) == root)
     assert root_with(2, leaves[2]) == root and same < 8
     frag['init-root'] = table(['Node', 'Inputs', 'Root in the header'], [
-        ['Leaf 0', f'$H({leaves[0]}, {LEAF_TAG})$', lh[0]],
-        ['Leaf 1', f'$H({leaves[1]}, {LEAF_TAG})$', lh[1]],
-        ['Leaf 2', f'$H({leaves[2]}, {LEAF_TAG})$', lh[2]],
-        ['Leaf 3', f'$H({leaves[3]}, {LEAF_TAG})$', lh[3]],
+        ['Leaf 0', f'$H({leaves[0]}, \\tau)$', lh[0]],
+        ['Leaf 1', f'$H({leaves[1]}, \\tau)$', lh[1]],
+        ['Leaf 2', f'$H({leaves[2]}, \\tau)$', lh[2]],
+        ['Leaf 3', f'$H({leaves[3]}, \\tau)$', lh[3]],
         ['Join', f'$H({lh[0]}, {lh[1]})$', r01],
         ['Join', f'$H({lh[2]}, {lh[3]})$', r23],
         ['Top', f'$H({r01}, {r23})$', root],
     ])
-    assert same == 1
-    frag['init-count'] = (f'Replacing the start value of leaf 2 with each of the other 42 values changes the root in {42 - same} cases. The remaining case is a collision, which a hash with only 43 outputs cannot avoid, and a 255-bit output makes finding one infeasible.')
+    assert 1 <= same < 8
+    frag['init-tag'] = (f'An `Entry` leaf has no input state, so we treat the entry it checks, $L_i$, as its start value. A leaf\'s root is $H(L_i, \\tau)$, with the start value first and a fixed tag $\\tau = {LEAF_TAG}$ second. The tag separates the hashes at leaves from the hashes at joins, which take two roots instead.')
+    rest = 'The remaining case is a collision' if same == 1 else f'The remaining {same} cases are collisions'
+    frag['init-count'] = (f'Replacing the start value of leaf 2 with each of the other 42 values changes the root in {42 - same} cases. {rest}, which a hash with only 43 outputs cannot avoid, and a 255-bit output makes finding one infeasible.')
     return frag
 
 

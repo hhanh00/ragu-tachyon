@@ -13,9 +13,10 @@ Each entry gives a one-line reminder and links to the chapter that teaches the t
 - **Batched opening:** a reduction of many polynomial evaluation claims to one. See [Batched Openings](./batched-openings.md#_7-beta-batching).
 - **Binding:** the property that a prover cannot open one commitment to two different values. See [Polynomial Commitments](./polynomial-commitments.md#_4-why-a-prover-cannot-change-the-vector).
 - **Binding signature:** the signature that enforces a bundle's value balance through homomorphic value commitments. See [The Proof Tree](./proof-tree.md#the-binding-signature).
-- **Bonding polynomial:** the wiring polynomial of a circuit with constraints only, satisfying $s(X, 0) = 0$. See [Wiring and the Registry](./wiring-and-registry.md#a-domain-point-with-no-circuit).
+- **Bonding polynomial:** the wiring polynomial of a circuit with constraints only, satisfying $s(X, 0) = 0$. See [Staging](./staging.md#_12-linking-stages-with-a-bonding-polynomial).
+- **Bridge (wiring) and bridge stage:** two unrelated uses of one word. In wiring consistency, the bridge $S'$ is a commitment to a restriction such as $s(x, Y)$ that links old wiring claims to a new one. See [Wiring and the Registry](./wiring-and-registry.md#_3-consistency-for-one-circuit). A bridge stage is a nested stage of the secondary circuit that carries a group of native commitment coordinates, and its commitment is the bridge commitment that the transcript absorbs. See [Recursion in Ragu](./ragu-recursion.md#the-stages-and-their-names).
 - **Bucket:** a group of an epoch's tachygrams that share a quadratic-residue profile. See [Oblivious Sync](./oblivious-sync.md#_11-routing-an-epoch-into-buckets).
-- **Compression:** replacing a large proof's polynomials with commitments and openings. See [Recursion in Ragu](./ragu-recursion.md#_8-from-a-large-proof-to-a-short-one).
+- **Compression:** replacing a large proof's polynomials with commitments and openings. See [Compression in Ragu](./compression.md#_1-from-a-large-proof-to-a-short-one).
 - **Consensus window:** the two epochs that validators check for duplicate tachygrams. See [Pool State and Anchors](./pool-state.md#_11-the-consensus-window).
 - **Cross term (IPA):** the off-diagonal points $L$ and $R$ sent in each halving round. See [The Inner Product Argument](./inner-product-argument.md#_2-halving-produces-cross-terms).
 - **Curve cycle (2-cycle):** two curves in which each curve's order equals the other's field size. See [Curve Cycles](./curve-cycles.md#_3-a-curve-for-each-field).
@@ -51,7 +52,7 @@ Each entry gives a one-line reminder and links to the chapter that teaches the t
 - **Payment key:** a hash of the keys $\mathsf{ak}$ and $\mathsf{nk}$ that a note commits to. See [Notes, Nullifiers, and Tachygrams](./notes-and-nullifiers.md#_3-the-payment-key).
 - **Pedersen vector commitment:** the point $\dot{\v{a}}{\v{G}}$, optionally with a blinding term. See [Polynomial Commitments](./polynomial-commitments.md#_3-committing-to-a-vector).
 - **Polynomial commitment scheme (PCS):** a commitment to a polynomial, together with a way to prove its evaluations. See [Polynomial Commitments](./polynomial-commitments.md).
-- **Polynomial IOP:** a protocol in which the verifier may query polynomial oracles. See [QAP and Polynomial Encoding](./polynomial-encoding.md#_13-polynomial-oracles).
+- **Polynomial IOP:** a protocol in which the verifier may query polynomial oracles. See [QAP and Polynomial Encoding](./polynomial-encoding.md#_1-what-polynomials-provide).
 - **Post-processing:** Halo's technique for supporting many circuits without verification keys. See [Wiring and the Registry](./wiring-and-registry.md#_11-post-processing-and-the-registry-tag).
 - **Proof-carrying data (PCD):** a computation structured as a tree of steps, where each step's data carries a proof of all the work behind it. See [An Introduction to Proof-Carrying Data](./pcd-intro.md).
 - **QAP (quadratic arithmetic program):** a polynomial form of R1CS in which the constraints hold when one polynomial divides another. See [QAP and Polynomial Encoding](./polynomial-encoding.md#_5-the-vanishing-polynomial-and-the-quotient).
@@ -63,9 +64,9 @@ Each entry gives a one-line reminder and links to the chapter that teaches the t
 - **Registry polynomial:** a polynomial that interpolates many circuits' wiring over a domain. See [Wiring and the Registry](./wiring-and-registry.md#_5-a-polynomial-for-many-circuits).
 - **Revdot claim:** an instance $(\bar{A}, \bar{B}, c)$ with witness vectors whose revdot product is $c$. See [Revdot Folding](./revdot-folding.md#_1-the-claim-that-remains).
 - **Revdot product:** the inner product of one vector with the reversal of another, written $\revdot{\v{a}}{\v{b}}$. See [Arithmetization](./arithmetization.md#_7-reading-one-coefficient-of-a-product).
-- **Schwartz–Zippel lemma:** a nonzero low-degree polynomial is zero at a random point with probability at most $d/|\F|$. See [Statements and Challenges](./statements-and-challenges.md#_6-polynomials-in-several-variables).
+- **Schwartz–Zippel lemma:** a nonzero low-degree polynomial is zero at a random point with probability at most $d/|\F_q|$. See [Statements and Challenges](./statements-and-challenges.md#_6-polynomials-in-several-variables).
 - **Soundness:** the property that false statements rarely pass verification. See [Statements and Challenges](./statements-and-challenges.md#_2-completeness-and-soundness).
-- **Spendable:** a proof that certifies a note's position in the pool's history. See [The Proof Tree](./proof-tree.md#_4-bootstrapping-a-spendable).
+- **Spendable:** a proof that certifies a note's position in the pool's history. See [The Proof Tree](./proof-tree.md#_5-starting-and-lifting-a-lineage).
 - **Split accumulation:** accumulation in which the verifier handles only public instances, while the prover keeps a separate witness. See [Split Accumulation](./split-accumulation.md#_4-an-accumulator-with-two-parts).
 - **Stage mask:** a gate-free revdot claim that a stage polynomial's forbidden wires are zero. See [Staging](./staging.md#_5-the-stage-mask).
 - **Stage polynomial:** a separately committed part of a circuit's trace. See [Staging](./staging.md#_2-splitting-a-trace).

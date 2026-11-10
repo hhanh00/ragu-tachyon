@@ -1,8 +1,8 @@
 # Wiring and the Registry
 
-[Chapter 09](./nark.md#_17-a-short-proof-from-the-same-parts) ended with two linear steps in the verifier. Accumulation dealt with the first, computing $\hat{G}$. This chapter deals with the second, computing $s(x, y)$, which requires reading the whole circuit. It also takes up a related problem, which is how different nodes of a [PCD tree](./pcd-intro.md) can run different circuits.
+The [fold of chapter 14](./revdot-folding.md) accepts any $\bar{B}$ whose vector has the right product, and it never asks whether that vector was built from the right circuit's wiring. The check that would answer this is the computation of $s(x, y)$, the last remaining linear step that [chapter 09's verifier](./nark.md#_16-what-the-verifier-pays) listed, and it requires reading the whole circuit. So this chapter has two problems to solve. The wiring is unchecked, and checking it directly costs as much as the circuit. A third problem comes with them, which is how different nodes of a [PCD tree](./pcd-intro.md) can run different circuits.
 
-Both problems have the same answer. The prover commits to pieces of the wiring polynomial, a cheap random check ties each new piece to the old ones, and a single expensive check at the very end covers the whole history. The Ragu Book calls this idea [post-processing](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L30-L35), and credits it to Halo. We start with one circuit, then extend the method to a polynomial that holds many circuits, called the **registry polynomial**.
+All three problems have the same answer. The prover commits to pieces of the wiring polynomial, a cheap random check ties each new piece to the old ones, and a single expensive check at the very end covers the whole history. The Ragu Book calls this idea [post-processing](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L30-L35), and credits it to Halo. We start with one circuit, then extend the method to a polynomial that holds many circuits, called the **registry polynomial**.
 
 ::: warning Reconstructed from code at commit 3219e08, not confirmed by the authors
 The protocols come from the book's [wiring consistency chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/wiring.md) and its [registry chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/extensions/registry.md). The toy circuits, the attacks, and the link between a chosen circuit and its wiring value in Section 7 are our own assembly, and we read that link from the code. We could not read the Halo paper, so what we say about Halo follows the book. Section 13 compares everything with the code.
@@ -14,7 +14,7 @@ Recall the check that ties the right factor to the trace in [chapter 09](./nark.
 
 $$b(x) = a(xz) + s(x, y) + t(x, z).$$
 
-The value $t(x, z)$ has a short closed form, while the value $s(x, y)$ has none, because the wiring comes from an arbitrary circuit:
+The value $t(x, z)$ has a short closed form, while the value $s(x, y)$ has none, because the wiring comes from an arbitrary circuit. [Chapter 09 counted](./nark.md#_16-what-the-verifier-pays) the terms for our circuit, and we recall the count here with its scaling to a full circuit:
 
 <!-- worked:s-terms -->
 
@@ -61,17 +61,21 @@ Fixing $Y = 7$ collapses the rows into $s(X, 7)$, with coefficients $(0, 0, 6, 4
 
 This crossing is what the protocol uses. A commitment to a restriction in $X$ and a commitment to a restriction in $Y$ make two evaluation claims that must have the same value, and [chapter 08](./batched-openings.md) already knows how to check evaluation claims cheaply. The verifier needs no knowledge of the table to compare the two claims.
 
-Restricting in $Y$ only makes sense if the result fits the commitment scheme, and this explains a limit we met earlier. The commitment has $4n$ generators, so $s(x, Y)$ must have degree below $4n$ in $Y$. The book [gives this as the reason](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/local/wiring.md?plain=1#L20-L27) for the bound of [$4n$ constraint rows](./arithmetization.md#_4-linear-constraints).
+Restricting in $Y$ only makes sense if the result fits the commitment scheme, and this explains a limit we met earlier. The commitment has $4n$ generators, so $s(x, Y)$ must have degree below $4n$ in $Y$. The book [gives this as the reason](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/local/wiring.md?plain=1#L20-L27) for the bound of [$4n$ constraint rows](./arithmetization.md#_8-arranging-the-witness).
 
 ## 3. Consistency for one circuit
 
-Suppose a node has two children, and each child's accumulator holds a claim of the form $(S_i, y_i)$, meaning that $S_i$ commits to $s(X, y_i)$. The node wants to replace the two claims with one claim of the same form. We want three things from the replacement. It should tie each old $S_i$ to the true circuit, it should create a new claim at a fresh point, and it should leave no work that depends on the size of the circuit.
+Section 1 ended with a commitment $S$ that nobody has checked against the circuit. A recursive step cannot afford to check it, so it carries the commitment forward as a claim $(S, y)$, which says that $S$ commits to $s(X, y)$. Suppose a node has two children, and each child's accumulator holds such a claim $(S_i, y_i)$. Each $S_i$ is the wiring accumulator that the child received from its own fold, or a starting value if the child is a leaf. It is not the free $S$ of Section 1. That per-proof commitment is how the book presents a single proof, and the next paragraph explains why a tree never needs it. Section 13 records this difference between the book and the code.
 
-The [book's protocol](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/wiring.md?plain=1#L39-L66) achieves this with a single restriction in $Y$ that crosses all three restrictions in $X$:
+Before building anything, we need to know where in a tree the check of Section 1 runs, because that decides which wiring value a node has to supply. A child does not finish the check of its own trace. Its trace commitments travel up, and the parent folds the check into its own work, in the same way that [chapter 14](./revdot-folding.md) defers revdot claims to the next fold. The parent checks each child's trace at challenges that it draws itself, and those challenges are valid tests, because a challenge tests a commitment only if it is drawn after the commitment is fixed, and the child's trace commitments were fixed long before. That check needs the child's wiring value at the parent's fresh point, which no earlier claim covers, so the accumulator that leaves the parent's fold has to supply it. [Chapter 18](./ragu-recursion.md#_7-what-a-proof-carries-to-its-parent) lists everything else a child passes up.
+
+The node therefore wants to replace the two claims with one new claim of the same form, at a point of its own. Keeping one of the old claims would not work. The old claims sit at different points, $y_0 \neq y_1$, so neither speaks for the other, and neither sits at the node's fresh point. So the node makes a new claim $(S_{\text{new}}, y_{\text{new}})$, and it needs some commitment that links the old claims to the new one. We call that commitment the **bridge**. It is unrelated to the bridge stages of [chapter 13](./curve-cycles.md#_12-cycles-in-ragu) and [chapter 18](./ragu-recursion.md#the-stages-and-their-names), which are stages of the secondary circuit that carry commitment coordinates. We want three things from the replacement. It should tie each old $S_i$ to the true circuit, it should produce the new claim, and it should leave no work that depends on the size of the circuit.
+
+The [book's protocol](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/wiring.md?plain=1#L39-L66) achieves this with a single restriction in $Y$. A restriction in $Y$ at one value $x$ crosses every restriction in $X$ at that $x$, so one bridge meets both old claims and the new one:
 
 1. Both parties hold the old claims $(S_0, y_0)$ and $(S_1, y_1)$.
 2. The verifier sends a random $x$.
-3. The prover sends $S'$, a commitment to $s(x, Y)$.
+3. The prover sends the bridge $S'$, a commitment to $s(x, Y)$.
 4. The verifier sends a random $y_{\text{new}}$.
 5. The prover sends $S_{\text{new}}$, a commitment to $s(X, y_{\text{new}})$.
 6. Both parties add six evaluation claims to the batch of chapter 08.
@@ -80,7 +84,11 @@ Each pair of claims says that a restriction in $X$ and the restriction in $Y$ ag
 
 $$S_0(x) = S'(y_0), \qquad S_1(x) = S'(y_1), \qquad S_{\text{new}}(x) = S'(y_{\text{new}}).$$
 
-Here we write $S(x)$ for the value at $x$ of the polynomial behind a commitment $S$, as the book does. We now run this on our circuit, using two accumulators with values we have already met. The first holds [chapter 09's](./nark.md#_5-building-the-two-multiplicands) $y$, and the second holds the $y$ of [chapter 12's second proof](./split-accumulation.md#_6-a-run-on-the-toy-curve):
+Here we write $S(x)$ for the value at $x$ of the polynomial behind a commitment $S$, as the book does.
+
+This one-circuit version shows how claims chain, but it does not yet place the new claim where a trace check can read it. The check of Section 1 needs $s(x, y)$ at an $x$ drawn after $y$, because the prover commits to the right factor once it knows $y$, and $x$ then tests that commitment. Here $x$ comes before $y_{\text{new}}$, so the claim $S_{\text{new}}(x) = s(x, y_{\text{new}})$ sits at an $x$ that the right factor could have been built to pass. We cannot repair this by drawing $y_{\text{new}}$ first, because the bridge $S'$ is read at $y_{\text{new}}$, and reading a commitment at a point tests it only if the point was drawn after the commitment was fixed. With only two variables, $x$ has to come before $y_{\text{new}}$. The extra variable $W$ of Section 5 gives Section 6 the room to reorder the challenges as $w$, then $y$, then $x$, and with that order the new claim lands at exactly the point the trace check reads.
+
+We now run this on our circuit, using two accumulators with values we have already met. The first holds [chapter 09's](./nark.md#_5-building-the-two-multiplicands) $y$, and the second holds the $y$ of [chapter 12's second proof](./split-accumulation.md#_6-a-run-on-the-toy-curve):
 
 <!-- worked:single-run -->
 
@@ -109,7 +117,11 @@ The prover states one value for each pair, which gives six claims about four pol
 
 <!-- /worked:single-claims -->
 
-The verifier never computes these values. It treats them as [claims that share polynomials](./batched-openings.md#_10-claims-that-share-a-polynomial-or-a-point) and places them in the batch, so one number in each pair appears twice:
+The verifier never computes these values. It treats them as [claims that share polynomials](./batched-openings.md#_10-claims-that-share-a-polynomial-or-a-point) and places them in the batch, so one number in each pair appears twice. Chapter 08's batch runs in three moves, which the run below follows:
+
+- The challenge $\alpha$ weights the claims' quotients, and the prover sends $F$, a commitment to their weighted sum $f$.
+- At a second challenge $u$ the prover reveals each polynomial's value, so that the verifier can derive $f(u)$ without opening $F$.
+- The challenge $\beta$ merges everything into one claim $(P, u, v)$, and a decider settles that claim by recomputing the vector $\v{p}$ behind $P$.
 
 <!-- worked:single-batch -->
 
@@ -133,7 +145,7 @@ We can follow this in the toy run by giving the prover a false $S_0$ and countin
 
 <!-- worked:false-honest-bridge -->
 
-The most favourable false polynomial differs from $s(X, 7)$ by a multiple of $(X-1)(X-2)\cdots(X-7)$, the difference that [chapter 09](./nark.md#the-prover-changes-b) found best for its cheater. Against an honest $S'$, the pair of claims about $s(x, 7)$ can hold only where this difference vanishes. Trying all 43 values of $x$ finds 7 that pass, $x \in \{1, \ldots, 7\}$. No polynomial with 8 coefficients has more roots.
+The most favourable false polynomial differs from $s(X, 7)$ by a multiple of $(X-1)(X-2)\cdots(X-7)$, the difference that [chapter 09](./nark.md#the-prover-changes-b) found best for its cheater. The prover scales this multiple so that it still moves the revdot product by $38$, since otherwise the false $S_0$ would no longer carry the attack. Against an honest $S'$, the pair of claims about $s(x, 7)$ can hold only where this difference vanishes. Trying all 43 values of $x$ finds 7 that pass, $x \in \{1, \ldots, 7\}$. No polynomial with 8 coefficients has more roots.
 
 <!-- /worked:false-honest-bridge -->
 
@@ -141,7 +153,7 @@ Outside those values the prover must lie in $S'$ to keep the pair true, which mo
 
 <!-- worked:false-bridge -->
 
-At $x = 21$ the false $S_0$ opens to $15$, while the true $s(21, 7)$ is $35$. The prover can absorb this error $23$ by committing to $s(21, Y) + D(Y)$ with $D(7) = 23$ and $D(34) = 0$, so that both old pairs now hold. The polynomial $D$ can have at most 7 roots, and one of them has to be $34$. Taking the other six at $1, \ldots, 6$, we tried all 43 values of $y_{\text{new}}$ against an honest $S_{\text{new}}$, and 7 pass.
+At $x = 21$ the false $S_0$ opens to $15$, while the true $s(21, 7)$ is $35$. The error is $15 - 35 = -20$, which is $23$ in $\F_{43}$. The prover can absorb it by committing to $s(21, Y) + D(Y)$ with $D(7) = 23$ and $D(34) = 0$, so that both old pairs now hold. The polynomial $D$ can have at most 7 roots, and one of them has to be $34$. Taking the other six at $1, \ldots, 6$, we tried all 43 values of $y_{\text{new}}$ against an honest $S_{\text{new}}$, and 7 pass.
 
 <!-- /worked:false-bridge -->
 
@@ -178,6 +190,8 @@ The protocol above assumes that every accumulator refers to the same $s(X, Y)$. 
 
 <!-- /worked:two-circuits -->
 
+The constant in B's last constraint is its output minus 2. The instance supplies it as the coefficient of $Y^3$ in $k(Y)$, in the same way that circuit A's instance supplies $35 - 5$ for A's last constraint. Section 9 changes both circuits to read the output itself from $k(Y)$.
+
 The two accumulators may now refer to different circuits, and the bridge of Section 3 stops working, since a single $S'$ cannot be a restriction of both:
 
 <!-- worked:cannot-merge -->
@@ -186,9 +200,9 @@ Let the first accumulator hold circuit A at $y_0 = 7$ and the second hold circui
 
 <!-- /worked:cannot-merge -->
 
-We could avoid this by merging A and B into one large circuit with a selector, as [chapter 04](./arithmetization.md#_1-what-arithmetization-produces) did for a branch. Then every step would pay for the gates of all its branches. The original PCD model works this way, with a single rule applied at every node, so an application with many kinds of transition pays for all of them at every node. A better way is to keep the circuits apart and to put the choice of circuit into the polynomial itself, as one more variable.
+We could avoid this by merging A and B into one large circuit with a selector, as [chapter 04](./arithmetization.md#_1-what-arithmetization-produces) did for a branch. Then every step would pay for the gates of all its branches. The tally of [chapter 02](./pcd-intro.md) shows the cost. It has two steps, `Entry` and `Join`, and a model with a single rule at every node would merge them into one circuit with a selector, so every leaf of the tree would pay for a `Join` it never runs, and every inner node would pay for an `Entry`. A better way is to keep the circuits apart and to put the choice of circuit into the polynomial itself, as one more variable.
 
-Pick a set of points $\omega^0, \ldots, \omega^{2^k - 1}$, one for each circuit, where $\omega$ is a root of unity of order $2^k$. Let $\ell_i(W)$ be the Lagrange polynomial that equals 1 at $\omega^i$ and 0 at the other points, as in [chapter 05](./polynomial-encoding.md). The **registry polynomial** is
+Lagrange interpolation works on any set of distinct points, but roots of unity give two properties that later sections use. Testing whether a value belongs to the domain takes only $k$ squarings (Section 9), and the domain of $2^k$ points sits inside the domain of $2^{k+1}$ points, which lets a registry grow without moving its circuits (Section 8). Pick a set of points $\omega^0, \ldots, \omega^{2^k - 1}$, one for each circuit, where $\omega$ is a root of unity of order $2^k$. Let $\ell_i(W)$ be the Lagrange polynomial that equals 1 at $\omega^i$ and 0 at the other points, as in [chapter 05](./polynomial-encoding.md). The **registry polynomial** is
 
 $$m(W, X, Y) = \sum_{i=0}^{2^k - 1} \ell_i(W)\, s_i(X, Y).$$
 
@@ -206,22 +220,31 @@ Setting $W = \omega^i$ makes every term vanish except one, so $m(\omega^i, X, Y)
 
 <!-- worked:registry-check -->
 
-The script compares $m(1, x, y)$ with $s_A(x, y)$ and $m(42, x, y)$ with $s_B(x, y)$ at all 1849 pairs, and they agree at every pair. Since $\ell_0 + \ell_1 = 1$ at every $W$, the two weights at $W = 14$ also add up to 1, and we return to this fact in Section 10.
+The script compares $m(1, x, y)$ with $s_A(x, y)$ and $m(42, x, y)$ with $s_B(x, y)$ at all 1849 pairs, and they agree at every pair. Since $\ell_0 + \ell_1 = 1$ at every $W$, the two weights at $W = 14$ also add up to 1, and we return to this fact in Section 9.
 
 <!-- /worked:registry-check -->
 
 The last row of that table shows what $W$ does away from the domain. It gives a blend of the circuits that belongs to no single one, and the protocol uses this blend as a random fingerprint of the whole set.
 
-An accumulator now has to carry a claim that does not name one circuit, so that accumulators from different circuits can merge. The form the book chooses leaves $W$ free. The claim is $(S, x, y)$, meaning that $S$ commits to $m(W, x, y)$, the polynomial in $W$ that holds every circuit's value at the point $(x, y)$. Section 7 shows why this form is also the one we want for reading a single circuit's value. Since this polynomial is committed with the same generators, it needs degree below $4n$ in $W$, and the [code enforces](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/registry.rs#L252-L257) that a registry has at most $4n$ entries.
+An accumulator now has to carry a claim that does not name one circuit, so that accumulators from different circuits can merge. The form the book chooses leaves $W$ free. The claim is $(S, x, y)$, meaning that $S$ commits to $m(W, x, y)$, the polynomial in $W$ that holds every circuit's value at the point $(x, y)$. Leaving $W$ free pays off when a step needs one circuit's value, because opening this polynomial at $\omega^i$ gives $s_i(x, y)$ for any registered circuit $i$, and Section 7 puts that to use. Since this polynomial is committed with the same generators, it needs degree below $4n$ in $W$, and the [code enforces](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/registry.rs#L252-L257) that a registry has at most $4n$ entries.
 
 ## 6. Consistency for the registry
 
-Two old claims $(S_0, x_0, y_0)$ and $(S_1, x_1, y_1)$ now differ in two coordinates, while the claims in Section 3 differed in only one. A single bridge cannot cross both, so we change one variable at a time. The [book's protocol](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/wiring.md?plain=1#L69-L140) freezes $W$ at a random point, moves $Y$ to a common value, moves $X$ to a common value, and then lets $W$ go free again. Here are its steps:
+Two old claims $(S_0, x_0, y_0)$ and $(S_1, x_1, y_1)$ now differ in two coordinates, while the claims in Section 3 differed in only one. From here on, $x_i$ and $y_i$ are the children's values, and the letters $w$, $x$ and $y$ without a subscript are the new challenges of this node, so $y$ plays the part of Section 3's $y_{\text{new}}$.
+
+A single bridge cannot reach both old claims. The order of the bridges follows from one constraint, which is that each commitment holds a polynomial in one variable, so a bridge that moves one variable has to fix the other two. The old claims are polynomials in $W$, with $x_i$ and $y_i$ fixed. The [book's protocol](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/wiring.md?plain=1#L69-L140) makes four moves in a fixed order:
+
+- **Fix $W$.** A bridge in $Y$ is a polynomial $m(w, x_i, Y)$, which needs a value for $W$. So the verifier draws $w$ first, and each old claim crosses its bridge at $W = w$.
+- **Move $Y$.** The two bridges in $Y$ are both read at one new $y$. After this, the children's restrictions share $w$ and $y$ and differ only in $X$. Moving $Y$ before $X$ is what leaves $x$ as the last challenge, which the trace check of Section 7 needs, as Section 3 explained.
+- **Move $X$.** One bridge $m(w, X, y)$ now crosses both children, at $x_0$ and at $x_1$, and it is read at one new $x$.
+- **Free $W$.** A last restriction in $W$, at the common $(x, y)$, returns the claim to its original form $m(W, x, y)$. That form lets the next node repeat the walk, and Section 7 opens it at a circuit's point $\omega^i$.
+
+Here are the steps of the protocol:
 
 1. Both parties hold the old claims.
 2. The verifier sends a random $w$.
 3. The prover sends $S'_0$ and $S'_1$, commitments to $m(w, x_0, Y)$ and $m(w, x_1, Y)$.
-4. The verifier sends a random $y$.
+4. The verifier sends a random $y$, and with it the challenge $z$ that the trace check of Section 7 uses.
 5. The prover sends $S''$, a commitment to $m(w, X, y)$.
 6. The verifier sends a random $x$.
 7. The prover sends $S_{\text{new}}$, a commitment to $m(W, x, y)$.
@@ -241,9 +264,9 @@ S''(x) &= m(w, x, y) = S_{\text{new}}(w).
 \end{aligned}
 $$
 
-Two bridges are needed in step 3 because the children have different $x_i$. Only one is needed in step 5, because at that point both children have the same $y$, and both restrictions in $Y$ land on the same polynomial in $X$.
+Step 3 uses two bridges because the children have different $x_i$, and a restriction in $Y$ is taken at one value of $X$. Step 5 uses one, because after step 4 both children's restrictions are read at the same $y$, and both land on the same polynomial in $X$.
 
-For the toy run, let the left child have used circuit A at chapter 09's challenges, and the right child circuit B at the $x$ and $y$ of chapter 12's second proof:
+For the toy run, let the left child have used circuit A at chapter 09's challenges, and the right child circuit B at the $x$ and $y$ of chapter 12's second proof. The choice of circuit does not show up in $S_0$ or $S_1$, because each of them holds every circuit's value at its child's point. It matters only when Section 7 opens the new accumulator at a circuit's point:
 
 <!-- worked:reg-run -->
 
@@ -253,10 +276,12 @@ For the toy run, let the left child have used circuit A at chapter 09's challeng
 | 2 | Verifier sends | $w = 14$ |
 | 3 | Prover sends | $S'_0 = (11,\,30)$ for $m(14, 9, Y) = (27, 17, 20, 41, 0, 0, 0, 0)$ |
 |  | Prover sends | $S'_1 = (18,\,21)$ for $m(14, 37, Y) = (7, 13, 38, 3, 0, 0, 0, 0)$ |
-| 4 | Verifier sends | $y = 12$ |
+| 4 | Verifier sends | $y = 12$, and $z = 16$ with it |
 | 5 | Prover sends | $S'' = (28,\,10)$ for $m(14, X, 12) = (0, 0, 15, 42, 13, 12, 8, 21)$ |
 | 6 | Verifier sends | $x = 21$ |
 | 7 | Prover sends | $S_{\text{new}} = (23,\,7)$ for $m(W, 21, 12) = (31, 14, 0, 0, 0, 0, 0, 0)$ |
+
+The left child's $S_0 = (5,\,29)$ happens to equal the false accumulator of Section 4, because the toy group has only 43 elements, but the polynomial behind it here is the honest $m(W, 9, 7)$.
 
 <!-- /worked:reg-run -->
 
@@ -284,17 +309,21 @@ The accumulator that leaves the fold is $(S_{\text{new}}, x, y)$, and it has the
 
 ## 7. Selecting a circuit
 
-The walk keeps the accumulators consistent with $m$, but the point of all this was to obtain the value $s_i(x, y)$ for the check in Section 1, for whichever circuit a child used. The new accumulator provides that value directly. Since $S_{\text{new}}$ commits to $m(W, x, y)$, opening it at the domain point of circuit $i$ gives
+The walk keeps the accumulators consistent with $m$, but the point of all this was to obtain a wiring value for the check in Section 1, for whichever circuit a child used. As Section 3 explained, the parent checks each child's trace at its own challenges. It adds a revdot claim for each child to its [fold of chapter 14](./revdot-folding.md#_10-the-quotient-fold-in-ragu-s-fuse), and it builds the child's right factor from its own $y$ and $z$,
+
+$$b_i(X) = a_i(Xz) + s_i(X, y) + t(X, z),$$
+
+where $a_i$ is the child's trace polynomial. The parent's prover commits to $b_i$ after $y$ and $z$ are drawn and before $x$ is, so the spot check of Section 1 at the parent's $x$ tests it. That check needs $s_i(x, y)$, which is exactly the point of the new accumulator. Since $S_{\text{new}}$ commits to $m(W, x, y)$, opening it at the domain point of circuit $i$ gives
 
 $$S_{\text{new}}(\omega^i) = m(\omega^i, x, y) = s_i(x, y).$$
 
-This is why the accumulator leaves $W$ free. Each circuit's value is one evaluation claim on the same commitment, and the prover names the circuit by naming the point. The check from Section 1 then reads a claimed value that the batch will test, in place of a value the circuit would have to compute.
+Each circuit's value is one evaluation claim on the same commitment, and the prover names the circuit by naming the point. The check of $b_i(x)$ then reads a claimed value that the batch will test, in place of a value the circuit would have to compute.
 
 <!-- worked:select -->
 
-The new accumulator is $m(W, 21, 12) = 31 + 14W$. Take $z = 16$, so that $xz = 35$. For each child the circuit reads the wiring value by opening $S_{\text{new}}$ at the child's domain point, and it adds the trace value and the gate value:
+The new accumulator is $m(W, 21, 12) = 31 + 14W$. The run of Section 6 drew $x = 21$, $y = 12$ and $z = 16$, so $xz = 35$. For each child the circuit reads the wiring value by opening $S_{\text{new}}$ at the child's domain point, and it adds the trace value $a_i(xz)$ and the gate value:
 
-| Child | $\omega^i$ | $s_i(x, y) = m(\omega^i, x, y)$ | $r(35)$ | $t(21, 16)$ | Sum, $b(x)$ |
+| Child | $\omega^i$ | $s_i(x, y) = m(\omega^i, x, y)$ | $a_i(35)$ | $t(21, 16)$ | Sum, $b(x)$ |
 | --- | --- | --- | --- | --- | --- |
 | Left, circuit A | $1$ | 2 | 21 | 23 | 3 |
 | Right, circuit B | $42$ | 17 | 7 | 23 | 4 |
@@ -303,7 +332,7 @@ The script also confirms that each child's revdot product at $z = 16$ and $y = 1
 
 <!-- /worked:select -->
 
-The two children here used different wiring and the same step of the protocol handled both. Only the evaluation point changed. These two openings bring the list to twelve claims, on six polynomials:
+The two children here used different wiring and the same step of the protocol handled both. Only the evaluation point changed. These two openings bring the list to twelve claims, on six polynomials, and the batch of chapter 08 combines them into one claim $(P, u, v)$ as in Section 3:
 
 <!-- worked:reg-batch -->
 
@@ -311,31 +340,11 @@ With $\alpha = 11$, $u = 17$ and $\beta = 23$, the prover sends $F = (28,\,21)$ 
 
 <!-- /worked:reg-batch -->
 
-The last sentence of that run is the registry's form of the decider, and we describe its cost next.
+The last sentence of that run is the registry's form of the decider. Section 10 counts what it costs, after two sections on how circuits get their points and on which points a prover may name.
 
-## 8. What the registry costs
+## 8. Assigning domain points
 
-The cost divides among three parties. The recursive circuit handles claims only, whatever the size of the registry or of the circuits. It does a little field arithmetic per claim, as in [chapter 12](./split-accumulation.md#the-accumulation-verifier), and the six commitments join that chapter's list. It also checks that each child's circuit point lies in the domain, which takes $k$ squarings per child, as Section 10 explains. Here is a comparison for a hypothetical tree with 256 application circuits of $2^{11}$ gates each, which is the gate limit [chapter 10 recorded](./recursive-proofs.md#_12-recursion-in-ragu):
-
-<!-- worked:costs -->
-
-| Approach | What one step puts in its circuit | Size for this example |
-| --- | --- | --- |
-| Compute $s_i(x, y)$ directly | One term per wiring coefficient of each child's circuit | At least 16,384 multiplications for two full circuits |
-| One merged circuit with selectors | The gates of every circuit, on every step | 524,288 gates |
-| Registry, as in this chapter | Field arithmetic on claims, 6 commitments in the fold, and a domain check on 2 indices | 12 claims and 16 squarings |
-
-<!-- /worked:costs -->
-
-The prover pays more than this table suggests. Each of the four new polynomials is a Lagrange-weighted sum over the circuits, so computing one [touches every registered circuit](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/registry.rs#L643-L677), including those the step did not use. The book [describes a floor planner and memoization](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/implementation/routines.md?plain=1#L615-L632) that let circuits with common routines share this work, which is one source of the ["diminishing overhead"](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L30-L35) it claims. We have not measured these costs.
-
-The decider pays too. To test $S_{\text{new}}$ it computes $m(w, x, y)$ at a fresh $w$, which means one $s_i(x, y)$ for each circuit. That is a linear cost in the total size of the registry, and the [compressed verifier](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/instance.rs#L528) evaluates $m$ at several points of the walk, but all of this happens once for a whole history.
-
-Adding a circuit therefore leaves the recursive circuit almost unchanged, so the book [encourages applications](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L108-L115) to split work into many small circuits that communicate along the PCD tree, and it speaks of hundreds or thousands of circuits. Tachyon, which has not activated on mainnet and whose design is still changing, has [a few dozen steps](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L562-L601) at the revision we read, and those steps [run against a mock](./proof-tree.md) of Ragu.
-
-## 9. Assigning domain points
-
-The formula in Section 5 gives circuit $i$ the point $\omega^i$, but $\omega$ depends on $k$, and $k$ depends on how many circuits there are. If a registry grows from four circuits to five, it moves from a domain of 4 points to one of 8, and then $\omega$ changes and so does the point of every circuit except the first. Circuit code that refers to another circuit's point would then need to know the final count. The toy field has no room to show this, so we use $\F_{97}$ in this section, for arithmetic only. Its multiplicative group has order $96 = 2^5 \cdot 3$, so it has a root of unity $\omega_5$ of order $2^5$. Write $\omega_k$ for the element of order $2^k$, with $\omega_k = \omega_5^{2^{5 - k}}$.
+The formula in Section 5 gives circuit $i$ the point $\omega^i$, but $\omega$ depends on $k$, and $k$ depends on how many circuits there are. If a registry grows from four circuits to five, it moves from a domain of 4 points to one of 8, and then $\omega$ changes and so does the point of every circuit except the first. Circuit code that refers to another circuit's point would then need to know the final count, and such references exist. The recursive verifier's internal circuits open $m$ at fixed internal-circuit points (Section 13), and a step reads the point of the circuit its child used. The toy field has no room to show this, so we use $\F_{97}$ in this section, for arithmetic only. Its multiplicative group has order $96 = 2^5 \cdot 3$, so it has a root of unity $\omega_5$ of order $2^5$. Write $\omega_k$ for the element of order $2^k$, with $\omega_k = \omega_5^{2^{5 - k}}$.
 
 <!-- worked:naive -->
 
@@ -377,27 +386,27 @@ On $\F_{43}$ the largest available 2-power order is 2, so $S = 1$. Circuit 0 get
 
 The degree of $m$ in $W$ still depends on $k$, because the Lagrange polynomials change with the domain. What stays fixed is the element that names each circuit.
 
-## 10. What the prover may select
+## 9. What the prover may select
 
-The prover chooses the point at which $S_{\text{new}}$ opens for each child, and a verifier should worry about a free choice like this. We go through the three things the prover might choose.
+The prover chooses the point at which $S_{\text{new}}$ opens for each child, and a verifier should worry about a free choice like this. Write $\iota$ for the point the prover names for a child. Section 7 wrote this point as $\omega^i$, and the code calls it `left_id` or `right_id`. We give it its own letter for two reasons. The prover might name a point that is not of the form $\omega^i$, and the letter $w$ already names the verifier's challenge, which the prover does not control. We go through the three kinds of point the prover might choose, namely a point outside the domain, a domain point that holds no circuit, and a point that holds the wrong registered circuit.
+
+All three cases turn on the row $Y^0$ of the wiring, so this section first switches to circuits that have a meaningful one, as Section 5 promised. The two-gate circuits A and B of Sections 1 to 7 have no system gate, which is why their $Y^0$ row in Section 2 looks the way it does. The [constant wire of chapter 09](./nark.md#_15-the-constant-wire) adds one. That section added a system gate at position 0, with $b_0 = c_0 = 0$ and a wire $d_0$ that holds 1, and a constraint at $Y^0$ that reads $d_0 = k_0$, with $k_0 = 1$ supplied by the instance. Because that constraint has the single coefficient 1 on $d_0$, it makes $s(X, 0) = 1$. So this section uses 3-gate versions of A and B with the constant wire. In these versions both circuits read the output itself from $k(Y)$ as a public input, whereas Section 5's circuits read a constant derived from the output.
 
 ### A point outside the domain
 
-The fact from Section 5 that the Lagrange weights add up to 1 now causes trouble. A point outside the domain gives a blend of circuits with $s(X, 0) = 1$, and that blend behaves as a third circuit that nobody registered. We need the [constant wire of chapter 09](./nark.md#_14-the-constant-wire) to show this, so this section uses circuits of 3 gates, with $k_0 = 1$ and $s(X, 0) = 1$:
+Section 5 showed that the Lagrange weights add up to 1 at every $W$. So at a point $\iota$ outside the domain, $m(\iota, X, Y)$ is a blend of the circuits whose row $Y^0$ is still $s(X, 0) = 1$, and the blend behaves as a third circuit that nobody registered. The decider's blend at a random $w$ does no harm, because nobody checks a trace against it, but a blend at a point the prover chose can serve as the wiring of a child's trace check:
 
 <!-- worked:mix-attack -->
 
-Take the instance $k(Y) = 1 + 35Y$, whose second coefficient is the public output, and let the prover select the out-of-domain point $w = 4$. There the weights are $24$ and $20$, and they add up to 1, so $m(4, X, 0) = 1$ and the mixture looks like a circuit. The input $x = 7$ does not satisfy $x^3 + x + 5 = 35$, yet the trace with $b_2 = 30$, which is $(0, 6, 8, 6, 7, 11, 0, 7, 30, 0, 0, 1)$, satisfies the consolidated equation at all 1849 pairs $(z, y)$. The same trace passes against circuit A at 43 pairs and against circuit B at 43. The domain check catches the selection, because $4^2 = 16$, which is not 1.
+Take the instance $k(Y) = 1 + 35Y$, whose second coefficient is the public output, and let the prover select the out-of-domain point $\iota = 4$. There the weights are $24$ and $20$, and they add up to 1, so $m(4, X, 0) = 1$ and the mixture looks like a circuit. The input $x = 7$ does not satisfy $x^3 + x + 5 = 35$, yet the trace with $b_2 = 30$, which is $(0, 6, 8, 6, 7, 11, 0, 7, 30, 0, 0, 1)$, satisfies the consolidated equation at all 1849 pairs $(z, y)$. The same trace passes against circuit A at 43 pairs and against circuit B at 43. The domain check catches the selection, because $\iota^2 = 4^2 = 16$, which is not 1.
 
 <!-- /worked:mix-attack -->
 
-So the protocol has to check the point. A value is in the domain exactly when squaring it $k$ times gives 1, and [the `hashes_1` circuit enforces this](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/hashes_1.rs#L226-L234) on both children's points. The [uncompressed](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/verify.rs#L133-L149) and [compressed](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/verifier.rs#L58-L68) verifiers make the same check on the root's point.
+So the protocol has to check $\iota$. A value is in the domain exactly when squaring it $k$ times gives 1, and [the `hashes_1` circuit enforces this](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/hashes_1.rs#L226-L234) on both children's points $\iota$. The [uncompressed](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/verify.rs#L133-L149) and [compressed](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/verifier.rs#L58-L68) verifiers make the same check on the root's point.
 
 ### A domain point with no circuit
 
-The domain usually has more points than circuits, because $2^k$ is the next power of two. The registry also [holds bonding polynomials](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/local/wiring.md?plain=1#L112-L133), which [chapter 17](./staging.md) uses for its stage checks, and which enforce the relation $\revdot{\v{r}}{\v{s}} = 0$ on a partial trace. A prover might select one of these in place of a circuit.
-
-The book [treats every domain point as a wiring polynomial](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/extensions/registry.md?plain=1#L181-L216). An unassigned point holds the zero polynomial, and it counts as a bonding polynomial. The two kinds differ in one coefficient. A circuit has the constraint $d_0 = k_0$ at $Y^0$, so $s(X, 0) = 1$, while a bonding polynomial leaves that constraint out, so $s(X, 0) = 0$. Here is a registry with three entries on a domain of 4 points in $\F_{97}$:
+The domain usually has more points than circuits, because $2^k$ is the next power of two above the number of circuits. The book [treats every domain point as a wiring polynomial](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/extensions/registry.md?plain=1#L181-L216), so an unassigned point holds the zero polynomial, and a prover might select it in place of a circuit. The two differ in one coefficient. A circuit has the constraint $d_0 = k_0$ at $Y^0$, so $s(X, 0) = 1$, while the zero polynomial has $s(X, 0) = 0$. The registry also holds polynomials of another kind, called [bonding polynomials](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/local/wiring.md?plain=1#L112-L133), which [chapter 17](./staging.md) introduces, and they too have $s(X, 0) = 0$. Here is a registry with three entries on a domain of 4 points in $\F_{97}$:
 
 <!-- worked:kinds -->
 
@@ -410,7 +419,7 @@ The book [treats every domain point as a wiring polynomial](https://github.com/t
 
 <!-- /worked:kinds -->
 
-The verifier always sets $k_0 = 1$ when it expects a circuit, and this rules out the second kind. To see this, read the consolidated equation at $y = 0$, as a statement about the coefficient of $Y^0$. A bonding polynomial contributes nothing to that coefficient, so the only terms left on the left side are the gate terms from [chapter 04](./arithmetization.md#_9-weighting-each-gate),
+The verifier always sets $k_0 = 1$ when it expects a circuit, and this rules out every entry with $s(X, 0) = 0$. To see this, read the consolidated equation at $y = 0$, as a statement about the coefficient of $Y^0$. Such an entry contributes nothing to that coefficient, so the only terms left on the left side are the gate terms from [chapter 04](./arithmetization.md#_12-the-consolidated-equation),
 
 $$\sum_{i=0}^{n-1} (a_i b_i - c_i) \big( z^{2n-1-i} + z^{2n+i} \big) + \sum_{i=0}^{n-1} c_i d_i \big( z^{i} + z^{4n-1-i} \big),$$
 
@@ -422,19 +431,7 @@ Take the trace with $x = 3$ and the instance $k(Y) = 1 + 35Y$, and let the prove
 
 <!-- /worked:zero-count -->
 
-### Header types and suffixes
-
-A tree with many steps also has many header types, and each step has to accept only the types it was written for. Here is what goes wrong without that:
-
-<!-- worked:charge -->
-
-Extend the tally of [chapter 02](./pcd-intro.md) with a final step `Charge` that adds a flat fee of 2. It consumes $(0, 8, 47)$ and outputs $(0, 8, 49)$. If `Charge` accepted its own output, a prover could apply it again to reach $(0, 8, 51)$, even though the fee is meant to apply once. The input and output are three numbers of the same form, so the numbers cannot tell the two states apart.
-
-<!-- /worked:charge -->
-
-The fix is to give the input and output different types, say `Tally` and `Charged`, and to let `Charge` accept only a `Tally`. In a programming language the type would be enough. Inside a proof, though, a header is only a list of field elements, so a type that the verifier can check has to be part of that data. Ragu gives each header type a label for this purpose, called its **suffix**, which tells header types apart even when their contents look the same.
-
-Tachyon uses suffixes in this way. Its [`Actions`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L46-L55) and `Stamp` headers contain identical fields, and `Actions` even reuses the encoding of `Stamp`, so only the suffix differs. The first represents a bundle's actions before its fee is applied, and the second represents them afterward. The step that applies the fee accepts only `Actions`, so it cannot run twice on one bundle.
+These entries also change the blend of the previous subsection. When some domain points hold entries with $s(X, 0) = 0$, the weights on the circuits alone need not add up to 1, so a prover would have to search for a $\iota$ at which they do. The domain check rules out such a point in any case.
 
 ### A different registered circuit
 
@@ -442,11 +439,47 @@ The two checks above leave the prover a free choice among registered circuits. T
 
 <!-- worked:substitution -->
 
-Suppose the verifier wants a proof that some $x$ satisfies $x^4 + 2 = 35$. Trying all 43 values shows that no such $x$ exists, so this statement is false. The verifier computes $k(Y) = 1 + 35Y$, and the prover selects circuit A in place of circuit B, with $x = 3$. Every check passes at all 1849 pairs, because the instance is the same as that of the true statement $3^3 + 3 + 5 = 35$. Now add a row to each circuit that sets the linear coefficient of $k(Y)$ to a value fixed for that circuit, 2 for A and 3 for B, and let the verifier compute $k(Y) = 1 + 3Y + 35Y^2$. Circuit B with a true output, such as $x = 3$ and the output 40, still passes everywhere. The same substitution with circuit A now passes at 43 of the 1849 pairs, all of them at $y = 0$.
+Suppose the verifier wants a proof that some $x$ satisfies $x^4 + 2 = 35$. Trying all 43 values shows that no such $x$ exists, so this statement is false. The verifier computes $k(Y) = 1 + 35Y$, and the prover selects circuit A in place of circuit B, with $x = 3$. Every check passes at all 1849 pairs, because the instance is the same as that of the true statement $3^3 + 3 + 5 = 35$. Now add a row to each circuit that sets the linear coefficient of $k(Y)$ to a value fixed for that circuit, 2 for A and 3 for B, and let the verifier compute $k(Y) = 1 + 3Y + 35Y^2$ for the false statement about circuit B. Circuit B with a true statement still passes everywhere, for example $x = 3$ with the output 40 and the instance $k(Y) = 1 + 3Y + 40Y^2$. The same substitution with circuit A now passes at 43 of the 1849 pairs, all of them at $y = 0$.
 
 <!-- /worked:substitution -->
 
-The extra row plays the part of the header suffix from the previous subsection. The book's [substitution section](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/recursion/public_inputs.md?plain=1#L99-L118) says that an application circuit's suffix fills the linear coefficient of $k(Y)$, and that application suffixes are nonzero. Internal circuits output suffix zero, so they cannot pass as application circuits. [The code applies this](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/profile.rs#L407-L426) to every internal circuit slot. In the code a suffix [belongs to a header type](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/header.rs#L99) and not to one circuit, so unlike our toy row it leaves steps with the same output header interchangeable.
+The extra row gives each circuit a label that the verifier writes into $k(Y)$, so a proof from one circuit no longer matches a statement meant for another. Ragu calls this label a **suffix**. The book's [substitution section](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/recursion/public_inputs.md?plain=1#L99-L118) says that an application circuit's suffix fills the linear coefficient of $k(Y)$ and is never zero, which also keeps internal circuits apart from application circuits, as [chapter 18 explains](./ragu-recursion.md#_6-keeping-internal-and-application-circuits-apart).
+
+### Header types and suffixes
+
+In the code a suffix [belongs to a header type](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/header.rs#L99) and not to one circuit. So, unlike our toy row, it leaves steps with the same output header interchangeable.
+
+Coming right after the substitution attack, this could look like a hole in Ragu, but the structure of PCD makes it safe. A step's check reads only its input headers and their types, as the [steps of chapter 02](./pcd-intro.md#_4-steps) do, so a parent accepts a child produced by any step that outputs a valid header of the type it expects. Each such step enforces its own check on its own inputs, so substituting one for another can only produce a header that some valid step could have produced, and chapter 02 asks only that every producible header be true. The substitution attack above worked because the verifier's statement named circuit B, and circuit A produced an output that no valid run of B could produce. In PCD the statement names a header type rather than a circuit.
+
+What the suffix still has to separate is headers of different types. That separation matters even when two types hold the same data, because a step must accept only the types it was written for:
+
+<!-- worked:charge -->
+
+Extend the tally of [chapter 02](./pcd-intro.md) with a final step `Charge` that adds a flat fee of 2. It consumes $(0, 8, 47)$ and outputs $(0, 8, 49)$. If `Charge` accepted its own output, a prover could apply it again to reach $(0, 8, 51)$, even though the fee is meant to apply once. The input and output are three numbers of the same form, so the numbers cannot tell the two states apart.
+
+<!-- /worked:charge -->
+
+Giving the input and output different types, say `Tally` and `Charged`, gives them different suffixes, and a `Charge` that accepts only a `Tally` then has no valid input for a second run. Tachyon's [`Actions`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L46-L55) and `Stamp` headers work this way. They contain identical fields, and only the suffix tells them apart. The step that applies a bundle's fee accepts only `Actions` and outputs a `Stamp`, so it cannot run twice on one bundle.
+
+## 10. What the registry costs
+
+The cost divides among three parties. The recursive circuit handles claims only, so its cost does not depend on the size of the circuits, and it grows with the size of the registry only through the domain check, which is logarithmic. It does a little field arithmetic per claim, as in [chapter 12](./split-accumulation.md#the-accumulation-verifier), and the fold adds six commitments to that chapter's list, namely the children's $S_0$ and $S_1$ and the four new ones $S'_0$, $S'_1$, $S''$ and $S_{\text{new}}$. It also checks that each child's circuit point lies in the domain, which Section 9 showed is needed and which takes $k$ squarings per child. Here is a comparison for a hypothetical tree with 256 application circuits of $2^{11}$ gates each, which is the gate limit [chapter 10 recorded](./recursive-proofs.md#_12-recursion-in-ragu). The registry also holds internal circuits and bonding polynomials (Section 13), so it has more than 256 entries and its domain needs more than 256 points:
+
+<!-- worked:costs -->
+
+| Approach | What one step puts in its circuit | Size for this example |
+| --- | --- | --- |
+| Compute $s_i(x, y)$ directly | One term per wiring coefficient of each child's circuit | At least 16,384 multiplications for two full circuits |
+| One merged circuit with selectors | The gates of every circuit, on every step | 524,288 gates |
+| Registry, as in this chapter | Field arithmetic on claims, 6 commitments in the fold, and a domain check on 2 indices | 12 claims and at least 18 squarings |
+
+<!-- /worked:costs -->
+
+The prover pays more than this table suggests. Each of the four new polynomials is a Lagrange-weighted sum over the circuits, so computing one [touches every registered circuit](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/registry.rs#L643-L677), including those the step did not use. Section 13 notes what the book says about sharing this work. We have not measured these costs.
+
+The decider pays too. To test $S_{\text{new}}$ it computes $m(w, x, y)$ at a fresh $w$, which means one $s_i(x, y)$ for each circuit. That is a linear cost in the total size of the registry, but it is paid once for a whole history.
+
+Adding a circuit therefore leaves the recursive circuit almost unchanged, so the book [encourages applications](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L108-L115) to split work into many small circuits that communicate along the PCD tree, and it speaks of hundreds or thousands of circuits. Tachyon, which has not activated on mainnet and whose design is still changing, has [a few dozen steps](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L562-L601) at the revision we read, and those steps [run against a mock](./proof-tree.md) of Ragu.
 
 ## 11. Post-processing and the registry tag
 
@@ -466,13 +499,15 @@ Ragu breaks the cycle with a **registry tag**, a field element $\kappa$ added to
 
 $$m(W, X, Y) \;\to\; m(W, X, Y) + \kappa\, (XY)^{4n-1}.$$
 
-We should first check that this cannot break an honest proof. Read as a constraint, the term is at row $Y^{4n-1}$, and at $X^{4n-1}$ its partner in the revdot product is position 0 of the trace, the wire $c_0$. So it [adds the constraint](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/local/wiring.md?plain=1#L93-L104) $\kappa c_0 = 0$, which holds for every $\kappa$, because the system gate has $c_0 = 0$. The code [reserves that row](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/lib.rs#L245-L251) by refusing a circuit that would reach it. The term has no factor of $W$, so it [appears at every domain point](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/registry.rs#L516-L522), and it vanishes at $Y = 0$, so it does not disturb the distinction of Section 10.
+We should first check that this cannot break an honest proof. Read as a constraint, the term is at row $Y^{4n-1}$, and at $X^{4n-1}$ its partner in the revdot product is position 0 of the trace, the wire $c_0$. So it [adds the constraint](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/local/wiring.md?plain=1#L93-L104) $\kappa c_0 = 0$, which holds for every $\kappa$, because the system gate has $c_0 = 0$. The code [reserves that row](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/lib.rs#L245-L251) by refusing a circuit that would reach it. The term has no factor of $W$, so it [appears at every domain point](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/registry.rs#L516-L522), and it vanishes at $Y = 0$, so it does not disturb the distinction of Section 9.
 
 <!-- worked:tag-run -->
 
-Take $\kappa = 19$. On the trace of [chapter 09's constant-wire circuit](./nark.md#_14-the-constant-wire), $\v{r} = (0, 9, 27, 9, 3, 11, 0, 3, 3, 0, 0, 1)$, the wire $c_0$ is 0, and the tagged wiring polynomial $s(X, Y) + 19(XY)^{11}$ still satisfies the consolidated equation at all 1849 pairs. The tag cannot be added to our earlier two-gate circuit, whose $c_0 = 9$. There the term contributes $9 \cdot 19 \cdot y^7$, and the honest trace passes at only 43 pairs, those with $y = 0$. The tag reaches every commitment a fold makes to a restriction. For $x = 21$ the commitment to $s_{\kappa}(21, Y)$ is $(11,\,1)$, and going through all 43 values of $\kappa$ gives 43 different points. So a transcript that absorbs this commitment gives challenges that the author of the circuit could not predict before $\kappa$ was drawn.
+Take $\kappa = 19$. On the trace of [chapter 09's constant-wire circuit](./nark.md#_15-the-constant-wire), $\v{r} = (0, 9, 27, 9, 3, 11, 0, 3, 3, 0, 0, 1)$, the wire $c_0$ is 0, and the tagged wiring polynomial $s(X, Y) + 19(XY)^{11}$ still satisfies the consolidated equation at all 1849 pairs. The tag cannot be added to our earlier two-gate circuit, whose $c_0 = 9$. There the term contributes $9 \cdot 19 \cdot y^7$, and the honest trace passes at only 43 pairs, those with $y = 0$. The tag reaches every commitment a fold makes to a restriction. For $x = 21$ the commitment to the constant-wire circuit's tagged restriction $s_{\kappa}(21, Y)$ is $(11,\,1)$, and going through all 43 values of $\kappa$ gives 43 different points. So a transcript that absorbs this commitment gives challenges that the author of the circuit could not predict before $\kappa$ was drawn.
 
 <!-- /worked:tag-run -->
+
+To see that this reaches the challenges the attack needed, follow the transcript of Section 6. The fold absorbs the children's $S_0$ and $S_1$ in its first stage, before it squeezes $w$, and it absorbs $S'_0$ and $S'_1$ before it squeezes $y$ and $z$. Each of these commits to a restriction of the tagged polynomial, so each depends on $\kappa$ in the way the run above shows. So $y$ and $z$, the two challenges that the adaptive attack had to know in advance, depend on $\kappa$ too.
 
 The order of events is what provides the protection. The whole system description, including every circuit, is [fixed and published first](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/registry.rs#L319-L330), and then $\kappa$ is sampled independently and without bias. An author cannot adapt a circuit to challenges that depend on a number drawn after the circuit was published. The [code](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/lib.rs#L120-L125) keeps one tag for each of its two registries.
 
@@ -482,7 +517,7 @@ The [book](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe38
 
 ## 12. Why cheating fails
 
-This argument is informal. It assumes the [discrete log relation assumption](./polynomial-commitments.md#_4-why-a-prover-cannot-change-the-vector) for the generators, it treats the transcript hash as a [random oracle](./statements-and-challenges.md#the-assumption) with each challenge drawn after the data it tests, and it assumes that someone runs the decider. It also assumes that the circuit ties each child's $(S_i, x_i, y_i)$ and circuit point to that child's proof, for the reason that [chapter 12 gave](./split-accumulation.md#dropping-the-accumulator) about dropping an accumulator. A prover who could restate $x_i$ and $y_i$ freely could prove consistency for coordinates that have nothing to do with the check they were meant to support.
+This argument is informal. It assumes the [discrete log relation assumption](./polynomial-commitments.md#_4-why-a-prover-cannot-change-the-vector) for the generators, it treats the transcript hash as a [random oracle](./statements-and-challenges.md#the-assumption) with each challenge drawn after the data it tests, and it assumes that someone runs the decider. It also assumes that the circuit ties each child's $(S_i, x_i, y_i)$ and the circuit point $\iota$ named for it to that child's proof, for the reason that [chapter 12 gave](./split-accumulation.md#dropping-the-accumulator) about dropping an accumulator. A prover who could restate $x_i$ and $y_i$ freely could prove consistency for coordinates that have nothing to do with the check they were meant to support.
 
 The reasoning of Section 4 applies to the registry link by link. Each commitment is tested at a challenge drawn after it was fixed, and a false commitment passes only at a root of its difference from the true polynomial. Running the toy registry with the best difference we could build at each link gives these counts:
 
@@ -517,7 +552,7 @@ That false accumulator then behaves as in Section 4. It moves from node to node,
 
 ## 13. Wiring and the registry in Ragu
 
-The code at commit `3219e08` runs the walk of Section 6 inside [`fuse`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/mod.rs#L108-L125) on both of its registries. Its test-oracle verifier [states what each stage must hold](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/verify.rs#L460-L469), and this list locates most of the values from our table in Section 6 and the two openings from Section 7. Here `m` is the registry polynomial, `left_id` is the left child's domain point, and the first entry is the value shared by $S''$ and $S_{\text{new}}$:
+The code at commit `3219e08` runs the walk of Section 6 inside [`fuse`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/mod.rs#L108-L125) on both of its registries. Its test-oracle verifier [states what each stage must hold](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/verify.rs#L460-L469), and this list locates all five shared values from our table in Section 6 and the two openings from Section 7. Here `m` is the registry polynomial, `left_id` is the left child's domain point, and the first entry is the value shared by $S''$ and $S_{\text{new}}$:
 
 ```rust
 let query_claim = claimed
@@ -550,7 +585,7 @@ We use $\kappa$ because $k$ already names the public input polynomial.
 - **The claims.** The [static query list](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/mod.rs#L851-L916) names all ten claims of Section 6, then the two openings at the children's circuit points, and the [`compute_v` circuit](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/compute_v.rs#L575-L625) gives each claim its value.
 - **Internal circuits.** The fuse also [opens $m(W, x, y)$ at each internal circuit's fixed point](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/compute_v.rs#L654-L657), so the real list has more entries than our twelve. Those values [feed the check of $b(x)$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/compute_v.rs#L441-L459) for internal circuits in the same way as an application circuit's value.
 - **The order of registration.** [`finalize`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/registry.rs#L233-L237) places internal circuits first, then bonding polynomials, internal steps and application steps, which gives the internal circuits low indices.
-- **The decider.** The test-oracle verifier [samples a fresh $w$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/verify.rs#L221-L229) and compares the stored polynomial with $m(w, x, y)$, computed from the registry. In production, [compression](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/instance.rs#L725-L738) turns this into an opening of the commitment at $w$, whose value the verifier computes from the registry. That is the final linear cost that [chapter 18](./ragu-recursion.md) places in the larger picture.
+- **The decider.** The test-oracle verifier [samples a fresh $w$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/verify.rs#L221-L229) and compares the stored polynomial with $m(w, x, y)$, computed from the registry. In production, [compression](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/instance.rs#L725-L738) turns this into an opening of the commitment at $w$, whose value the verifier computes from the registry. That is the final linear cost that [chapter 19](./compression.md) places in the larger picture.
 - **Two registries.** The [nested registry](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/verify.rs#L231-L240) runs the same walk at the nested counterparts of the challenges, on the other curve of [chapter 13's cycle](./curve-cycles.md). Its query list has no openings at children's circuit points, which agrees with [that chapter's finding](./curve-cycles.md#_12-cycles-in-ragu) that application circuits sit only on the native side.
 :::
 
@@ -561,7 +596,7 @@ We use $\kappa$ because $k$ already names the public input polynomial.
 
 **Domain points.** The book's [wiring chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/wiring.md?plain=1#L79-L88) writes $s_i = m(\omega^i, X, Y)$ and notes that this ignores the remapping. The [opening of its registry chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/extensions/registry.md?plain=1#L21-L23) says that circuits go to successive powers of $\omega$, while its later section and [the code](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/registry.rs#L729-L737) use bit reversal. Sections 5 to 7 use $\omega^i$ as the book's simplification does, and on the toy domain the two agree.
 
-**Memoization.** The book's routines chapter describes a memoized evaluation path, and a [code comment](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/wiring/sxy.rs#L39-L46) calls a multi-dimensional strategy planned under [issue #58](https://github.com/tachyon-zcash/ragu/issues/58). We did not establish how much of this applies to the registry at this commit.
+**Memoization.** The book's routines chapter [describes a floor planner and memoization](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/implementation/routines.md?plain=1#L615-L632) that let circuits with common routines share the prover's work over the registry, which is one source of the ["diminishing overhead"](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L30-L35) it claims. A [code comment](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/wiring/sxy.rs#L39-L46) calls a multi-dimensional strategy planned under [issue #58](https://github.com/tachyon-zcash/ragu/issues/58). We did not establish how much of this applies to the registry at this commit.
 :::
 
 ## 14. Where this chapter leaves us
@@ -572,8 +607,8 @@ This chapter took the following steps:
 2. Two restrictions of a polynomial agree at their crossing, which turns a claim about wiring into a pair of evaluation claims.
 3. For one circuit, a restriction $s(x, Y)$ ties old claims $(S_i, y_i)$ to a new claim, and a false claim either hits a rare root or passes its error forward until a decider rejects it.
 4. The registry polynomial $m(W, X, Y)$ holds many circuits, each at a root of unity, and its restriction $m(W, x, y)$ lets a single commitment supply any circuit's wiring value.
-5. The registry walk moves $W$, $Y$ and $X$ one at a time, using four new commitments and ten claims, and each child's circuit adds one more claim.
-6. The recursive circuit pays a fixed cost for any registry size, while the prover and the decider pay for reading all of the circuits.
+5. The registry walk moves $W$, $Y$ and $X$ one at a time, using four new commitments and ten claims. With the children's two commitments, a fold handles six, and each child's circuit adds one more claim.
+6. The recursive circuit's cost does not depend on the size of the circuits, and it grows only with the logarithm of the registry size, through the domain check. The prover and the decider pay for reading all of the circuits.
 7. Bit reversal gives each circuit a point that does not depend on the size of the registry.
 8. A domain check rules out blended circuits, $k_0 = 1$ rules out bonding polynomials and unassigned points, and a header suffix tells apart circuits whose output headers differ in type.
 9. No verification keys exist, so the transcript depends on the circuits through a registry tag that is sampled after they are published, and the code treats this tag as a temporary measure.

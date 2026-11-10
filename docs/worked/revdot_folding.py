@@ -309,6 +309,7 @@ E1 = (EF[0][1] + EF[1][0]) % Q
 E2 = (EF[0][2] + EF[2][0]) % Q
 E3 = (EF[1][2] + EF[2][1]) % Q
 assert all(one_challenge_lhs(false_list, r)[2] != one_challenge_rhs(false_list, E1, E2, E3, r) for r in range(1, Q))
+assert one_challenge_lhs(false_list, 0)[2] == one_challenge_rhs(false_list, E1, E2, E3, 0) and false_list[0].true()
 E2_cheat = (E2 + gap) % Q
 assert E2 and E2_cheat != E2
 assert all(one_challenge_lhs(false_list, r)[2] == one_challenge_rhs(false_list, E1, E2_cheat, E3, r) for r in range(Q))
@@ -316,10 +317,18 @@ r_show = 9
 a_s, b_s, c_s = one_challenge_lhs(false_list, r_show)
 com_a = add(msm([1, r_show, r_show * r_show % Q], [x.A for x in false_list]), None)
 assert com_a == commit(a_s, sum(pow(r_show, i, Q) * x.ga for i, x in enumerate(false_list)) % Q)
+frag['false-list'] = table(
+    ['Slot', 'Statement', 'Witness', 'Stated $c$', 'True $\\revdot{\\v{a}}{\\v{b}}$'],
+    [[0, false_list[0].label, 'Honest proof (claim 1 above)', false_list[0].c, revdot(false_list[0].a, false_list[0].b)],
+     [1, f'{three[0].label}, the statement of claim 0', f'Chapter 09\'s false trace for $x = 4$, where $F(4) = {step(4)}$', false_mid.c, revdot(false_mid.a, false_mid.b)],
+     [2, false_list[2].label, 'Honest proof (claim 2 above)', false_list[2].c, revdot(false_list[2].a, false_list[2].b)]])
+assert false_list[0].true() and false_list[2].true() and false_mid.c == three[0].c
+assert false_list[0] is claims[1] and false_list[2] is claims[2]
 frag['collision'] = (
-    f'Put chapter 09\'s false witness with $x = 4$ in the middle slot, between the two later proofs of the table above. '
-    f'Its vectors give ${revdot(false_mid.a, false_mid.b)}$ while its statement requires $c_1 = {false_mid.c}$, so this claim is false by ${gap}$. '
-    f'The honest cross terms are $E_1 = {E1}$, $E_2 = {E2}$ and $E_3 = {E3}$, and the fold rejects at all 42 nonzero values of $r$. '
+    f'The false claim sits in slot 1, so its diagonal entry carries $r^2$, and it is false by ${gap}$. '
+    f'Write $E_k$ for the sum of cross terms in the coefficient of $r^k$, so that $E_1 = e_{{0,1}} + e_{{1,0}}$, $E_2 = e_{{0,2}} + e_{{2,0}}$ and $E_3 = e_{{1,2}} + e_{{2,1}}$. '
+    f'The honest values are $E_1 = {E1}$, $E_2 = {E2}$ and $E_3 = {E3}$, and with them the fold rejects at all 42 nonzero values of $r$. '
+    f'It passes at $r = 0$, where every weight except slot 0\'s vanishes, so only the true claim in slot 0 is checked. '
     f'The cheater sends $E_2\' = {E2} + {gap} = {E2_cheat}$ instead, before it knows $r$. '
     f'At $r = {r_show}$ both sides equal ${c_s}$, and running all 43 values of $r$ gives 43 passes. '
     f'The output is a true claim, because the vectors $\\v{{a}}^*$ and $\\v{{b}}^*$ really have that revdot product, so the decider accepts it too.')
@@ -435,25 +444,33 @@ frag['spot-check'] = (
     f'${acc_w[0]} \\cdot {a_vals[0]} + {acc_w[1]} \\cdot {a_vals[1]} + {acc_w[2]} \\cdot {a_vals[2]} = {a_star_val}$ and '
     f'${bcc_w[0]} \\cdot {b_vals[0]} + {bcc_w[1]} \\cdot {b_vals[1]} + {bcc_w[2]} \\cdot {b_vals[2]} = {b_star_val}$ modulo 43.')
 
-# The eight claims enter the batching of chapter 08.
-items = [(x.a, x.ga, x.A, THETA, ev(x.a, THETA)) for x in three] + [(fold3.a, fold3.ga, fold3.A, THETA, a_star_val)] \
-    + [(x.b, x.gb, x.B, THETA, ev(x.b, THETA)) for x in three] + [(fold3.b, fold3.gb, fold3.B, THETA, b_star_val)]
-ALPHA, U, BETA, GAMMA_F = 11, 17, 23, 5
-assert U != THETA
+# The claims that chapter 12's list already holds for each proof: a_i at x z and b_i at x.
+NARK_X = [9, 37, 31]
+assert [ev(three[0].a, 9 * 5 % Q), ev(three[0].b, 9)] == [9, 35]
+nark_pts = [(x_ * PROOF_CH[i]['z'] % Q, x_) for i, x_ in enumerate(NARK_X)]
+polys = [(x.a, x.ga, x.A) for x in three] + [(fold3.a, fold3.ga, fold3.A)] \
+    + [(x.b, x.gb, x.B) for x in three] + [(fold3.b, fold3.gb, fold3.B)]
+# Each claim names a polynomial by its index in polys, a point and a value.
+old_claims = [(i, nark_pts[i][0], ev(three[i].a, nark_pts[i][0])) for i in range(3)] \
+    + [(4 + i, nark_pts[i][1], ev(three[i].b, nark_pts[i][1])) for i in range(3)]
+spot_claims = [(k, THETA, ev(polys[k][0], THETA)) for k in range(8)]
+all_claims = old_claims + spot_claims
+ALPHA, U, BETA, GAMMA_F = 11, 17, 23, 7
+assert U != THETA and all(U != at and THETA != at for _, at, _ in old_claims)
 
 
-def batch(items, alpha, u, beta, gamma_f, values=None):
-    """Chapter 08 with the weights of chapter 12."""
+def batch(polys, claims, alpha, u, beta, gamma_f):
+    """Chapter 08 with shared polynomials (its Section 10) and the weights of chapter 12."""
     f = [0] * 8
-    for p, _, _, at, _ in items:
-        f = lin((alpha, f), (1, divide(p, at)))
+    for k, at, _ in claims:
+        f = lin((alpha, f), (1, divide(polys[k][0], at)))
     F = commit(f, gamma_f)
-    values = [ev(p, u) for p, _, _, _, _ in items] if values is None else values
+    values = [ev(p, u) for p, _, _ in polys]
     fu = 0
-    for (_, _, _, at, val), pu in zip(items, values):
-        fu = (fu * alpha + (pu - val) * inv(u - at)) % Q
+    for k, at, val in claims:
+        fu = (fu * alpha + (values[k] - val) * inv(u - at)) % Q
     P, v, new_p, new_g = F, fu, f, gamma_f
-    for (p, g, com, _, _), pu in zip(items, values):
+    for (p, g, com), pu in zip(polys, values):
         P = add(mul(beta, P), com)
         v = (v * beta + pu) % Q
         new_p = lin((beta, new_p), (1, p))
@@ -462,15 +479,16 @@ def batch(items, alpha, u, beta, gamma_f, values=None):
 
 
 # Take the first listed beta whose output avoids the identity point and a zero value.
-BETA, bat = next((b, r) for b, r in ((b, batch(items, ALPHA, U, b, GAMMA_F)) for b in (23, 25, 38, 32, 18))
+BETA, bat = next((b, r) for b, r in ((b, batch(polys, all_claims, ALPHA, U, b, GAMMA_F)) for b in (23, 25, 38, 32, 18))
                  if r['P'] is not None and r['v'] and r['P'] not in GENS + [H])
 assert bat['fu'] == ev(bat['f'], U)
 assert commit(bat['p'], bat['gamma']) == bat['P'] and ev(bat['p'], U) == bat['v']
 assert bat['P'] is not None and bat['v']
-frag['spot-batch'] = (
-    f'The list now holds {len(items)} claims, all at the single point $\\theta = {THETA}$. '
-    f'Running the fold of chapter 12 with $\\alpha = {ALPHA}$, $u = {U}$ and $\\beta = {BETA}$ gives $\\bar{{F}} = {show(bat["F"])}$, $f({U}) = {bat["fu"]}$ and the output $({show(bat["P"])},\\ {U},\\ {bat["v"]})$. '
-    f'Its witness $\\v{{p}} = {vec(bat["p"])}$ with $\\gamma = {bat["gamma"]}$ commits to the same point and evaluates to the same value.')
+assert not {bat['F'], bat['P']} & {com for _, _, com in polys}
+frag['spot-old'] = (
+    f'For the three proofs of Section 5, chapter 12\'s list already holds these six claims, one about $a_i$ at $x_i z_i$ and one about $b_i$ at $x_i$:\n\n'
+    + table(['Proof', '$x_i$', '$z_i$', '$x_i z_i$', '$a_i(x_i z_i)$', '$b_i(x_i)$'],
+            [[i, NARK_X[i], PROOF_CH[i]['z'], nark_pts[i][0], old_claims[i][2], old_claims[3 + i][2]] for i in range(3)]))
 
 # The prover names a wrong commitment for the folded vector.
 d_one = [0, 0, 0, 0, 1, 0, 0, 0]
@@ -484,14 +502,20 @@ a_wrong7 = lin((1, fold3.a), (1, roots_poly))
 wrong_hits = [t for t in range(Q) if ev(a_wrong7, t) == sum(weight_a(MU, i) * ev(three[i].a, t) for i in range(3)) % Q]
 assert wrong_hits == [1, 2, 3, 4, 5, 6, 7]
 frag['spot-cheat'] = (
-    f'Suppose the prover names $\\bar{{A}}^* = {show(commit(a_wrong, fold3.ga))}$, a commitment to $\\v{{a}}^*$ with its entry 4 raised by one, and reports true values for it. '
-    f'The linear check then fails at every $\\theta$ except 0. '
-    f'A difference that vanishes at $1, \\ldots, 7$ does as well as a difference can, and it passes at those {len(wrong_hits)} of the 43 values. '
-    f'Outside those roots the prover has to report a false value at $\\theta$, which makes that entry of the list a false evaluation claim for chapter 08 to catch.')
+    f'Suppose the prover names $\\bar{{A}}^* = {show(commit(a_wrong, fold3.ga))}$, a commitment to $\\v{{a}}^*$ with its entry 4 raised by one, and reports true values for that vector. '
+    f'The difference between the two sides of the linear check is then $\\theta^4$, so the check fails at every $\\theta$ except 0.')
+frag['spot-cheat7'] = (
+    f'A cheater who chooses the change more carefully does better, but only up to a limit. The vectors have 8 entries, so the difference is a polynomial of degree at most 7 and has at most 7 roots. '
+    f'Adding $(X - 1)(X - 2) \\cdots (X - 7)$ to $a^*(X)$ reaches that limit. The prover names $\\bar{{A}}^* = {show(commit(a_wrong7, fold3.ga))}$, and the check passes at $\\theta = 1, \\ldots, 7$, which is {len(wrong_hits)} of the 43 values. '
+    f'At the other {Q - len(wrong_hits)} values, a prover who wants the linear check to pass has to report a false value for some polynomial, and that entry of the list becomes a false evaluation claim for chapter 08\'s batching to catch.')
+assert commit(a_wrong7, fold3.ga) not in (None, fold3.A)
+n_old = len({k for k, _, _ in old_claims})
+n_new = len(polys)
 frag['spot-count'] = (
-    f'For the fold above with $m = 3$, computing the commitment sums directly takes $2m = {2 * 3}$ scalar multiplications in the circuit. '
-    f'In the batched form each of the {len(items)} polynomials takes one power of $\\beta$, so the proof\'s own $\\bar{{A}}_i$ and $\\bar{{B}}_i$ cost nothing extra when the list already contains them, and only $\\bar{{A}}^*$ and $\\bar{{B}}^*$ are new. '
-    f'That makes $2$ new scalar multiplications in place of ${2 * 3}$, and they happen in the circuit on the other curve.')
+    f'Before the spot check, $\\bar{{P}}$ combined $\\bar{{F}}$ and the {n_old} commitments $\\bar{{A}}_i$ and $\\bar{{B}}_i$, at one scalar multiplication each. '
+    f'After it, $\\bar{{P}}$ combines $\\bar{{F}}$ and {n_new} commitments. The {n_old} old polynomials keep their single power of $\\beta$, and only $\\bar{{A}}^*$ and $\\bar{{B}}^*$ are new. '
+    f'The spot check therefore adds ${n_new - n_old}$ scalar multiplications to the work deferred to the circuit on the other curve, where the direct sums would add $2m = {2 * 3}$. '
+    f'Its other new work is {len(spot_claims)} terms of $f(u)$ and the two weighted sums of the spot check, all of which are field arithmetic.')
 
 
 # ---------------------------------------------------------------- Section 8
@@ -503,17 +527,12 @@ def single_cost(m):
     return m * m + 1
 
 
-rows = []
-for M_, N_ in [(133, 1), (19, 7), (8, 17), (7, 19), (6, 23), (5, 27)]:
-    assert M_ * N_ >= 133
-    rows.append([f'${M_}$' if N_ > 1 else 'One layer', f'${N_}$' if N_ > 1 else '', M_ * N_, n(book_cost(M_, N_) if N_ > 1 else single_cost(M_))])
-frag['param-table'] = table(['$M$', '$N$', 'Room for', 'Constraints'], rows)
+frag['param-choice'] = (
+    f'For its 133 claims the book picks $(M, N) = (7, 19)$, which costs {n(book_cost(7, 19))} constraints, '
+    f'where one layer over all 133 claims would cost $133^2 + 1 = {n(single_cost(133))}$.')
 best = min(((book_cost(M_, math.ceil(133 / M_)), M_, math.ceil(133 / M_)) for M_ in range(2, 67)))
 assert best == (1276, 7, 19)
 assert book_cost(7, 19) == 1276 and single_cost(133) == 17690
-frag['param-note'] = (
-    f'Among all $M$ from 2 to 66, each with the smallest $N$ that gives room for 133 claims, the book\'s pair $(7, 19)$ has the lowest count, {n(best[0])}. '
-    f'That is {100 - 100 * best[0] / single_cost(133):.0f}% below the single layer, and the book reports the same two counts.')
 
 # Horner for the fold of Section 5, counting multiplications.
 minv, mn = inv(MU), MU * NU % Q
@@ -571,9 +590,9 @@ honest_hits = [p for p in all_pairs() if d_of({}, stated_gap, *p) == 0]
 assert all(p[1] == 0 for p in honest_hits) and len(honest_hits) == 42
 assert sum(passes(false_list, EF, *p) for p in all_pairs()) == 42
 frag['cheat-honest'] = (
-    f'Take the false list of Section 3 and let the prover send every cross term honestly. '
+    f'Take the false list of Section 3, whose false claim sits in slot 1 with diagonal weight $\\nu$, and let the prover send every cross term honestly. '
     f'The stated $c^*$ then differs from the true product by the diagonal error alone, $({false_mid.c} - {revdot(false_mid.a, false_mid.b)})\\,\\nu = {(-gap) % Q}\\,\\nu$, which is zero only at $\\nu = 0$. '
-    f'The fold passes at {len(honest_hits)} of the {n(pair_count)} pairs, all of them with $\\nu = 0$, where the second and third claims drop out.')
+    f'The fold passes at {len(honest_hits)} of the {n(pair_count)} pairs, all of them with $\\nu = 0$, where the claims in slots 1 and 2 drop out.')
 
 rng = random.Random(14)
 cells = [(i, j) for i in range(3) for j in range(3) if i != j]
@@ -613,7 +632,8 @@ for (i, j), d in best_offsets.items():
 assert sum(passes(false_list, cheated_best, *p) for p in all_pairs()) == best_hits
 frag['cheat-best'] = (
     f'A cheater can also move the cross terms away from their honest values. The difference between the two sides then becomes a polynomial in $\\mu$ and $\\nu$, nonzero because of the diagonal error, and multiplying by $\\mu^{{m-1}}$ clears the negative powers and leaves total degree at most $3(m - 1) = 6$. '
-    f'The Schwartz–Zippel bound therefore allows at most ${bound_pairs}$ of the $43^2$ pairs. '
+    f'The multiplication changes no root with $\\mu \\neq 0$, because $\\mu^{{m-1}}$ is nonzero there. '
+    f'The [Schwartz–Zippel bound](./statements-and-challenges.md#_6-polynomials-in-several-variables) therefore allows at most ${bound_pairs}$ roots among all $43^2$ pairs, so at most ${bound_pairs}$ among the {n(pair_count)} pairs with $\\mu \\neq 0$ that the fold can use, and the counts below are over those {n(pair_count)}. '
     f'The best attack we found raises $e_{{0,1}}$ by ${d01}$ and $e_{{2,1}}$ by ${d21}$. The difference becomes $\\nu({(-gap) % Q} + {d01}\\mu + {d21}\\mu^{{-1}})$, which vanishes for every $\\nu$ at $\\mu = {M1}$ and $\\mu = {M2}$, and it passes at {best_hits} of the {n(pair_count)} pairs. '
     f'The best of 300 random choices of offsets passes at {random_best}.')
 
@@ -647,7 +667,7 @@ Ecross = error_matrix(pair_layer)
 pass2_honest = sum(passes(pair_layer, Ecross, *p) for p in all_pairs())
 assert pass2_honest == 0
 frag['cheat-layers'] = (
-    f'Now place the false claim in group 0 of the six-claim run, with honest cross terms. At $\\mu = {MU1}$ and $\\nu = {NU1}$ the group\'s stated value $c^{{(0)}} = {new_g0.c}$ differs from the true product by ${gap1}$, and over all pairs the first layer passes at {pass1} of {n(pair_count)}. '
+    f'Now put the false claim in slot 1 of group 0 of the six-claim run, in place of the honest proof of $1 = F(35)$, and keep the cross terms honest. At $\\mu = {MU1}$ and $\\nu = {NU1}$ the group\'s stated value $c^{{(0)}} = {new_g0.c}$ differs from the true product by ${gap1}$, and over all pairs the first layer passes at {pass1} of {n(pair_count)}. '
     f'That error sits in a diagonal slot of the second layer, in the group with weight 1, so with honest cross terms the second layer passes at {pass2_honest} of its {n(pair_count)} pairs.')
 
 # Reusing the challenges.
@@ -688,7 +708,7 @@ for k, (mu, nu) in enumerate(FOLD_CH):
 assert gaps[0] and all(g == gaps[0] for g in gaps)
 assert not decide(acc.inst, acc.a, acc.b, acc.ga, acc.gb)
 frag['cheat-carry'] = (
-    'Start the chain of Section 6 from the false claim in place of the true one, keeping every later step honest.\n\n'
+    'Start the chain of Section 6 from the false witness of the false list in place of the proof of $35 = F(3)$, keeping every later step honest. The false claim is now the starting accumulator, in slot 0 of each fold.\n\n'
     + table(['Step', 'Stated $c$', 'True $\\revdot{\\v{a}}{\\v{b}}$', 'Stated minus true'], rows)
     + '\n\n' + f'The verifier computes each new instance and sees nothing wrong. The accumulator sits in slot 0, whose diagonal weight is $\\nu^0 = 1$, so the gap of ${gaps[0]}$ passes through each fold unchanged. The decider rejects the last accumulator because its product differs from its stated value.')
 
@@ -775,7 +795,7 @@ frag['q-divide'] = (
             [['$\\revdot{\\v{A}(T)}{\\v{B}(T)}$', f'${vec(qd["ab"])}$'],
              ['$K(T)$', f'${vec(qd["k"])}$'],
              ['$R(T)$', f'${vec(qd["residual"])}$']])
-    + '\n\n' + f'Dividing by $Z(T)$ leaves no remainder and gives $Q(T) = {qd["q"][0]} + {qd["q"][1]}T$. The prover commits to these two coefficients before it sees the challenge.')
+    + '\n\n' + f'Dividing by $Z(T)$ leaves no remainder and gives $Q(T) = {qd["q"][0]} + {qd["q"][1]}T$. The prover sends these two coefficients before it sees the challenge.')
 
 
 def lagrange_fold(items, q, mu, stated=None):
@@ -801,11 +821,11 @@ A_l = combine_points(lf['lam'], [x.A for x in three])
 B_l = combine_points(lf['lam'], [x.B for x in three])
 assert A_l == commit(lf['a'], lf['ga']) and B_l == commit(lf['b'], lf['gb'])
 frag['q-run'] = (
-    f'The verifier sends $\\mu = {LMU}$. The three weights are $\\lambda_i = L_i({LMU})$, which gives ${vec(lf["lam"])}$, and the same weights apply on both sides, so '
+    f'The verifier sends $\\tau = {LMU}$. The three weights are $\\ell_i = L_i({LMU})$, which gives ${vec(lf["lam"])}$, and the same weights apply on both sides, so '
     f'$\\bar{{A}}^* = {show(A_l)}$ and $\\bar{{B}}^* = {show(B_l)}$. '
     f'The verifier computes $K({LMU}) = {lf["k"]}$, $Z({LMU}) = {lf["z"]}$ and $Q({LMU}) = {lf["q"]}$, so the new value is $c^* = {lf["k"]} + {lf["z"]} \\cdot {lf["q"]} = {lf["c"]}$. '
     f'The prover\'s folded vectors are $\\v{{a}}^* = {vec(lf["a"])}$ and $\\v{{b}}^* = {vec(lf["b"])}$, and their revdot product is ${revdot(lf["a"], lf["b"])}$. '
-    f'All 43 values of $\\mu$ pass for these honest claims. The prover sent two field elements where the error matrix needed six.')
+    f'All 43 values of $\\tau$ pass for these honest claims. The prover sent two field elements where the error matrix needed six.')
 
 # Soundness: every Q against every challenge, with the false claim in slot 1.
 stated = [x.c for x in false_list]
@@ -833,13 +853,13 @@ node_hits = [t for t in (0, 1, 2) if ab_vals[t] == k_vals[t]]
 assert node_hits == [0, 2]
 assert min(tally) >= 2
 frag['q-count'] = (
-    f'Take the false list of Section 3, with slot 1 false by ${gap}$. We tried all $43^2 = {n(Q * Q)}$ values of the two quotient coefficients against all 43 values of $\\mu$. '
-    f'The best choice passes at {max(tally)} values of $\\mu$, which is the bound $2m - 2 = 4$. Every choice passes at $\\mu = 0$ and $\\mu = 2$, because at a node the weights select one claim and $Z$ vanishes, so the fold checks only the claim in that slot. '
-    f'No choice passes at $\\mu = 1$, the node of the false claim.')
+    f'Take the false list of Section 3, whose false claim sits in slot 1 and is false by ${gap}$. We tried all $43^2 = {n(Q * Q)}$ values of the two quotient coefficients against all 43 values of $\\tau$. '
+    f'The best choice passes at {max(tally)} values of $\\tau$, which is the bound $2m - 2 = 4$. Every choice passes at $\\tau = 0$ and $\\tau = 2$, because at a node the weights select one claim and $Z$ vanishes, so the fold checks only the claim in that slot. '
+    f'No choice passes at $\\tau = 1$, the node of the false claim.')
 qlate_mu = 20
 qlate_needed = (ab_vals[qlate_mu] - k_vals[qlate_mu]) * inv(z_vals[qlate_mu]) % Q
 frag['q-late'] = (
-    f'At $\\mu = {qlate_mu}$ the cheater needs $Q({qlate_mu}) = {qlate_needed}$, and one linear equation in the two coefficients provides it. This is why the code fixes the quotient before the challenge.')
+    f'At $\\tau = {qlate_mu}$ the cheater needs $Q({qlate_mu}) = {qlate_needed}$, and one linear equation in the two coefficients provides it. This is why the code fixes the quotient before the challenge.')
 
 # Six claims, two layers.
 lay = []
@@ -859,8 +879,8 @@ res2 = lagrange_fold(lay, q2['q'], SIG)
 assert revdot(res2['a'], res2['b']) == res2['c']
 assert res2['c'] and all(q2['q'])
 frag['q-layers'] = (
-    f'For the six claims of Section 8 with the groups unchanged, the first layer commits to $Q_0 = {vec(Q1[0])}$ and $Q_1 = {vec(Q1[1])}$. At $\\mu = {LMU}$ the groups give values $c^{{(0)}} = {lay[0].c}$ and $c^{{(1)}} = {lay[1].c}$. '
-    f'The second layer has two inputs, so its quotient has the single coefficient ${q2["q"][0]}$. At $\\mu\' = {SIG}$ the final value is $c^* = {res2["c"]}$, which equals the revdot product of the final vectors. '
+    f'For the six claims of Section 8 with the groups unchanged, the prover sends the first layer\'s quotients $Q_0 = {vec(Q1[0])}$ and $Q_1 = {vec(Q1[1])}$. At $\\tau = {LMU}$ the groups give values $c^{{(0)}} = {lay[0].c}$ and $c^{{(1)}} = {lay[1].c}$. '
+    f'The second layer has two inputs, so its quotient has the single coefficient ${q2["q"][0]}$. At $\\tau\' = {SIG}$ the final value is $c^* = {res2["c"]}$, which equals the revdot product of the final vectors. '
     f'The prover sent $2 \\cdot 2 + 1 = 5$ field elements, where Section 8 sent 14.')
 
 
@@ -873,7 +893,21 @@ def quotient_gates(M, N):
 
 
 def products(M, N):
+    # Off-diagonal products only: an honest prover knows e_{i,i} = c_i.
+    return N * M * (M - 1) + N * (N - 1)
+
+
+def code_products(M, N):
+    # The code's errors() forms the diagonal products as well.
     return N * M * M + N * N
+
+
+# Substituting c_i for e_{i,i} leaves the quotient unchanged: L_i^2 - L_i vanishes on every node.
+for m_ in (3, 7, 14):
+    bas_, z_ = lagrange(m_)
+    for i_ in range(m_):
+        d_ = poly_add(poly_mul(bas_[i_], bas_[i_]), bas_[i_], -1)
+        assert all(ev(d_, t) == 0 for t in range(m_))
 
 
 NATIVE = (7, 14)
@@ -882,13 +916,21 @@ assert quotient_gates(*NATIVE) == 262 and quotient_gates(*NESTED) == 213
 single_q = basis_gates(98) + 2 * 98 - 1
 frag['q-costs'] = table(
     ['For 98 slots, $(M, N) = (7, 14)$', 'Book\'s two-layer error matrix', 'Code\'s quotient fold', 'Quotient fold with one layer'],
-    [['Field elements the prover commits to', n(14 * 7 * 6 + 14 * 13), n(14 * 6 + 13), n(97)],
-     ['Revdot products the prover computes', n(14 * 7 * 6 + 14 * 13), n(products(*NATIVE)), n(98 * 98)],
+    [['Field elements the prover sends before the challenges', n(14 * 7 * 6 + 14 * 13), n(14 * 6 + 13), n(97)],
+     ['Off-diagonal revdot products the prover computes', n(14 * 7 * 6 + 14 * 13), n(products(*NATIVE)), n(98 * 97)],
      ['Multiplication gates for the scalar fold', n(book_cost(*NATIVE)), n(quotient_gates(*NATIVE)), n(single_q)]])
-frag['q-nested'] = (
-    f'By the same count, the nested side\'s $(M, N) = (8, 10)$ has room for ${8 * 10}$ claims, commits to ${10 * 7 + 9}$ coefficients, and uses {quotient_gates(*NESTED)} multiplication gates for its scalar folds.')
+assert products(*NATIVE) == 14 * 7 * 6 + 14 * 13 == 770 and code_products(*NATIVE) == products(*NATIVE) + 98 + 14
+frag['q-why-layers'] = (
+    f'With one layer over all 98 slots, the prover needs every product $\\revdot{{\\v{{a}}_i}}{{\\v{{b}}_j}}$ with $i \\neq j$, which is $98 \\cdot 97 = {n(98 * 97)}$ products. '
+    f'With 14 groups of 7, it needs $7 \\cdot 6 = {7 * 6}$ products inside each group and $14 \\cdot 13 = {14 * 13}$ between the intermediate claims, '
+    f'so $14 \\cdot {7 * 6} + {14 * 13} = {n(products(*NATIVE))}$ in all, the same number as the book\'s two-layer matrix. The circuit\'s count also falls, from {n(single_q)} gates to {n(quotient_gates(*NATIVE))}, '
+    f'because the Lagrange weights for 98 nodes cost more to compute than the weights for 7 nodes and 14 nodes together.')
+frag['q-code-diag'] = (
+    f'The code forms the diagonal products as well. Its division routine [computes every product of a group, the diagonal included](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/fold_revdot.rs#L188-L224) and uses each diagonal product as that claim\'s target, '
+    f'which adds $98 + 14$ products to the count, for ${n(code_products(*NATIVE))}$ in all. '
+    f'This is a choice of the implementation and not a requirement of the fold, since substituting $c_i$ gives the same quotient.')
 frag['q-bound'] = (
-    f'The code\'s comments give each layer a failure bound of $(2m - 2)/|S|$ for a challenge uniform on a set $S$, and they put the nested challenges at $|S| = 2^{{143}}$. '
+    f'The code\'s comments give each layer a failure bound of $(2m - 2)/|S|$ for a challenge uniform on a set $S$, and they put the nested challenges at $|S| = 2^{{143}}$, the [143-bit endoscalar challenges](./curve-cycles.md#shorter-challenges) of chapter 13. '
     f'The largest reduction on the nested side has $m = 10$, which gives ${2 * 10 - 2}/2^{{143}}$, and that is below $2^{{-{int(143 - math.log2(18))}}}$.')
 
 # ---------------------------------------------------------------- Section 11
@@ -907,8 +949,7 @@ sv_c = sum(pow(MU, i - j, Q) * pow(NU, i, Q) * E3x3[i][j] if i >= j else pow(inv
            for i in range(3) for j in range(3)) % Q
 assert revdot(sv_a, sv_b) == sv_c
 frag['reparam'] = (
-    f'For the fold of Section 5, the book\'s $\\mu = {MU}$ and $\\nu = {NU}$ correspond to the plain weights $\\lambda = {mu_c}$ and $\\eta = {nu_c}$, and these give the same $\\v{{a}}^*$, $\\v{{b}}^*$ and $c^* = {fold3.c}$. '
-    f'The form in the structured vectors chapter at the same $\\mu$ and $\\nu$ gives a different pair of vectors with revdot product ${sv_c}$, and its stated formula holds as well.')
+    f'For the fold of Section 5, the book\'s $\\mu = {MU}$ and $\\nu = {NU}$ correspond to the plain weights $\\mu_c = \\lambda = {mu_c}$ and $\\nu_c = \\eta = {nu_c}$, and these give the same $\\v{{a}}^*$, $\\v{{b}}^*$ and $c^* = {fold3.c}$.')
 
 # Compression's E and W, with one layer.
 off = [(i, j) for i in range(3) for j in range(3) if i != j]
@@ -920,9 +961,6 @@ epsilon = revdot(E_poly, W_poly)
 diag_sum = sum(pow(mu_c, i, Q) * pow(nu_c, i, Q) * three[i].c for i in range(3)) % Q
 assert (diag_sum + epsilon) % Q == fold3.c == revdot(A_c, B_c)
 assert epsilon and diag_sum
-frag['e-w'] = (
-    f'The six cross terms of Section 5, packed row by row, give $\\v{{E}} = {vec(E_poly)}$. '
-    f'The public vector with the weights mirrored is $\\v{{W}} = {vec(W_poly)}$, and $\\varepsilon = \\revdot{{\\v{{E}}}}{{\\v{{W}}}} = {epsilon}$. '
-    f'The diagonal contributes ${diag_sum}$, so the target of the folded pair is ${diag_sum} + {epsilon} = {fold3.c}$, the value of $c^*$ from Section 5.')
+# The e-w packing is derived with its own run in the compression part of the recursion chapter.
 
 print(json.dumps(frag))

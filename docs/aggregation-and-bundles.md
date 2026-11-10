@@ -2,12 +2,12 @@
 
 [Chapter 2](./pcd-intro.md#_10-aggregation-as-proof-carrying-data) followed one aggregate through its proof tree, treating the transactions around it as labelled boxes. This chapter opens those boxes. We look at what a Tachyon bundle contains on the wire, how a wallet commits to a fee before the fee is known, how merging and stripping change a bundle without disturbing what its owner signed, how identifiers survive those changes, and what an aggregator does when blocks land in the middle of its work.
 
-The steps that produce a stamp have their internals in [chapter 22](./proof-tree.md), so here we use them by what they establish. We keep the bundles X, Y and Z of chapter 2 and give them real toy values. In chapter 2 the aggregator built X itself. Here X belongs to an ordinary wallet, and the aggregator carries the result on a bundle A of its own that has no actions, which Section 1 calls an innocent aggregate.
+The steps that produce a stamp have their internals in [chapter 23](./proof-tree.md), so here we use them by what they establish. We keep the bundles X, Y and Z of chapter 2 and give them real toy values. In chapter 2 the aggregator built X itself. Here X belongs to an ordinary wallet, and the aggregator carries the result on a bundle A of its own that has no actions, which Section 1 calls an innocent aggregate.
 
 ::: warning Status of these designs
 Tachyon has not activated on mainnet and its design is still changing. Everything here describes the [Tachyon repository](https://github.com/tachyon-zcash/tachyon/tree/7e502548db33845dbaacdc0efe905d1a3c45e626) at commit `7e50254`, which pins Ragu at [`0725b52`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/Cargo.toml#L74-L76) rather than the `3219e08` used in the Ragu chapters. The [bundle format ZIP](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/zips/tachyon-bundle.md) and the [aggregator protocol ZIP](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/zips/tachyon-aggregator.md) are empty outlines at this commit, so no normative specification exists. The book's [own notes](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/aggregation.md?plain=1#L60-L63) leave the tachygram union algorithm and the aggregation limits to be written.
 
-As [chapter 19](./notes-and-nullifiers.md#_13-where-these-derivations-run) records, Tachyon builds against a mock of Ragu, so we describe what the proof steps declare and we did not find real circuits enforcing it. The crate also has no validator and no mempool. It has a [`Bundle::verify`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/bundle/mod.rs#L808-L858) for one covering bundle, while block assembly, the window check, and transaction-level balance appear only in the book and in tests.
+As [chapter 20](./notes-and-nullifiers.md#_13-where-these-derivations-run) records, Tachyon builds against a mock of Ragu, so we describe what the proof steps declare and we did not find real circuits enforcing it. The crate also has no validator and no mempool. It has a [`Bundle::verify`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/bundle/mod.rs#L808-L858) for one covering bundle, while block assembly, the window check, and transaction-level balance appear only in the book and in tests.
 :::
 
 We follow the book's names "stamped" and "stripped" for the two bundle states. The code calls them [`ProofStamp` and `PointerStamp`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/bundle/mod.rs#L3-L9). We also say "action" and "stamp" for the book's "tachyaction" and "tachystamp". As in chapter 2, "fuse" names Ragu's operation, and "merge" appears only for what the Tachyon steps do to stamps.
@@ -74,7 +74,7 @@ The memo sits on the effecting side for a reason that the [book states](https://
 
 <!-- worked:memo -->
 
-Bundle Y carries the memo `first contact`. Dropping it changes the bundle commitment from `27cd15dd` to `b9ca90b4`, and the binding signature made over the first value fails against the second.
+Bundle Y carries the memo `first contact`. Dropping it changes the bundle commitment from `9ad01c2e` to `a8bc1608`, and the binding signature made over the first value fails against the second.
 
 <!-- /worked:memo -->
 
@@ -98,7 +98,7 @@ $$v^{\mathsf{bal}} = \sum v_{\text{in}} - \sum v_{\text{out}} - \mathsf{maxfee}.
 
 ### The binding signature
 
-A validator cannot see the values, so it has to check this equation on commitments. An action's [value commitment](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/authorization.md?plain=1#L122) is $\mathsf{cv}_i = [v_i]\mathcal{V} + [\mathsf{rcv}_i]\mathcal{R}$, where $v_i$ is positive for a spend and negative for an output. Chapter 22 shows how the proof ties these to notes. The [validator's key](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L54-L58) adds all the commitments and removes the public balance:
+A validator cannot see the values, so it has to check this equation on commitments. An action's [value commitment](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/authorization.md?plain=1#L122) is $\mathsf{cv}_i = [v_i]\mathcal{V} + [\mathsf{rcv}_i]\mathcal{R}$, where $v_i$ is positive for a spend and negative for an output. Chapter 23 shows how the proof ties these to notes. The [validator's key](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L54-L58) adds all the commitments and removes the public balance:
 
 $$\mathsf{bvk} = \sum_i \mathsf{cv}_i + \mathsf{cv}_{\mathsf{maxfee}} - [v^{\mathsf{bal}}]\,\mathcal{V}.$$
 
@@ -113,7 +113,7 @@ The first bracket is zero exactly when the claimed balance is right, since $\sum
 
 <!-- worked:generators -->
 
-We write $\mathcal{V} = (26,\,8)$ and $\mathcal{R} = (23,\,7)$ for the toy value commitment generators, and values and blinds are scalars in $\F_{43}$.
+We use the toy value commitment generators $\mathcal{V} = (6,\,8)$ and $\mathcal{R} = (11,\,1)$ that [chapter 23](./proof-tree.md#_6-spending) fixed, and values and blinds are scalars in $\F_{43}$.
 
 <!-- /worked:generators -->
 
@@ -123,11 +123,11 @@ Bundle Y spends 30, creates an output of 21, and reserves a maximum of 6, so $v^
 
 | Term | Formula | Point |
 | --- | --- | --- |
-| $\mathsf{cv}$ of the spend | $[30]\mathcal{V} + [16]\mathcal{R}$ | $(6,\,23)$ |
-| $\mathsf{cv}$ of the output | $[-21]\mathcal{V} + [15]\mathcal{R}$ | $(26,\,23)$ |
-| $\mathsf{cv}_{\mathsf{maxfee}}$ | $[-6]\mathcal{V} + [5]\mathcal{R}$ | $(14,\,9)$ |
-| $\mathsf{bvk}$ | sum of the three, minus $[3]\mathcal{V}$ | $(17,\,7)$ |
-| $[\mathsf{bsk}]\mathcal{R}$ | $\mathsf{bsk} = 16 + 15 + 5 = 36$ modulo 43 | $(17,\,7)$ |
+| $\mathsf{cv}$ of the spend | $[30]\mathcal{V} + [16]\mathcal{R}$ | $(11,\,30)$ |
+| $\mathsf{cv}$ of the output | $[-21]\mathcal{V} + [15]\mathcal{R}$ | $(26,\,8)$ |
+| $\mathsf{cv}_{\mathsf{maxfee}}$ | $[-6]\mathcal{V} + [5]\mathcal{R}$ | $(22,\,24)$ |
+| $\mathsf{bvk}$ | sum of the three, minus $[3]\mathcal{V}$ | $(27,\,1)$ |
+| $[\mathsf{bsk}]\mathcal{R}$ | $\mathsf{bsk} = 16 + 15 + 5 = 36$ modulo 43 | $(27,\,1)$ |
 
 <!-- /worked:binding-run -->
 
@@ -135,7 +135,7 @@ The last two rows agree, so the planner's key matches what the validator derives
 
 <!-- worked:binding-cheat -->
 
-Suppose a bundle claims a value balance of 4 while the committed values still give 3. The validator computes $\mathsf{bvk}' = (8,\,9)$, which is $[\mathsf{bsk}]\mathcal{R} - \mathcal{V}$, and the true key 36 no longer matches it. On our toy curve the matching key is 3, found by counting. Finding it requires the discrete log of $\mathcal{V}$ with respect to $\mathcal{R}$, which on a real curve nobody can compute.
+Suppose a bundle claims a value balance of 4 while the committed values still give 3. The validator computes $\mathsf{bvk}' = (14,\,9)$, which is $[\mathsf{bsk}]\mathcal{R} - \mathcal{V}$, and the true key 36 no longer matches it. On our toy curve the matching key is 38, found by counting. Finding it requires the discrete log of $\mathcal{V}$ with respect to $\mathcal{R}$, which on a real curve nobody can compute.
 
 <!-- /worked:binding-cheat -->
 
@@ -163,15 +163,15 @@ $$d_{\mathsf{fee}} = \mathsf{Poseidon}_{\texttt{Tachyon-FeeDg}}\big(x(\mathsf{cv
 
 The step [`FeeFuse`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L518-L645) takes the bundle's `Actions` header and a witness holding the max fee note opening and the fee. It derives $r$, then $\mathsf{cv}_{\mathsf{maxfee}}$, then $d_{\mathsf{fee}}$ and $\mathsf{cm}_{\mathsf{chg}}$, and it adds these last two to the sets that the following section describes. Its output is a `Stamp`. Since the step accepts only `Actions` as input, [it cannot apply twice](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L136-L137) to one lineage, which is the [suffix idea](./wiring-and-registry.md#header-types-and-suffixes) from chapter 15. A bundle with no actions uses [`FeeSeed`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L647-L659), which has unit inputs, requires $\mathsf{maxfee} = 0$, and uses fee 0.
 
-These steps [prove a local relation and not funding](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L112-L114). The funding comes from the actions, the binding signature, and transaction accounting. Here is bundle Y proved at three fees. We use the stand-in hash from [chapter 20](./pool-state.md#_6-folding-stamps-into-a-hash-chain), SHA-256 reduced modulo 43, for each Poseidon value, because the digests must be roots of polynomials over $\F_{43}$. The two hex columns are the first bytes of real BLAKE2b-256 digests over toy encodings, which Section 7 defines.
+These steps [prove a local relation and not funding](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L112-L114). The funding comes from the actions, the binding signature, and transaction accounting. Here is bundle Y proved at three fees. We use the stand-in hash from [chapter 21](./pool-state.md#_6-folding-stamps-into-a-hash-chain), SHA-256 reduced modulo 43, for each Poseidon value, because the digests must be roots of polynomials over $\F_{43}$. The two hex columns are the first bytes of real BLAKE2b-256 digests over toy encodings, which Section 7 defines.
 
 <!-- worked:fee-levels -->
 
 | $\mathsf{fee}$ | Change note value | $\mathsf{cm}_{\mathsf{chg}}$ | $d_{\mathsf{fee}}$ | Contribution | Bundle commitment | $\mathsf{auth\_digest}$ contribution |
 | --- | --- | --- | --- | --- | --- | --- |
-| 0 | 6 | 18 | 35 | 3 | `27cd15dd` | `5fd9be06` |
-| 4 | 2 | 12 | 36 | 7 | `27cd15dd` | `110857ce` |
-| 6 | 0 | 7 | 12 | 9 | `27cd15dd` | `8de8c40d` |
+| 0 | 6 | 18 | 33 | 3 | `9ad01c2e` | `d737c739` |
+| 4 | 2 | 12 | 27 | 7 | `9ad01c2e` | `1012d577` |
+| 6 | 0 | 7 | 38 | 9 | `9ad01c2e` | `c9fb2d50` |
 
 <!-- /worked:fee-levels -->
 
@@ -196,22 +196,22 @@ Each stamp's header, as [chapter 2](./pcd-intro.md#the-stamp-header) described, 
 - The **action set** holds one digest per action and one fee digest per bundle, which makes $N + B$ members. An action's digest is [$d_i = \mathsf{Poseidon}_{\texttt{Tachyon-ActionDg}}(\mathsf{cv}_i, \mathsf{rk}_i)$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/digest/poseidon.rs#L100-L107).
 - The **tachygram set** holds two tachygrams per action and one change commitment per bundle, which makes $2N + B$ members.
 
-Each set is encoded as a polynomial with its members as roots, and it is committed exactly as [chapter 20](./pool-state.md#_2-encoding-a-set-as-a-polynomial) did for tachygrams:
+Each set is encoded as a polynomial with its members as roots, and it is committed exactly as [chapter 21](./pool-state.md#_2-encoding-a-set-as-a-polynomial) did for tachygrams:
 
 $$\mathsf{action\_acc} = \text{Commit}\Big(\prod_i (X - d_i) \prod_j (X - d_{\mathsf{fee},j})\Big), \qquad \mathsf{tachygram\_acc} = \text{Commit}\Big(\prod_k (X - \mathsf{tg}_k)\Big).$$
 
 The action set must [ignore order](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/authorization.md?plain=1#L98-L103) because merging combines stamps from unrelated wallets in any order, and the polynomial gives this for free. It sits alongside the ordered BLAKE2b digest of the actions, which serves the signatures, and the book stresses that the two digests are not interchangeable.
 
-Here are the four stamps for our bundles before any merge, all at one common anchor $\alpha$. As in chapter 2, the stamps share one anchor, which for older stamps means that they have already been lifted to it. The polynomials live over $\F_{43}$ and the commitments use the generators of [chapter 20](./pool-state.md#_3-committing-to-the-set), extended to thirteen points from the curve's list.
+Here are the four stamps for our bundles before any merge, all at one common anchor $\alpha$. As in chapter 2, the stamps share one anchor, which for older stamps means that they have already been lifted to it. The polynomials live over $\F_{43}$ and the commitments use the generators of [chapter 21](./pool-state.md#_3-committing-to-the-set), extended to thirteen points from the curve's list.
 
 <!-- worked:stamps -->
 
 | Bundle | Action digests | Tachygrams | $\mathsf{action\_acc}$ | $\mathsf{tachygram\_acc}$ | Coverage indicator |
 | --- | --- | --- | --- | --- | --- |
-| A | $\{13\}$ | $\{38\}$ | $(20,\,6)$ | $(30,\,23)$ | `921fc7d3` |
-| X | $\{34, 9\}$ | $\{26, 33, 37\}$ | $(4,\,25)$ | $(17,\,24)$ | `1bce90fd` |
-| Y | $\{4, 21, 36\}$ | $\{10, 12, 22, 25, 31\}$ | $(16,\,10)$ | $(18,\,21)$ | `09d993b0` |
-| Z | $\{31, 25\}$ | $\{14, 23, 27\}$ | $(20,\,25)$ | $(11,\,30)$ | `79ece152` |
+| A | $\{26\}$ | $\{38\}$ | $(24,\,30)$ | $(30,\,23)$ | `bd62c8e4` |
+| X | $\{30, 42\}$ | $\{26, 33, 37\}$ | $(18,\,21)$ | $(17,\,24)$ | `131b0afb` |
+| Y | $\{1, 20, 27\}$ | $\{10, 12, 22, 25, 31\}$ | $(6,\,23)$ | $(18,\,21)$ | `e7c0c820` |
+| Z | $\{10, 28\}$ | $\{14, 23, 27\}$ | $(11,\,1)$ | $(11,\,30)$ | `8b3e84cb` |
 
 <!-- /worked:stamps -->
 
@@ -219,19 +219,19 @@ The sizes of X, Y and Z match chapter 2. A has one digest and one tachygram, whi
 
 ## 5. Merging stamps
 
-An aggregator's [process](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/aggregation.md?plain=1#L48-L56) starts by choosing transactions and validating their stamps. It aligns their anchors with `StampLift`, as [chapter 20](./pool-state.md#_10-moving-a-proof-along-the-chain) explained, and then it applies [`StampMerge`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L244-L325) pairwise. An innocent aggregate proves its own zero fee first with `FeeSeed` and merges the others into that stamp. Finally it serializes the merged stamp and publishes its bundle as a new transaction.
+An aggregator's [process](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/aggregation.md?plain=1#L48-L56) starts by choosing transactions and validating their stamps. It aligns their anchors with `StampLift`, as [chapter 21](./pool-state.md#_10-moving-a-proof-along-the-chain) explained, and then it applies [`StampMerge`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L244-L325) pairwise. An innocent aggregate proves its own zero fee first with `FeeSeed` and merges the others into that stamp. Finally it serializes the merged stamp and publishes its bundle as a new transaction.
 
 The merge needs no secrets from the wallets. [`ProofStamp::merge`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/mod.rs#L1061-L1143) takes the two stamps and their covered descriptors, all of which the aggregator holds from the mempool. It outputs a new proof, the [union of the tachygrams](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/mod.rs#L946-L949), a new coverage digest, and the fee of the left stamp. This choice of fee matters, because the merged stamp [stays on the receiving bundle and keeps that bundle's fee](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L137-L140). The other bundles carry their own fees separately once stripped, so the fee digests they contributed are still covered.
 
-Running the merges on our stamps gives the following table. Each check is the product test of [chapter 20](./pool-state.md#_4-combining-and-dividing-sets), evaluated on the tachygram polynomials at a stand-in challenge, with products taken modulo 43.
+Running the merges on our stamps gives the following table. Each check is the product test of [chapter 21](./pool-state.md#_4-combining-and-dividing-sets), evaluated on the tachygram polynomials at a stand-in challenge, with products taken modulo 43.
 
 <!-- worked:merge-run -->
 
 | Merge | Output action set size | Output tachygrams | $\mathsf{action\_acc}$ | $\mathsf{tachygram\_acc}$ | Check at $r$ | Trailer fee |
 | --- | --- | --- | --- | --- | --- | --- |
-| A with X | 3 | 4 | $(24,\,30)$ | $(28,\,21)$ | $r = 31$: $36 \cdot 17 = 10$ | 0 |
-| previous with Y | 6 | 9 | $(25,\,29)$ | $(24,\,30)$ | $r = 20$: $3 \cdot 15 = 2$ | 0 |
-| previous with Z | 8 | 12 | $(7,\,25)$ | $(1,\,29)$ | $r = 36$: $9 \cdot 37 = 32$ | 0 |
+| A with X | 3 | 4 | $(1,\,2)$ | $(28,\,21)$ | $r = 21$: $26 \cdot 29 = 23$ | 0 |
+| previous with Y | 6 | 9 | $(30,\,23)$ | $(24,\,30)$ | $r = 28$: $3 \cdot 14 = 42$ | 0 |
+| previous with Z | 8 | 12 | $(27,\,30)$ | $(1,\,29)$ | $r = 13$: $22 \cdot 32 = 16$ | 0 |
 
 <!-- /worked:merge-run -->
 
@@ -336,14 +336,14 @@ Here are forms of A and Y in our example. We compute real BLAKE2b-256 with these
 
 | Physical form | State byte | Bundle commitment | $\mathsf{auth\_digest}$ contribution |
 | --- | --- | --- | --- |
-| A with its `FeeSeed` stamp | `0x01` | `0a280ad9` | `1a82caa9` |
-| A with the merged stamp over A, X, Y and Z | `0x01` | `0a280ad9` | `0343b231` |
-| A stripped, pointing to a larger aggregate on T | `0x02` | `0a280ad9` | `70dbdc11` |
-| Y as an autonome at fee 4 | `0x01` | `27cd15dd` | `7d693073` |
-| Y as an autonome at fee 3 | `0x01` | `27cd15dd` | `0157e0a3` |
-| Y stripped, pointing to A with the merged stamp | `0x02` | `27cd15dd` | `b187f946` |
-| Y stripped, pointing to A with a stamp that covers only A, X and Y | `0x02` | `27cd15dd` | `459ecaa1` |
-| Y stripped, pointing to the aggregate on T | `0x02` | `27cd15dd` | `1e19351f` |
+| A with its `FeeSeed` stamp | `0x01` | `5c259e26` | `ebfd82fd` |
+| A with the merged stamp over A, X, Y and Z | `0x01` | `5c259e26` | `35b385a2` |
+| A stripped, pointing to a larger aggregate on T | `0x02` | `5c259e26` | `c19736d6` |
+| Y as an autonome at fee 4 | `0x01` | `9ad01c2e` | `4f31168f` |
+| Y as an autonome at fee 3 | `0x01` | `9ad01c2e` | `ef0389cd` |
+| Y stripped, pointing to A with the merged stamp | `0x02` | `9ad01c2e` | `91912e3f` |
+| Y stripped, pointing to A with a stamp that covers only A, X and Y | `0x02` | `9ad01c2e` | `e9abc9d3` |
+| Y stripped, pointing to the aggregate on T | `0x02` | `9ad01c2e` | `1f304323` |
 
 <!-- /worked:ids -->
 
@@ -405,15 +405,15 @@ We can now write down the full check in the order of [`Bundle::verify`](https://
 | Check | Inputs | Result on our block |
 | --- | --- | --- |
 | Signatures | every bundle's action and binding signatures | 8 signatures verify |
-| Pointers | the 3 adjuncts' `tachyonAggregateId` against the wtxid of A | all equal `0a280ad9`$\ldots$ |
-| Coverage | 4 action descriptors and 4 fee descriptors, none repeated | the digest `4c2ec215` matches the trailer |
+| Pointers | the 3 adjuncts' `tachyonAggregateId` against the wtxid of A | all equal `5c259e26`$\ldots$ |
+| Coverage | 4 action descriptors and 4 fee descriptors, none repeated | the digest `a5cf76e7` matches the trailer |
 | Tachygram count | $2 \cdot 4 + 4$ | 12 published |
 | Tachygram set | commit to the published list | $(1,\,29)$ equals `cTachygrams` |
-| Proof | header $((7,\,25),\ (1,\,29),\ \alpha)$ | the header matches the one the proof was made for |
+| Proof | header $((27,\,30),\ (1,\,29),\ \alpha)$ | the header matches the one the proof was made for |
 
 <!-- /worked:block-verify -->
 
-The proof verification [reads the carried tachygram commitment and not the list](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/mod.rs#L1291-L1298), which is why the tachygram set row has to come first. [Chapter 20](./pool-state.md#_5-checking-a-commitment-against-the-published-list) described the differing accounts of that comparison, and we follow the code. The checks that this method does not make are the anchor lookup, the epoch rule, the tachygram window, and the absorption, all of which [chapter 20](./pool-state.md#_11-the-consensus-window) listed.
+The proof verification [reads the carried tachygram commitment and not the list](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/mod.rs#L1291-L1298), which is why the tachygram set row has to come first. [Chapter 21](./pool-state.md#_5-checking-a-commitment-against-the-published-list) described the differing accounts of that comparison, and we follow the code. The checks that this method does not make are the anchor lookup, the epoch rule, the tachygram window, and the absorption, all of which [chapter 21](./pool-state.md#_11-the-consensus-window) listed.
 
 The fee descriptors also pass through this check, so we can confirm that aggregation changes nothing about who pays.
 
@@ -427,7 +427,7 @@ A miner cannot quietly adjust these amounts.
 
 <!-- worked:fee-rewrite -->
 
-Suppose a miner rewrites the trailer of the adjunct Y from fee 4 to fee 3, which is still within the signed maximum of 6. The bundle commitment does not change, because the fee is not effecting data, so the signatures still verify. The fee digest changes from 36 to 30, so the rebuilt action set has a different root, and its commitment becomes $(27,\,1)$ in place of the header's $(7,\,25)$. The proof cannot verify against that header.
+Suppose a miner rewrites the trailer of the adjunct Y from fee 4 to fee 3, which is still within the signed maximum of 6. The bundle commitment does not change, because the fee is not effecting data, so the signatures still verify. The fee digest changes from 27 to 17, so the rebuilt action set has a different root, and its commitment becomes $(23,\,7)$ in place of the header's $(27,\,30)$. The proof cannot verify against that header.
 
 <!-- /worked:fee-rewrite -->
 
@@ -487,7 +487,7 @@ The book [expects miners to integrate this role](https://github.com/tachyon-zcas
 
 Everything else in this section comes from [the aggregator guide](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/network_roles/aggregator.md), which is advice rather than consensus rules. Its starting point is that [several aggregators can work on the same autonomes](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/network_roles/aggregator.md?plain=1#L3-L5) and blocks keep landing, so the work has to survive competition.
 
-**The anchor comes first.** An aggregator [works at a current-epoch anchor and lifts every input to it](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/network_roles/aggregator.md?plain=1#L52-L54). Lifts cannot cross an epoch boundary, and a stamp anchored in epoch $e$ cannot be published after epoch $e + 1$, as [chapter 20](./pool-state.md#_11-the-consensus-window) explained. So an aggregate started in one epoch is finished within the next, or it is rebuilt.
+**The anchor comes first.** An aggregator [works at a current-epoch anchor and lifts every input to it](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/network_roles/aggregator.md?plain=1#L52-L54). Lifts cannot cross an epoch boundary, and a stamp anchored in epoch $e$ cannot be published after epoch $e + 1$, as [chapter 21](./pool-state.md#_11-the-consensus-window) explained. So an aggregate started in one epoch is finished within the next, or it is rebuilt.
 
 **Inputs have to be disjoint.** It [compares the tachygrams](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/network_roles/aggregator.md?plain=1#L56-L58) of its candidates with each other and with its working stamp, and it merges a disjoint set. It should keep the stamps of candidates that overlapped, because a block may include one of those instead.
 
@@ -507,7 +507,7 @@ The step [`StampUnmerge`](https://github.com/tachyon-zcash/tachyon/blob/7e502548
 
 <!-- worked:unmerge-run -->
 
-Dividing the tachygram polynomial of the merged stamp, which has degree 12, by that of X, which has degree 3, leaves remainder zero and a quotient of degree 9. Dividing the action polynomials takes degree 8 to degree 6, also with remainder zero. The quotient stamp has the header $((18,\,10),\ (28,\,21),\ \alpha)$, which is the same header we would get by merging A, Y and Z directly. At the challenge $r = 30$ the tachygram check reads $5 = 41 \cdot 19$ modulo 43. The trailer fee stays at 0, which is A's fee.
+Dividing the tachygram polynomial of the merged stamp, which has degree 12, by that of X, which has degree 3, leaves remainder zero and a quotient of degree 9. Dividing the action polynomials takes degree 8 to degree 6, also with remainder zero. The quotient stamp has the header $((9,\,22),\ (28,\,21),\ \alpha)$, which is the same header we would get by merging A, Y and Z directly. At the challenge $r = 39$ the tachygram check reads $42 = 27 \cdot 35$ modulo 43. The trailer fee stays at 0, which is A's fee.
 
 <!-- /worked:unmerge-run -->
 
@@ -517,7 +517,7 @@ The fee case is where the [exact-divisor rule](https://github.com/tachyon-zcash/
 
 <!-- worked:unmerge-fee -->
 
-Suppose instead that the block carries X at fee 4, while the merged stamp holds X at fee 5. The block's stamp has the fee digest 2 and the change commitment 39 where ours has 9 and 37. Dividing by it leaves a nonzero remainder of degree 1 on the action polynomial and of degree 2 on the tachygram polynomial, so no quotient exists. The two versions of X still share the nullifiers 26 and 33, so the merged stamp cannot be published either. Dividing by the cached fee 5 stamp of X removes X and gives the quotient above, and the fee in the block plays no part.
+Suppose instead that the block carries X at fee 4, while the merged stamp holds X at fee 5. The block's stamp has the fee digest 5 and the change commitment 39 where ours has 42 and 37. Dividing by it leaves a nonzero remainder of degree 1 on the action polynomial and of degree 2 on the tachygram polynomial, so no quotient exists. The two versions of X still share the nullifiers 26 and 33, so the merged stamp cannot be published either. Dividing by the cached fee 5 stamp of X removes X and gives the quotient above, and the fee in the block plays no part.
 
 <!-- /worked:unmerge-fee -->
 
@@ -527,7 +527,7 @@ The guide [sorts all situations by one question](https://github.com/tachyon-zcas
 
 <!-- worked:unmerge-medium -->
 
-Suppose the block includes an aggregate on a bundle T, covering T, X and Y, and T is not in our stamp. Dividing by T's stamp fails, because it has the factors of T and our stamp does not, which leaves a remainder of degree 6 on the action polynomial. Merging our cached stamps of X and Y gives a divisor that covers exactly what has to come out, and dividing by it leaves a stamp with 3 digests and 4 tachygrams, covering A and Z, with header $((16,\,21),\ (7,\,6),\ \alpha)$. The other route merges a stamp of T into our stamp first and then divides by the block's stamp. It reaches the same header.
+Suppose the block includes an aggregate on a bundle T, covering T, X and Y, and T is not in our stamp. Dividing by T's stamp fails, because it has the factors of T and our stamp does not, which leaves a remainder of degree 6 on the action polynomial. Merging our cached stamps of X and Y gives a divisor that covers exactly what has to come out, and dividing by it leaves a stamp with 3 digests and 4 tachygrams, covering A and Z, with header $((14,\,22),\ (7,\,6),\ \alpha)$. The other route merges a stamp of T into our stamp first and then divides by the block's stamp. It reaches the same header.
 
 <!-- /worked:unmerge-medium -->
 

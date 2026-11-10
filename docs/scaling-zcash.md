@@ -131,7 +131,7 @@ The note format reflects the split. A Tachyon note drops the address and $\rho$ 
 
 $$\mathsf{Note}^{\mathsf{Tachyon}} = (\mathsf{pk},\ v,\ \psi,\ \mathsf{rcm}),$$
 
-where the **payment key** $\mathsf{pk}$ is a commitment to the owner's authorization key $\mathsf{ak}$ and nullifier key $\mathsf{nk}$. The key that encrypts a note no longer appears in the note at all. [Chapter 19](./notes-and-nullifiers.md) covers these keys.
+where the **payment key** $\mathsf{pk}$ is a commitment to the owner's authorization key $\mathsf{ak}$ and nullifier key $\mathsf{nk}$. The key that encrypts a note no longer appears in the note at all. [Chapter 20](./notes-and-nullifiers.md) covers these keys.
 
 Once delivery is a separate layer, wallets can use channels other than the chain. A web checkout, a payment terminal, or a messaging app can carry the note's contents directly, as [Sean Bowe's original post](https://seanbowe.com/blog/tachyon-scaling-zcash-oblivious-synchronization/) proposes, and the wallet then learns of a payment without scanning anything. This is **out-of-band delivery**, and it is the source of the common summary that Tachyon removes in-band secret distribution. The current design is less absolute than that summary, as the following note explains.
 
@@ -213,7 +213,7 @@ Take the note in the figure, and suppose its first spend targets epoch 7 and lan
 
 <!-- /worked:double-spend-walk -->
 
-This argument assumes that the proofs cannot be forged and that $\mathsf{PRF}$ behaves as a pseudorandom function. [Chapter 19](./notes-and-nullifiers.md) and [chapter 20](./pool-state.md) give the full treatment, including how a proof can refer to history that validators no longer hold.
+This argument assumes that the proofs cannot be forged and that $\mathsf{PRF}$ behaves as a pseudorandom function. [Chapter 20](./notes-and-nullifiers.md#_10-why-a-spend-publishes-two-nullifiers) builds on this argument with an attack that a single nullifier would allow, the reason the window spans two epochs, and a numeric check of every case on a running note. [Chapter 21](./pool-state.md) shows how a proof can refer to history that validators no longer hold.
 
 ## 10. What validators store now
 
@@ -284,7 +284,7 @@ Exclusion proofs still require someone to read every tachygram of each epoch bei
 
 The service [receives opaque pairs](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md#L1255-L1270) of an epoch number and a value. For each pair, it proves that the value is absent from that epoch's history, and it returns the proof. It never learns the note or its commitment, and it cannot compute any nullifier beyond the list it was given. Nothing even shows that the values come from a real note, so a wallet can mix in decoys. Once the proof returns, the wallet separately proves that the values the service tested are the nullifiers of its note. This second step is what attaches the anonymous work to a real note, and it needs the note's secrets, so the wallet performs it.
 
-Because each epoch's nullifier is unrelated to the others, the values that later appear on chain at the spend, $\mathsf{nf}_e$ and $\mathsf{nf}_{e+1}$, lie outside the delegated list, and the service cannot recognize them. This assumes that the wallet does not delegate those epochs and that $\mathsf{mk}$ stays secret. Requests from one wallet could still be correlated with each other, and the original post leaves this partly to later work, with mixnets as one suggestion. The deep dive also proposes standard request shapes and decoys. [Chapter 21](./oblivious-sync.md) covers how the service proves absence over a whole epoch, which takes a further set of ideas.
+Because each epoch's nullifier is unrelated to the others, the values that later appear on chain at the spend, $\mathsf{nf}_e$ and $\mathsf{nf}_{e+1}$, lie outside the delegated list, and the service cannot recognize them. This assumes that the wallet does not delegate those epochs and that $\mathsf{mk}$ stays secret. Requests from one wallet could still be correlated with each other, and the original post leaves this partly to later work, with mixnets as one suggestion. The deep dive also proposes standard request shapes and decoys. [Chapter 22](./oblivious-sync.md) covers how the service proves absence over a whole epoch, which takes a further set of ideas.
 
 The following diagram shows the path of an older note through to the chain.
 
@@ -364,7 +364,7 @@ The table lists what each participant reads and what it can ignore.
 | Validator | each new block's bodies and stamps, plus the window and the anchor chain | tachygrams older than the window |
 | Archive | every stamp in every block, so that old epochs stay available | the contents of notes, which it cannot read anyway |
 
-Parts of this picture are less settled than the table makes them look. The [proof tree](./proof-tree.md) needs the wallet to hold its creation stamp's data, but the sources we read do not say how a wallet finds that stamp or fetches it privately. Chapter 21 explains what the service proves, but we found no description of where it gets old epochs, which is the data availability question from Section 10. A payment protocol may also add its own participants, such as the memo retrieval servers in the warning under Section 7.
+Parts of this picture are less settled than the table makes them look. The [proof tree](./proof-tree.md) needs the wallet to hold its creation stamp's data, but the sources we read do not say how a wallet finds that stamp or fetches it privately. Chapter 22 explains what the service proves, but we found no description of where it gets old epochs, which is the data availability question from Section 10. A payment protocol may also add its own participants, such as the memo retrieval servers in the warning under Section 7.
 
 ## 13. What this requires from a proof system
 

@@ -23,6 +23,19 @@ def witness(x):
 
 
 a, b, c = witness(3)
+
+# A bit and a selection
+P1, P0 = 10, 20
+
+
+def select(bit):
+    return (bit * P1 + (1 - bit) * P0) % Q
+
+
+assert all(bit * (bit - 1) % Q == 0 for bit in (0, 1)) and 2 * (2 - 1) % Q != 0
+frag['bit-select'] = (f'Take $p_1 = {P1}$ and $p_0 = {P0}$. The bit $s = 1$ satisfies $1 \\cdot 0 = 0$ and selects ${select(1)}$, and $s = 0$ satisfies $0 \\cdot (-1) = 0$ and selects ${select(0)}$. '
+                      f'The value $s = 2$ fails the bit equation, because $2 \\cdot 1 = {2 * 1 % Q}$, which is not 0. Without that equation, $s = 2$ would give '
+                      f'$2 \\cdot {P1} + (1 - 2) \\cdot {P0} = {select(2)}$ modulo 43, which is neither of the two values.')
 assert (c[1] + a[0] + 5) % Q == PUBLIC
 
 frag['flatten'] = '\n'.join([
@@ -91,7 +104,31 @@ vy = [sum(y ** j * rows_v[j][i] for j in range(8)) % Q for i in range(n)]
 wy = [sum(y ** j * rows_w[j][i] for j in range(8)) % Q for i in range(n)]
 ky = sum(y ** j * k[j] for j in range(8)) % Q
 assert (dot(uy, a) + dot(vy, b) + dot(wy, c)) % Q == ky
-frag['constraint-sum'] = (f'At $y = {y}$, the combined vectors are $\\v{{u}}(y) = {vec(uy)}$, $\\v{{v}}(y) = {vec(vy)}$ and $\\v{{w}}(y) = {vec(wy)}$. '
+def ypoly(col):
+    terms = []
+    for j, cf in enumerate(col):
+        if cf == 0:
+            continue
+        mon = '1' if j == 0 else ('y' if j == 1 else f'y^{j}')
+        body = mon if abs(cf) == 1 else (f'{abs(cf)}' if j == 0 else f'{abs(cf)}{mon}')
+        if not terms:
+            terms.append(('-' if cf < 0 else '') + body)
+        else:
+            terms.append((' - ' if cf < 0 else ' + ') + body)
+    return ''.join(terms) or '0'
+
+
+def ysym(rows_x):
+    return '(' + ', '.join(ypoly([rows_x[j][i] for j in range(8)]) for i in range(n)) + ')'
+
+
+u0_rows = [j for j in range(8) if rows_u[j][0] != 0]
+frag['constraint-sum'] = (f'Each entry of a combined vector collects one column of the constraint table, with row $j$ weighted by $y^j$. '
+                          f'For example, the coefficient of $a_0$ is ' + ', '.join(f'${rows_u[j][0]}$' for j in u0_rows[:-1]) + f' and ${rows_u[u0_rows[-1]][0]}$ in rows '
+                          + ', '.join(str(j) for j in u0_rows[:-1]) + f' and {u0_rows[-1]}, so the first entry of $\\v{{u}}(y)$ is ${ypoly([rows_u[j][0] for j in range(8)])}$. '
+                          f'Reading every column this way gives\n\n'
+                          f'$$\\v{{u}}(y) = {ysym(rows_u)}, \\qquad \\v{{v}}(y) = {ysym(rows_v)}, \\qquad \\v{{w}}(y) = {ysym(rows_w)}.$$\n\n'
+                          f'At $y = {y}$, the combined vectors are $\\v{{u}}(y) = {vec(uy)}$, $\\v{{v}}(y) = {vec(vy)}$ and $\\v{{w}}(y) = {vec(wy)}$. '
                           f'The left side for the honest witness is ${dot(uy, a)} + {dot(vy, b)} + {dot(wy, c)} = {(dot(uy, a) + dot(vy, b) + dot(wy, c)) % Q}$ modulo 43. '
                           f'The right side is ${y}^3 \\cdot {PUBLIC - 5} = {ky}$, because only $k_3$ is nonzero.')
 
@@ -102,8 +139,8 @@ for i, e in enumerate(p):
     for j, f in enumerate(q_):
         prod[i + j] = (prod[i + j] + e * f) % Q
 assert prod[3] == rev(p, q_)
-frag['product'] = (f'Let $p(X) = 1 + 2X + 3X^2 + 4X^3$ and $q(X) = 5 + 6X + 7X^2 + 8X^3$ over $\\F_{{43}}$. The coefficient of $X^3$ in $p(X)q(X)$ collects every pair of exponents that adds to 3: '
-                   f'$1 \\cdot 8 + 2 \\cdot 7 + 3 \\cdot 6 + 4 \\cdot 5 = {prod[3]}$ modulo 43. The revdot product computes the same sum, since $\\rv{{q}} = (8, 7, 6, 5)$ and $\\dot{{\\v{{p}}}}{{\\rv{{q}}}} = {rev(p, q_)}$. '
+frag['product'] = (f'Let $f(X) = 1 + 2X + 3X^2 + 4X^3$ and $g(X) = 5 + 6X + 7X^2 + 8X^3$ over $\\F_{{43}}$. The coefficient of $X^3$ in $f(X)g(X)$ collects every pair of exponents that adds to 3, which gives '
+                   f'$1 \\cdot 8 + 2 \\cdot 7 + 3 \\cdot 6 + 4 \\cdot 5 = {prod[3]}$ modulo 43. The revdot product computes the same sum, since $\\rv{{g}} = (8, 7, 6, 5)$ and $\\dot{{\\v{{f}}}}{{\\rv{{g}}}} = {rev(p, q_)}$. '
                    f'The full product has coefficients ${vec(prod)}$, and the entry for $X^3$ is the one in the middle.')
 
 
@@ -111,25 +148,36 @@ def layout(a, b, c, d=(0, 0)):
     return [c[0], c[1], a[1], a[0], b[0], b[1], d[1], d[0]]
 
 
+# Three blocks are not enough
+r3 = [c[0], c[1], a[1], a[0], b[0], b[1]]
+names3 = ['c_0', 'c_1', 'a_1', 'a_0', 'b_0', 'b_1']
+pairs3 = [(l, 5 - l) for l in range(3)]
+assert rev(r3, r3) != 2 * dot(a, b) % Q
+frag['three-blocks'] = (f'With $n = 2$, the arrangement $\\v{{c}} \\| \\rv{{a}} \\| \\v{{b}}$ gives the six entries $({", ".join(names3)}) = {vec(r3)}$. '
+                        f'The partner of position $\\ell$ is now $5 - \\ell$, so '
+                        + ', '.join(f'${names3[i]}$ pairs with ${names3[j]}$' for i, j in pairs3[:2]) + f', and ${names3[2]}$ pairs with ${names3[3]}$. '
+                        f'The revdot product is $2(' + ' + '.join(f'{r3[i]} \\cdot {r3[j]}' for i, j in pairs3) + f') = {rev(r3, r3)}$ modulo 43, '
+                        f'while $2\\dot{{\\v{{a}}}}{{\\v{{b}}}} = {2 * dot(a, b) % Q}$. No product $a_i b_i$ appears, and stray products such as $c_0 b_1$ take their place.')
+
 names = ['c_0', 'c_1', 'a_1', 'a_0', 'b_0', 'b_1', 'd_1', 'd_0']
 r = layout(a, b, c)
 frag['layout'] = '\n'.join(
-    ['| Position $k$ | Entry | Value | Partner position $7 - k$ | Partner entry |', '| --- | --- | --- | --- | --- |']
+    ['| Position $\\ell$ | Entry | Value | Partner position $7 - \\ell$ | Partner entry |', '| --- | --- | --- | --- | --- |']
     + [f'| {k_} | ${names[k_]}$ | {r[k_]} | {7 - k_} | ${names[7 - k_]}$ |' for k_ in range(8)])
 assert rev(r, r) == 2 * dot(a, b) % Q
 frag['plain-revdot'] = (f'For our witness, $\\v{{r}} = {vec(r)}$. Multiplying each entry by its partner and summing gives $\\revdot{{\\v{{r}}}}{{\\v{{r}}}} = {rev(r, r)}$, and $2\\dot{{\\v{{a}}}}{{\\v{{b}}}} = 2({a[0]} \\cdot {b[0]} + {a[1]} \\cdot {b[1]}) = {2 * dot(a, b) % Q}$ modulo 43.')
 
 zp = [z ** i % Q for i in range(8)]
 dil = [r[i] * zp[i] % Q for i in range(8)]
-term_rows = ['| $k$ | $r_k$ | $r_{7-k}$ | $z^{7-k}$ | Term |', '| --- | --- | --- | --- | --- |']
+term_rows = ['| $\\ell$ | $r_\\ell$ | $r_{7-\\ell}$ | $z^{7-\\ell}$ | Term |', '| --- | --- | --- | --- | --- |']
 for k_ in range(8):
     term_rows.append(f'| {k_} | {r[k_]} | {r[7 - k_]} | {zp[7 - k_]} | {r[k_] * r[7 - k_] * zp[7 - k_] % Q} |')
 weights = [(z ** (2 * n - 1 - i) + z ** (2 * n + i)) % Q for i in range(n)]
 dil_total = rev(r, dil)
 assert dil_total == sum(a[i] * b[i] * weights[i] for i in range(n)) % Q
 frag['dilation'] = (f'At $z = {z}$ the powers are ${vec(zp)}$, so $\\v{{r}} \\circ \\v{{z^{{8}}}} = {vec(dil)}$.\n\n' + '\n'.join(term_rows)
-                    + f'\n\nThe last column sums to {dil_total}. The formula above gives the same value, using weights $z^3 + z^4 = {weights[0]}$ and $z^2 + z^5 = {weights[1]}$: '
-                      f'${a[0] * b[0]} \\cdot {weights[0]} + {a[1] * b[1]} \\cdot {weights[1]} = {dil_total}$ modulo 43.')
+                    + f'\n\nThe last column sums to {dil_total}. The formula above gives the same value. Its weights are $z^3 + z^4 = {weights[0]}$ and $z^2 + z^5 = {weights[1]}$, '
+                      f'and ${a[0] * b[0]} \\cdot {weights[0]} + {a[1] * b[1]} \\cdot {weights[1]} = {dil_total}$ modulo 43.')
 
 
 def t_vector(at):
@@ -142,7 +190,9 @@ def t_vector(at):
 t = t_vector(z)
 assert rev(r, t) == -sum(c[i] * weights[i] for i in range(n)) % Q
 assert rev(r, [(dil[i] + t[i]) % Q for i in range(8)]) == 0
-frag['t-vector'] = (f'At $z = {z}$, $\\v{{t}} = {vec(t)}$. Its two nonzero entries sit at positions 7 and 6, the partners of $c_0$ and $c_1$. Then $\\revdot{{\\v{{r}}}}{{\\v{{t}}}} = {rev(r, t)}$, '
+t_steps = [f'$t_{{{4 * n - 1 - i}}} = -(z^{{{2 * n - 1 - i}}} + z^{{{2 * n + i}}}) = -{weights[i]} = {t[4 * n - 1 - i]}$' for i in range(n)]
+frag['t-vector'] = (f'At $z = {z}$, the partner of $c_0$ is position 7 and the partner of $c_1$ is position 6. Using the gate weights from Section 9, '
+                    f'{t_steps[0]} and {t_steps[1]} modulo 43, so $\\v{{t}} = {vec(t)}$. Then $\\revdot{{\\v{{r}}}}{{\\v{{t}}}} = {rev(r, t)}$, '
                     f'and adding the dilated term gives ${dil_total} + {rev(r, t)} = 0$ modulo 43, as it should for a witness that satisfies its gates.')
 
 
@@ -161,8 +211,8 @@ assert rev(r, s) == ky
 frag['s-vector'] = (f'At $y = {y}$, placing the vectors from Section 6 at the partner positions gives $\\v{{s}} = {vec(s)}$, and $\\revdot{{\\v{{r}}}}{{\\v{{s}}}} = {rev(r, s)}$. This equals $\\dot{{\\v{{k}}}}{{\\v{{y^{{8}}}}}} = {ky}$.')
 
 
-def combined(a, b, c, at_z, at_y):
-    rr = layout(a, b, c)
+def combined(a, b, c, at_z, at_y, d=(0, 0)):
+    rr = layout(a, b, c, d)
     pow_z = [at_z ** i % Q for i in range(8)]
     right = [(rr[i] * pow_z[i] + t_vector(at_z)[i] + s_vector(at_y)[i]) % Q for i in range(8)]
     return rev(rr, right), sum(at_y ** j * k[j] for j in range(8)) % Q
@@ -175,18 +225,44 @@ right = [(dil[i] + t[i] + s[i]) % Q for i in range(8)]
 frag['combined'] = (f'At $z = {z}$ and $y = {y}$, the combined right vector is $\\v{{r}} \\circ \\v{{z^{{8}}}} + \\v{{t}} + \\v{{s}} = {vec(right)}$. Its revdot product with $\\v{{r}} = {vec(r)}$ is {lhs}, '
                     f'and $\\dot{{\\v{{k}}}}{{\\v{{y^{{8}}}}}} = {rhs}$. Checking the equation at all $43^2 = {Q * Q}$ pairs $(z, y)$ confirms that the honest witness passes at every pair.')
 
-bound = 7
+bound = 4 * n - 1
+bad_d = [1, 0]
 cases = [
-    ('Gates fail, constraints hold', bad_a, bad_b, bad_c),
-    ('Gates hold, last constraint fails', a4, b4, c4),
-    ('Both fail', [4, 8], [4, 4], [8, 21]),
+    ('Gates fail, constraints hold', bad_a, bad_b, bad_c, [0, 0]),
+    ('Gates hold, last constraint fails', a4, b4, c4, [0, 0]),
+    ('Both fail', [4, 8], [4, 4], [8, 21], [0, 0]),
+    ('Honest $\\v{a}, \\v{b}, \\v{c}$, nonzero $\\v{d}$', a, b, c, bad_d),
 ]
-table = ['| Dishonest witness | $\\v{a}$ | $\\v{b}$ | $\\v{c}$ | Passing pairs $(z, y)$ | Fraction |', '| --- | --- | --- | --- | --- | --- |']
-for name, ca, cb, cc in cases:
-    count = sum(1 for u_ in range(Q) for v_ in range(Q) if combined(ca, cb, cc, u_, v_)[0] == combined(ca, cb, cc, u_, v_)[1])
-    assert count * Q <= bound * Q * Q
-    table.append(f'| {name} | ${vec(ca)}$ | ${vec(cb)}$ | ${vec(cc)}$ | {count} of {Q * Q} | {count / (Q * Q):.3f} |')
-frag['cheats'] = '\n'.join(table) + f'\n\nThe bound for this circuit is $(4n - 1)/|\\F_q| = {bound}/{Q} \\approx {bound / Q:.3f}$, and each row falls below it.'
+table = ['| Dishonest witness | $\\v{a}$ | $\\v{b}$ | $\\v{c}$ | $\\v{d}$ | Passing pairs $(z, y)$ | Fraction |', '| --- | --- | --- | --- | --- | --- | --- |']
+counts = []
+for name, ca, cb, cc, cd in cases:
+    count = sum(1 for u_ in range(Q) for v_ in range(Q) if (lambda p: p[0] == p[1])(combined(ca, cb, cc, u_, v_, cd)))
+    assert count <= bound * Q
+    counts.append(count)
+    table.append(f'| {name} | ${vec(ca)}$ | ${vec(cb)}$ | ${vec(cc)}$ | ${vec(cd)}$ | {count} of {Q * Q} | {count / (Q * Q):.3f} |')
+d_roots = [u_ for u_ in range(Q) if c[0] * bad_d[0] * (1 + u_ ** 7) % Q == 0]
+assert counts[3] == len(d_roots) * Q
+eps3 = residual(3, a4, b4, c4)
+eps3_signed = eps3 - Q if eps3 > Q // 2 else eps3
+assert all(residual(j, a4, b4, c4) == 0 for j in range(8) if j != 3)
+assert [v_ for v_ in range(Q) if v_ ** 3 * eps3 % Q == 0] == [0] and counts[1] == Q
+frag['cheats'] = ('\n'.join(table) + f'\n\nThe bound for this circuit is $(4n - 1)/|\\F_q| = {bound}/{Q} \\approx {bound / Q:.3f}$, and no row exceeds it. '
+                  f'The second row also follows from the exponent structure. Its gates hold and $\\v{{d}} = \\v{{0}}$, so only the constraint part survives, and constraint 3 is the only one that fails, with error $\\epsilon_3 = {eps3_signed}$. '
+                  f'So $E_c(y) = {eps3_signed}y^3$, which is zero only at $y = 0$, and that one value of $y$ passes with all {Q} values of $z$. '
+                  f'The last row keeps the honest gates and constraints and sets $d_0 = {bad_d[0]}$. Only the term $c_0 d_0 (1 + z^{{7}}) = {c[0] * bad_d[0] % Q}(1 + z^7)$ survives, '
+                  f'and it vanishes at the {len(d_roots)} values of $z$ with $z^7 = -1$, for any $y$. That gives ${len(d_roots)} \\cdot {Q} = {counts[3]}$ passing pairs, '
+                  f'which reaches the bound exactly.')
+
+exps_g = sorted({2 * n - 1 - i for i in range(n)} | {2 * n + i for i in range(n)})
+exps_d = sorted({i for i in range(n)} | {4 * n - 1 - i for i in range(n)})
+frag['exponents'] = (f'For our circuit with $n = {n}$, the gate part uses the powers $z^{{{exps_g[0]}}}$ through $z^{{{exps_g[-1]}}}$, '
+                     f'and the $\\v{{d}}$ part uses ' + ', '.join(f'$z^{{{e}}}$' for e in exps_d[:-1]) + f' and $z^{{{exps_d[-1]}}}$.')
+
+import math
+big_n, field_bits = 2 ** 11, 254
+top = math.ceil(math.log2(4 * big_n - 1))
+frag['large-field'] = (f'Those rates are large only because the field has 43 elements. Take $n = 2^{{11}}$ gates on a 255-bit field, which has more than $2^{{{field_bits}}}$ elements. '
+                       f'The bound is then $(4n - 1)/|\\F_q| < 2^{{{top}}}/2^{{{field_bits}}} = 2^{{{top - field_bits}}}$, since $4n - 1 = {4 * big_n - 1}$ is below $2^{{{top}}}$.')
 
 # R1CS for the same statement
 A = [[0, 0, 1, 0, 0], [0, 0, 0, 1, 0], [5, 0, 1, 0, 1]]

@@ -199,6 +199,26 @@ frag['proof-contents'] = (f'The whole proof is $L_1 = {show(r1["L"])}$, $R_1 = {
                           'For $n = 4$ that is four points and one scalar, against the four scalars of revealing $\\v{a}$. '
                           'The saving only appears at larger $n$, because the proof grows with $\\log_2 n$.')
 
+# ---------------------------------------------------------------- fixed weights
+# If the halves were combined with the fixed weight 1, P' = P + L + R and a prover could
+# move a false U term into R before any challenge exists. For the running vector L + R
+# happens to equal U, so the fragment does not print the resulting point.
+y_bad = (y + 1) % Q
+P_bad = add(C, mul(y_bad, U))
+L_fix, R_fix, _, _ = cross(a, b, G)
+R_shift = add(R_fix, neg(U))
+P_fix_honest = add(add(P_stmt, L_fix), R_fix)
+P_fix_cheat = add(add(P_bad, L_fix), R_shift)
+assert P_fix_cheat == P_fix_honest and R_shift != R_fix
+# The rest of the run with weight 1 is honest and passes.
+fa, fb, fg = fold_a(a, 1), fold_b(b, 1), fold_g(G, 1)
+assert P_fix_honest == add(msm(fa, fg), mul(dot(fa, fb), U))
+nondegenerate(P_bad, R_shift)
+frag['fixed-weight'] = (f'Suppose the halves were added with weight 1, as in the plain sums above, so that the verifier updates the statement point to $P + L + R$ with $L$ and $R$ as just defined. '
+                        f'For the running example, a prover who claims $y = {y_bad}$ instead of ${y}$ starts from $C + {y_bad} \\cdot U = {show(P_bad)}$, which carries one extra $U$. '
+                        f'It sends the honest $L = {show(L_fix)}$ and, in place of the honest $R = {show(R_fix)}$, the point $R - U = {show(R_shift)}$. '
+                        f'The extra $U$ in the statement and the missing $U$ in $R$ cancel, so the verifier ends up with the same point it would hold for the true claim $y = {y}$, and the prover can continue honestly from there.')
+
 # ---------------------------------------------------------------- cheating
 y_false = (y + 1) % Q
 e = (y_false - y) % Q
@@ -222,6 +242,8 @@ for s, v in itertools.product(range(1, Q), repeat=2):
     assert ph != mul(ah, add(gh, mul(bh, U)))
     fails += 1
 assert fails == 42 * 42
+frag['gap-values'] = (f'The honest statement point $C + {y} \\cdot U$ has coefficients $\\v{{a}} = {vec(a)}$ on $\\v{{G}}$ and ${y}$ on $U$, so its gap is ${y} - \\dot{{\\v{{a}}}}{{\\v{{b}}}} = {y} - {y} = 0$. '
+                      f'The false statement point $C + {y_false} \\cdot U$ has the same coefficients on $\\v{{G}}$ and ${y_false}$ on $U$, so its gap is ${y_false} - {y} = {e}$.')
 frag['honest-false'] = (f'Claim $y = {y_false}$ instead of ${y}$, so the statement point is $C + {y_false} \\cdot U = {show(P_false)}$, and fold honestly from $\\v{{a}}$. '
                         f'Running the argument for all ${42 * 42}$ pairs of nonzero challenges gives {fails} rejections and no acceptances, because the extra ${e} \\cdot U$ stays in the folded point in every round.')
 
@@ -231,7 +253,8 @@ base = add(gh, mul(bh, U))
 forged_c = log(ph, G[0]) * inv(log(base, G[0])) % Q
 assert mul(forged_c, base) == ph and forged_c != ah
 frag['forge-logs'] = (f'Keep the false statement $y = {y_false}$ and the honest $L_j, R_j$. With challenges $({u1}, {u2})$ the folded point is ${show(ph)}$, and the right side of the check is a multiple of $\\hat{{G}} + \\hat{{b}} \\cdot U = {show(base)}$. '
-                      f'Every point on the toy curve is a known multiple of $G_0$, so the prover can divide logs: $\\hat{{a}} = {log(ph, G[0])} / {log(base, G[0])} = {forged_c}$. Then ${forged_c} \\cdot {show(base)} = {show(ph)}$ and the verifier accepts the false value. '
+                      f'Every point on the toy curve is a known multiple of $G_0$, and counting finds ${show(ph)} = {log(ph, G[0])} \\cdot G_0$ and ${show(base)} = {log(base, G[0])} \\cdot G_0$. '
+                      f'The prover divides these logs to get $\\hat{{a}} = {log(ph, G[0])} / {log(base, G[0])} = {forged_c}$. Then ${forged_c} \\cdot {show(base)} = {show(ph)}$ and the verifier accepts the false value. '
                       'This is the attack the discrete log relation assumption rules out on a real curve.')
 
 # Knowing the challenge before sending R lets the prover cancel the error.
@@ -308,10 +331,25 @@ for cl0, cl1, cr0, cr1 in itertools.product(range(1, Q, 9), repeat=4):
 assert sampled_max <= 4
 gP = gap((a2[0], a2[1], y2))
 assert gP == 1
-frag['two-entry'] = (f'Take $\\v{{a}} = {vec(a2)}$, $\\v{{b}} = {vec(b2)}$, and the false value $y = {y2}$, so the true inner product is ${true2}$ and the statement has gap ${gP}$. '
-                     f'Keep the honest $\\v{{G}}$ coefficients in $L$ and $R$, and try all ${Q * Q}$ choices of their $U$ coefficients. For each choice, test all 42 nonzero challenges against the equations for $G_0$, $G_1$ and $U$ with the final scalar free. '
-                     f'The largest number of passing challenges is ${max(honest_family)}$, and the honest $U$ coefficients pass none. '
-                     f'A further ${sampled:,}$ strategies with altered $\\v{{G}}$ coefficients, taken from a grid of values, reach at most ${sampled_max}$, and in every passing case the gap equation holds.')
+# A U-coefficient choice that reaches the maximum, shown with its quadratic and roots.
+best_lu, best_ru = next((lu, ru) for lu in range(1, Q) for ru in range(1, Q)
+                        if len(passing(l0h, l1h, lu, r0h, r1h, ru)) == 4)
+best_wins = passing(l0h, l1h, best_lu, r0h, r1h, best_ru)
+gl_best = gap((l0h, l1h, best_lu))
+gr_best = gap((r0h, r1h, best_ru))
+roots_w = sorted(w for w in range(1, Q) if (gr_best * w * w + gP * w + gl_best) % Q == 0)
+assert len(roots_w) == 2 and sorted({u * u % Q for u in best_wins}) == roots_w
+honest_lu, honest_ru = a2[1] * b2[0] % Q, a2[0] * b2[1] % Q
+frag['two-entry'] = '\n'.join([
+    f'Take $\\v{{a}} = {vec(a2)}$ and $\\v{{b}} = {vec(b2)}$, whose true inner product is ${true2}$, and the false claim $y = {y2}$. The statement point is $P = {a2[0]} \\cdot G_0 + {a2[1]} \\cdot G_1 + {y2} \\cdot U$, with gap ${y2} - {true2} = {gP}$. '
+    f'The honest cross terms have $\\v{{G}}$ parts $L = {a2[1]} \\cdot G_0 + \\ldots$ and $R = {a2[0]} \\cdot G_1 + \\ldots$, from $\\v{{a}}_{{hi}} = ({a2[1]})$ and $\\v{{a}}_{{lo}} = ({a2[0]})$. '
+    f'With these $\\v{{G}}$ parts the first two equations both give $\\hat{{a}} = {a2[0]}u + {a2[1]}u^{{-1}}$, so they never conflict, and only the gap equation decides. '
+    f'The honest $U$ parts are $l_U = {honest_lu}$ and $r_U = {honest_ru}$, which give $\\text{{gap}}(L) = \\text{{gap}}(R) = 0$, and the gap equation becomes ${gP} = 0$, so no challenge passes.', '',
+    f'A cheater can choose other $U$ parts. With $l_U = {best_lu}$ and $r_U = {best_ru}$, the gaps are $\\text{{gap}}(L) = {best_lu} - {honest_lu} = {gl_best}$ and $\\text{{gap}}(R) = {best_ru} - {honest_ru} = {gr_best}$ modulo 43, and the quadratic is ${gr_best}w^2 + {'' if gP == 1 else gP}w + {gl_best} = 0$. '
+    f'Its roots are $w = {roots_w[0]}$ and $w = {roots_w[1]}$. Both are squares modulo 43, and their square roots are $u \\in \\{{{", ".join(map(str, best_wins))}\\}}$. '
+    f'Running the check for all 42 nonzero challenges confirms that exactly these {len(best_wins)} pass. '
+    f'Trying all ${Q * Q:,}$ choices of the two $U$ parts in the same way, no choice passes more than ${max(honest_family)}$ of the 42 challenges.',
+])
 
 # Running gap in the early-challenge attack on the n = 4 run.
 gap_L = 0
@@ -539,8 +577,15 @@ def clean_run(xi_, z_, us):
 
 
 # Keep the numbers small and readable, taking the first clean choice.
+def distinct_scalars(xi_, z_, us):
+    """The masked and unmasked final scalars differ from each other and from a_hat, s(x) and y."""
+    c_mask = code_prove(a, mask, xi_, z_, us)[2]
+    c_none = code_prove(a, [0, 0, 0, 0], xi_, z_, us)[2]
+    return len({c_mask, c_none, a_hat, s_at, y}) == 5
+
+
 xi, z, c_run = next((p, q, [r, t]) for p in range(6, 16) for q in range(10, 20) for r in range(14, 24) for t in range(17, 27) if r != t
-                    if clean_run(p, q, [r, t]))
+                    if clean_run(p, q, [r, t]) and distinct_scalars(p, q, [r, t]))
 v, rounds, c_final, trace = code_prove(a, mask, xi, z, c_run)
 assert v == y
 ok, Pp, Pend, b_end, s_end, rhs_end = code_verify(C, S, v, xi, z, c_run, rounds, c_final)
@@ -556,31 +601,33 @@ assert c_final != 0
 frag['mask'] = (f'Start from the random vector ${vec(raw_s)}$, whose polynomial takes the value ${s_at}$ at $x = {x}$. Subtracting that from the constant coefficient gives $\\v{{s}}_{{\\text{{mask}}}} = {vec(mask)}$, whose polynomial has a root at ${x}$. '
                 f'Its commitment is $S = {show(S)}$.')
 frag['p-prime'] = (f'With $\\xi = {xi}$, the combined vector is $\\v{{a}} + {xi}\\v{{s}}_{{\\text{{mask}}}} = {vec([(m * xi + c) % Q for m, c in zip(mask, a)])}$. It still evaluates to ${v}$ at $x = {x}$, because the mask contributes zero there. '
-                   f'Subtracting $v = {v}$ from the constant coefficient gives $\\v{{a}}\' = {vec(p_prime)}$, and direct evaluation gives $\\dot{{\\v{{a}}\'}}{{\\v{{b}}}} = {dot(p_prime, b)}$. '
-                   f'The verifier computes $P\' = C - {v} \\cdot G_0 + {xi} \\cdot S = {show(Pp)}$, and committing to $\\v{{a}}\'$ directly gives ${show(msm(p_prime, G))}$.')
+                   f'Subtracting $v = {v}$ from the constant coefficient gives $\\tilde{{\\v{{a}}}} = {vec(p_prime)}$, and direct evaluation gives $\\dot{{\\tilde{{\\v{{a}}}}}}{{\\v{{b}}}} = {dot(p_prime, b)}$. '
+                   f'The verifier computes $\\tilde{{P}} = C - {v} \\cdot G_0 + {xi} \\cdot S = {show(Pp)}$, and committing to $\\tilde{{\\v{{a}}}}$ directly gives ${show(msm(p_prime, G))}$.')
 
 rows = ['| Step | Party | Value |', '| --- | --- | --- |']
 rows.append(f'| Transcript already holds $C$, $x$, $v$ | Both | ${show(C)}$, ${x}$, ${v}$ |')
 rows.append(f'| Send mask commitment | Prover | $S = {show(S)}$ |')
 rows.append(f'| Challenges | Verifier | $\\xi = {xi}$, $z = {z}$ |')
-rows.append(f'| Compute $P\'$ | Both | ${show(Pp)}$ |')
+rows.append(f'| Compute $\\tilde{{P}}$ | Both | ${show(Pp)}$ |')
 for j, tr in enumerate(trace, start=1):
     rows.append(f'| Send round {j} cross terms | Prover | $L_{j} = {show(tr["L"])}$, $R_{j} = {show(tr["R"])}$ |')
     rows.append(f'| Challenge | Verifier | $w_{j} = {tr["u"]}$ |')
-    rows.append(f'| Fold $\\v{{a}}\'$ and $\\v{{b}}$ | Prover | ${vec(tr["p2"])}$ and ${vec(tr["b2"])}$ |')
+    rows.append(f'| Fold the coefficient vector and $\\v{{b}}$ | Prover | ${vec(tr["p2"])}$ and ${vec(tr["b2"])}$ |')
     rows.append(f'| Fold $\\v{{G}}$ | Prover | ${pts(tr["G2"])}$ |')
 rows.append(f'| Send final scalar | Prover | $c = {c_final}$ |')
 rows.append(f'| Compute $\\hat{{b}}$ with `compute_b` | Verifier | ${b_end}$ |')
 rows.append(f'| Compute $\\v{{s}}$ with `compute_s` | Verifier | ${vec(s_end)}$ |')
 rows.append(f'| Compute $\\hat{{G}} = \\dot{{\\v{{s}}}}{{\\v{{G}}}}$ | Verifier | ${show(msm(s_end, G))}$ |')
-rows.append(f'| Left side $P\' + \\sum_j (w_j^{{-1}} \\cdot L_j + w_j \\cdot R_j)$ | Verifier | ${show(Pend)}$ |')
+rows.append(f'| Left side $\\tilde{{P}} + \\sum_j (w_j^{{-1}} \\cdot L_j + w_j \\cdot R_j)$ | Verifier | ${show(Pend)}$ |')
 rows.append(f'| Right side $c \\cdot \\hat{{G}} + (c \\hat{{b}} z) \\cdot U$ | Verifier | ${show(rhs_end)}$ |')
 frag['code-run'] = '\n'.join(rows)
 
 # What the mask changes in the final scalar.
 _, _, c_plain, _ = code_prove(a, [0, 0, 0, 0], xi, z, c_run)
 assert c_plain != c_final
-frag['mask-effect'] = (f'Rerunning the same challenges with no mask gives the final scalar ${c_plain}$, which is a fixed linear combination of the coefficients once the challenges are public. With the mask it is ${c_final}$, and it also depends on the random entries of $\\v{{s}}_{{\\text{{mask}}}}$.')
+assert c_plain != a_hat and c_final != a_hat
+frag['mask-effect'] = (f'Take the run above, with $\\xi = {xi}$, $z = {z}$ and $(w_1, w_2) = ({c_run[0]}, {c_run[1]})$, and repeat it with the mask set to zero. The final scalar becomes ${c_plain}$ in place of ${c_final}$. '
+                       f'Without the mask, the scalar is a fixed linear combination of $\\v{{a}}$ whose weights anyone can compute from the public challenges. With the mask, it also depends on the random entries of $\\v{{s}}_{{\\text{{mask}}}}$, which the verifier never sees.')
 
 # xi must come after S: a mask with s(x) != 0 can absorb a false v for one value of xi only.
 bad_mask = raw_s
@@ -625,9 +672,15 @@ for candidate in range(1, Q):
     if good:
         wins.append(candidate)
 assert wins == [1]
+p_shift = [(m * xi + c) % Q for m, c in zip(mask, a)]
+p_shift[0] = (p_shift[0] - v_shift) % Q
+ip_shift = dot(p_shift, b)
+z_pred = delta * inv(ip_shift) % Q
+assert z_pred == wins[0]
 nondegenerate(C_shift)
 frag['z-count'] = (f'The prover sends $C^* = C + {delta} \\cdot U = {show(C_shift)}$ and claims $v = {y} - {delta} = {v_shift}$. The vector behind the $\\v{{G}}$ part of $C^*$ still evaluates to ${y}$, so the claim is false for that vector. '
-                   f'After subtracting $v$, the inner product is ${delta}$, and the spare ${delta} \\cdot U$ in $C^*$ supplies the matching $U$ term as long as $U$ carries weight 1. '
-                   f'Running the argument for all 42 nonzero values of $z$ gives acceptance at $z = {wins[0]}$ only, which is the case where the scaling does nothing. A fixed, unscaled $U$ would therefore accept this claim every time, and a random $z$ accepts it with probability ${len(wins)}/42$.')
+                   f'After subtracting $v$, the inner product is $\\dot{{\\tilde{{\\v{{a}}}}}}{{\\v{{b}}}} = {ip_shift}$, and the spare ${delta} \\cdot U$ in $C^*$ supplies the matching $U$ term as long as $U$ carries weight 1. '
+                   f'The formula above predicts that only $z = \\delta / \\dot{{\\tilde{{\\v{{a}}}}}}{{\\v{{b}}}} = {delta}/{ip_shift} = {z_pred}$ passes. '
+                   f'Running the argument for all 42 nonzero values of $z$ confirms acceptance at $z = {wins[0]}$ only, which is the case where the scaling does nothing. A fixed, unscaled $U$ would therefore accept this claim every time, and a random $z$ accepts it with probability ${len(wins)}/42$.')
 
 print(json.dumps(frag))

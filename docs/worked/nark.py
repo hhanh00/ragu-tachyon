@@ -584,12 +584,18 @@ assert one_failed == []
 assert None not in [one_proof[k_] for k_ in ('K', 'R', 'S', 'B', 'F', '_P')]
 one_claims = claim_list(one_proof, True)
 assert len(one_claims) == 6 and one_claims[0][2] == 0 and one_claims[4][2] == 1
-frag['one-trace'] = (f'Gate 0 holds $a_0 = {ALPHA_WIRE}$, $b_0 = 0$, $c_0 = 0$ and $d_0 = 1$, and gates 1 and 2 are the two gates from the arithmetization chapter. The first constraint says $d_0 = k_0$, and the second becomes $c_2 + a_1 + 5 d_0 = k_1$, so the constant 5 is now a multiple of the wire. '
+ONE_TEXT = ['$d_0 = k_0$', '$c_2 + a_1 + 5 d_0 = k_1$', '$a_1 = b_1$', '$a_2 = c_1$', '$b_2 = a_1$']
+# Each displayed constraint matches its row of ONE: every wire has coefficient 1 or 5, moved across as -1.
+assert [sorted(row.items()) for row in ONE.rows] == [sorted(r_.items()) for r_ in [
+    {('d', 0): 1}, {('c', 2): 1, ('a', 1): 1, ('d', 0): 5}, {('a', 1): 1, ('b', 1): -1},
+    {('a', 2): 1, ('c', 1): -1}, {('a', 1): -1, ('b', 2): 1}]]
+frag['one-constraints'] = (f'The new constraint 0 says {ONE_TEXT[0]}, and the instance supplies $k_0 = {K_ONE[0]}$. Constraint 1 is the output constraint, now written {ONE_TEXT[1]} with $k_1 = {K_ONE[1]}$, so the constant 5 sits inside the constraint and multiplies the wire $d_0$. '
+                           f'Constraints 2 to 4 are the old constraints 0 to 2 with every wire index raised by one, namely {ONE_TEXT[2]}, {ONE_TEXT[3]} and {ONE_TEXT[4]}.')
+assert TOY.rows[3] == {('a', 0): 1, ('c', 1): 1} and K_POLY[3] == 30
+frag['one-trace'] = (f'Gate 0 holds $a_0 = {ALPHA_WIRE}$, $b_0 = 0$, $c_0 = 0$ and $d_0 = 1$. Gates 1 and 2 are the two gates from the arithmetization chapter. '
                      f'The instance is $k(Y) = 1 + 35Y$, and the trace is $\\v{{r}} = {vec(R_ONE)}$. Its constant coefficient is $r(0) = c_0 = {ev(R_ONE, 0)}$, and its top coefficient is $d_0 = {R_ONE[11]}$. Checking all {Q * Q} challenge pairs confirms that the consolidated equation holds at every one.')
 frag['one-claims'] = table(['Claim $i$', 'Polynomial', 'Point', 'Value', 'Weight'], [
     [i, f'${names[n_]}$', at, value, pow(alpha, 5 - i, Q)] for i, (n_, at, value) in enumerate(one_claims)])
-frag['one-result'] = (f'With the same challenges as before, the prover sends $\\bar{{F}} = {show(one_proof["F"])}$ and four values at $u$, namely ${one_proof["values"]["a"]},\\ {one_proof["values"]["b"]},\\ {one_proof["values"]["s"]},\\ {one_proof["values"]["k"]}$. '
-                      f'The verifier derives $\\bar{{P}} = {show(one_proof["_P"])}$ and $v = {one_proof["_v"]}$, the revealed $\\v{{p}}$ matches both, and the proof is accepted.')
 
 # A prover who sets k_0 = 2 and d_0 = 2 turns the constant 5 into 10.
 K_TWO = [2, 35] + [0] * 10
@@ -607,8 +613,13 @@ assert beta_pass == 1  # only beta = 0, which removes f from p
 without_claim_proof, without_claim_failed = run(R_TWO, K_TWO, None, circuit=ONE, constant_claims=False)
 assert without_claim_failed == []
 assert all((ev(K_TWO, y_) - ev(K_ONE, y_)) % Q == 1 for y_ in range(Q))
+_, two_tied = run(R_TWO, K_TWO, K_ONE, circuit=ONE, constant_claims=False)
+assert 'statement' in two_tied
+code_c_differs = sum(ev(K_TWO, y_) != ev(K_ONE, y_) for y_ in range(Q))
+assert code_c_differs == Q
 frag['one-attack'] = (f'Take $x = 4$, which is false for the real statement, since $4^3 + 4 + 5 = 30$ modulo 43. A cheater sets $d_0 = 2$ and commits to $k\'(Y) = 2 + 35Y$. Then $c_2 + a_1 + 5 d_0 = 21 + 4 + 10 = 35$, so every gate and constraint holds, and the consolidated equation holds at all {Q * Q} challenge pairs. '
-                      f'If the two constant claims are dropped from the list, the verifier accepts this proof. With the claims in the list, the false claim $k\'(0) = 1$ remains. Keeping the other challenges fixed, the verifier rejects for {Q - beta_pass} of the 43 values of $\\beta$, and it accepts only at $\\beta = 0$, which removes $f$ from $p$.')
+                      f'Run against the book\'s verifier as written, which takes $K$ from the prover and never compares it with the statement, this proof passes every check once the two constant claims are removed from the list. With the claims in the list, the false claim $k\'(0) = 1$ remains. Keeping the other challenges fixed, the verifier rejects for {Q - beta_pass} of the 43 values of $\\beta$, and it accepts only at $\\beta = 0$, which removes $f$ from $p$.')
+frag['one-attack-tied'] = (f'Our verifier from Section 4 rejects the same proof at its first step, because $K\' = 2 \\cdot G_0 + 35 \\cdot G_1$ differs from the $K$ it computes from the statement. The code\'s route also rejects it, since the cheater\'s $c = k\'(y)$ differs from the verifier\'s own $k(y)$ at all {code_c_differs} values of $y$.')
 
 # Back to the main circuit's size for the remaining sections.
 # ---- Cheating ----
@@ -680,12 +691,17 @@ for pos in range(8):
     if solved:
         break
 assert solved
+# Entry 0 pairs with entry 7, which is 0, so the change only meets b_7 = s_7 + t_7 and the equation is linear.
+assert solved[0] == 0 and R_FALSE[7] == 0
+early_b7 = (s_vec[7] + t_vec[7]) % Q
+assert early_b7 * solved[1] % Q == gap
 early_proof, early_failed = run(solved[2], K_POLY, K_POLY)
 assert early_failed == []
 assert solved[2][3] * solved[2][4] % Q != solved[2][0]  # gate 0 of the solved vector fails
 early_count = sum(revdot(solved[2], TOY.right(solved[2], z_, y_)) == ev(K_POLY, y_) for z_ in range(Q) for y_ in range(Q))
 assert early_count < 200
-frag['cheat-early'] = (f'Suppose the prover knows $z = {z}$ and $y = {y}$ before it sends $\\bar{{R}}$. Starting from the false trace, it changes entry {solved[0]} by ${solved[1]}$ to get $\\v{{r}}\'\' = {vec(solved[2])}$, a value found by solving the one quadratic equation. This vector is not a valid trace, because its gates do not hold. '
+frag['cheat-early'] = (f'Suppose the prover knows $z = {z}$ and $y = {y}$ before it sends $\\bar{{R}}$. Starting from the false trace, it changes only entry 0 by an unknown amount $\\delta$. In the revdot product, entry 0 of $\\v{{r}}$ multiplies entry 7 of $\\v{{b}}$, and entry 7 of $\\v{{r}}$ multiplies entry 0 of $\\v{{b}}$. Since $r\'_7 = 0$, the second product stays 0, and $b_7 = r\'_7 z^7 + s_7 + t_7 = {s_vec[7]} + {t_vec[7]} = {early_b7}$ modulo 43 does not depend on $\\delta$. So the revdot value grows by exactly ${early_b7}\\,\\delta$, and the prover needs ${early_b7}\\,\\delta = {gap}$, which gives $\\delta = {solved[1]}$, since ${early_b7} \\cdot {solved[1]} = {early_b7 * solved[1] % Q}$ modulo 43. '
+                       f'The result is $\\v{{r}}\'\' = {vec(solved[2])}$. This vector is not a valid trace, because its gates do not hold. '
                        f'It still satisfies the consolidated equation at this one pair, and the verifier accepts the whole proof. The same vector, committed honestly before the challenges, passes the revdot check at only {early_count} of the {Q * Q} pairs.')
 
 # Knowing a generator relation: open the committed point to a solved vector afterward.
@@ -800,7 +816,7 @@ frag['short-commit'] = table(['Step', 'Party', 'Value or check'], [
     [4, 'Verifier sends', f'$x = {x}$, so $xz = {xz}$ and $x^{{-1}} = {xinv}$'],
     [5, 'Prover sends', f'$r({x}) = {ev_r_x}$, $r({xz}) = {ev_r_xz}$, $c_1(0) = {ev_c1_0}$, $c_1({xinv}) = {ev_c1_inv}$, $c_2({x}) = {ev_c2}$'],
     [6, 'Verifier computes', f'$s({x}, {y}) = {ev(s_vec, x)}$, $t({x}, {z}) = {t_x}$, $k({y}) = {ev(K_POLY, y)}$'],
-    [7, 'Verifier checks', f'The split, ${ev_r_x} \\cdot ({ev_r_xz} + {ev(s_vec, x)} + {t_x}) = {lhs}$ and ${pow(x, 7, Q)} \\cdot {ev_c1_inv} + {pow(x, 8, Q)} \\cdot {ev_c2} = {rhs}$, and the target, $c_1(0) = {ev_c1_0} = k({y})$'],
+    [7, 'Verifier checks', f'The split, with left side ${ev_r_x} \\cdot ({ev_r_xz} + {ev(s_vec, x)} + {t_x}) = {lhs}$ and right side ${x}^7 c_1({xinv}) + {x}^8 c_2({x}) = {pow(x, 7, Q)} \\cdot {ev_c1_inv} + {pow(x, 8, Q)} \\cdot {ev_c2} = {rhs}$, and the target, $c_1(0) = {ev_c1_0} = k({y})$'],
     [8, 'Verifier sends', f'$\\alpha = {alpha}$'],
     [9, 'Prover sends', f'$F = {show(C_F)}$, the commitment to the combined quotient'],
     [10, 'Verifier sends', f'$u = {u}$'],
@@ -864,6 +880,32 @@ lhs_pt = statement
 for c_, L, R in zip(UCHAL, ls, rs):
     lhs_pt = add(add(lhs_pt, mul(inv(c_) ** 2, L)), mul(c_ * c_, R))
 assert lhs_pt == final_pt
+# The 43-point toy group cannot keep the IPA's points apart from the points named
+# earlier (an exhaustive search over all challenge triples found none that does),
+# so the page names each repeat and says that it means nothing.
+NAMED = [('the statement point $P + v \\cdot U$', statement), ('$P$', sP), ('$F$', C_F),
+         ('the unblinded trace commitment $R$', C_R), ('$C_1$', C_1), ('$C_2$', C_2),
+         ('the cheater\'s $K$ from Section 4', tied_proof['K'])] + [(f'$G_{i}$', GENS[i]) for i in range(8)] + [
+         ('$H$', H), ('$U$', U), ('$K$', K_pt), ('$\\bar{R}$', R_pt), ('$S$', S_pt), ('$\\bar{B}$', B_pt),
+         ('$\\bar{F}$', F_pt), ('$\\bar{P}$', P_pt)]
+folded_pts = []
+fold_pt = statement
+for c_, L, R in zip(UCHAL, ls, rs):
+    fold_pt = add(add(fold_pt, mul(inv(c_) ** 2, L)), mul(c_ * c_, R))
+    folded_pts.append(fold_pt)
+ipa_named = [item for j, (L, R) in enumerate(zip(ls, rs), 1) for item in ((f'$L_{j}$', L), (f'$R_{j}$', R))]
+ipa_named += [(f'the folded point of round {j}', pt) for j, pt in enumerate(folded_pts, 1)] + [('$\\hat{G}$', G_hat)]
+repeats = []
+for label, pt in ipa_named:
+    match = next((other for other, opt in NAMED if opt == pt), None)
+    if match is not None:
+        repeats.append(f'{label} equals {match}')
+assert len(repeats) >= 2
+assert lhs_pt == folded_pts[-1]
+frag['short-repeats'] = ('The last folded point and the left side of the final check are the same point by construction, because the verifier computes both from the statement point and the same $L_j$ and $R_j$. '
+                         'Several other points repeat points named earlier in the chapter. Among the points of the argument, ' + ', '.join(repeats[:-1]) + f', and {repeats[-1]}. '
+                         'These matches have no meaning. The toy group has only 43 points and this chapter names a few dozen, so repeats are unavoidable, '
+                         'as [chapter 08](./batched-openings.md#_5-alpha-batching) noted for one of its commitments. On a curve with about $2^{255}$ points they would not occur.')
 frag['short-p'] = (f'The polynomial behind $P$ has coefficients $\\v{{p}} = {vec(sp)}$. The statement point for the argument is $P + v \\cdot U = {show(statement)}$.')
 frag['short-ipa'] = table(['Round $j$', '$L_j$', '$R_j$', '$u_j$', 'Folded point', 'Folded $\\v{p}$'], ipa_rows)
 frag['short-final'] = (f'The prover sends the final scalar $\\hat{{a}} = {a_hat}$. The verifier computes the coefficients of $g(X)$ from the three challenges, which are ${vec(gc)}$, then $\\hat{{b}} = g({u}) = {b_hat}$ and $\\hat{{G}} = {show(G_hat)}$ from one MSM over all eight generators. '
@@ -878,7 +920,7 @@ assert short_bytes < 2000
 # Replacing only the reveal of p with an argument leaves the other three vectors.
 with_ipa = (3 * SIZE + 7 + 2 * k_big + 1) * BYTES
 assert with_ipa > 700000
-frag['reveal-tradeoff'] = (f'For $4n = 2^{{13}}$, the witness part is ${wit_values * BYTES:,}$ bytes with $\\v{{p}}$ revealed. Replacing the reveal with an argument of $26$ points and one scalar brings it to ${with_ipa:,}$ bytes, because the vectors $\\v{{s}}$, $\\v{{a}}$ and $\\v{{b}}$ remain.')
+frag['reveal-tradeoff'] = (f'For $4n = 2^{{13}}$, the part of the proof whose size grows with the circuit, which Section 12 calls the witness part, is ${wit_values * BYTES:,}$ bytes with $\\v{{p}}$ revealed. Replacing the reveal with an argument of $26$ points and one scalar brings it to ${with_ipa:,}$ bytes, because the vectors $\\v{{s}}$, $\\v{{a}}$ and $\\v{{b}}$ remain.')
 
 # Evaluating s(x, y) touches every nonzero wiring coefficient.
 terms = []

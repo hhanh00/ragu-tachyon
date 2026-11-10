@@ -283,7 +283,7 @@ s0_false = lin((1, S7), (1, D))
 assert commit(s0_false) != commit(S7)
 pass_x = [x_ for x_ in range(Q) if ev(s0_false, x_) == ev(A.s_x(x_), Y0)]
 assert pass_x == [1, 2, 3, 4, 5, 6, 7] and XC not in pass_x
-frag['false-honest-bridge'] = (f'The most favourable false polynomial differs from $s(X, 7)$ by a multiple of $(X-1)(X-2)\\cdots(X-7)$, the difference that [chapter 09](./nark.md#the-prover-changes-b) found best for its cheater. Against an honest $S\'$, the pair of claims about $s(x, 7)$ can hold only where this difference vanishes. Trying all 43 values of $x$ finds {len(pass_x)} that pass, $x \\in \\{{1, \\ldots, 7\\}}$. No polynomial with 8 coefficients has more roots.')
+frag['false-honest-bridge'] = (f'The most favourable false polynomial differs from $s(X, 7)$ by a multiple of $(X-1)(X-2)\\cdots(X-7)$, the difference that [chapter 09](./nark.md#the-prover-changes-b) found best for its cheater. The prover scales this multiple so that it still moves the revdot product by ${gap}$, since otherwise the false $S_0$ would no longer carry the attack. Against an honest $S\'$, the pair of claims about $s(x, 7)$ can hold only where this difference vanishes. Trying all 43 values of $x$ finds {len(pass_x)} that pass, $x \\in \\{{1, \\ldots, 7\\}}$. No polynomial with 8 coefficients has more roots.')
 
 err = ev(D, XC)
 assert err
@@ -291,11 +291,12 @@ others = [34, 1, 2, 3, 4, 5, 6]
 assert Y0 not in others
 DY = with_roots(others, 8, Y0, err)
 sp_false = lin((1, sp), (1, DY))
+assert (ev(s0_false, XC) - v0) % Q == err
 assert ev(sp_false, Y0) == ev(s0_false, XC) and ev(sp_false, Y1) == ev(s1, XC)
 pass_y = [y_ for y_ in range(Q) if ev(sp_false, y_) == ev(A.s_y(y_), XC)]
 assert sorted(pass_y) == sorted(others)
 assert YNEW not in pass_y
-frag['false-bridge'] = (f'At $x = {XC}$ the false $S_0$ opens to ${ev(s0_false, XC)}$, while the true $s({XC}, 7)$ is ${v0}$. The prover can absorb this error ${err}$ by committing to $s({XC}, Y) + D(Y)$ with $D(7) = {err}$ and $D(34) = 0$, so that both old pairs now hold. The polynomial $D$ can have at most 7 roots, and one of them has to be $34$. Taking the other six at $1, \\ldots, 6$, we tried all 43 values of $y_{{\\text{{new}}}}$ against an honest $S_{{\\text{{new}}}}$, and {len(pass_y)} pass.')
+frag['false-bridge'] = (f'At $x = {XC}$ the false $S_0$ opens to ${ev(s0_false, XC)}$, while the true $s({XC}, 7)$ is ${v0}$. The error is ${ev(s0_false, XC)} - {v0} = {ev(s0_false, XC) - v0}$, which is ${err}$ in $\\F_{{43}}$. The prover can absorb it by committing to $s({XC}, Y) + D(Y)$ with $D(7) = {err}$ and $D(34) = 0$, so that both old pairs now hold. The polynomial $D$ can have at most 7 roots, and one of them has to be $34$. Taking the other six at $1, \\ldots, 6$, we tried all 43 values of $y_{{\\text{{new}}}}$ against an honest $S_{{\\text{{new}}}}$, and {len(pass_y)} pass.')
 
 c_new = ev(DY, YNEW)
 assert c_new
@@ -372,10 +373,11 @@ frag['lagrange'] = table(['$W$', '$\\ell_0(W)$', '$\\ell_1(W)$', '$m(W, X, 7)$']
     ['$\\omega^1 = 42$', ell(0, 42), ell(1, 42), f'${vec(m_wy(42, 7))}$, which is $s_B(X, 7)$'],
     [f'${W_R}$', ell(0, W_R), ell(1, W_R), f'${vec(mix7)}$, which is neither'],
 ])
-frag['registry-check'] = f'The script compares $m(1, x, y)$ with $s_A(x, y)$ and $m(42, x, y)$ with $s_B(x, y)$ at all {Q * Q} pairs, and they agree at every pair. Since $\\ell_0 + \\ell_1 = 1$ at every $W$, the two weights at $W = {W_R}$ also add up to 1, and we return to this fact in Section 10.'
+frag['registry-check'] = f'The script compares $m(1, x, y)$ with $s_A(x, y)$ and $m(42, x, y)$ with $s_B(x, y)$ at all {Q * Q} pairs, and they agree at every pair. Since $\\ell_0 + \\ell_1 = 1$ at every $W$, the two weights at $W = {W_R}$ also add up to 1, and we return to this fact in Section 9.'
 
 # ------------------------------------------------------------- Section 6
 X0, X1, W, Y, X = 9, 37, W_R, YNEW, XC
+Z = 16
 s_acc0, s_acc1 = m_xy(X0, Y0), m_xy(X1, Y1)
 s_w0, s_w1 = m_wx(W, X0), m_wx(W, X1)
 s_wy = m_wy(W, Y)
@@ -390,11 +392,13 @@ frag['reg-run'] = table(['Step', 'Party', 'Value'], [
     [2, 'Verifier sends', f'$w = {W}$'],
     [3, 'Prover sends', f"$S'_0 = {show(commit(s_w0))}$ for $m({W}, {X0}, Y) = {vec(s_w0)}$"],
     ['', 'Prover sends', f"$S'_1 = {show(commit(s_w1))}$ for $m({W}, {X1}, Y) = {vec(s_w1)}$"],
-    [4, 'Verifier sends', f'$y = {Y}$'],
+    [4, 'Verifier sends', f'$y = {Y}$, and $z = {Z}$ with it'],
     [5, 'Prover sends', f"$S'' = {show(commit(s_wy))}$ for $m({W}, X, {Y}) = {vec(s_wy)}$"],
     [6, 'Verifier sends', f'$x = {X}$'],
     [7, 'Prover sends', f'$S_{{\\text{{new}}}} = {show(commit(s_new))}$ for $m(W, {X}, {Y}) = {vec(s_new)}$'],
 ])
+assert commit(s_acc0) == commit(snew_false) and s_acc0 != snew_false
+frag['reg-run'] += (f'\n\nThe left child\'s $S_0 = {show(commit(s_acc0))}$ happens to equal the false accumulator of Section 4, because the toy group has only {len(curve_points()) + 1} elements, but the polynomial behind it here is the honest $m(W, {X0}, {Y0})$.')
 vs = [m(W, X0, Y0), m(W, X1, Y1), m(W, X0, Y), m(W, X1, Y), m(W, X, Y)]
 assert len(set(vs)) == 5 and 0 not in vs
 reg_claims = [('S_0', W, vs[0]), ("S'_0", Y0, vs[0]), ('S_1', W, vs[1]), ("S'_1", Y1, vs[1]),
@@ -423,7 +427,6 @@ assert count == Q ** 3
 frag['reg-honest'] = f'The script repeats these comparisons at all {count:,} triples $(w, x, y)$, and an honest prover passes every one.'
 
 # ------------------------------------------------------------- Section 7
-Z = 16
 sel = []
 for name, c, r, k, i in (('Left, circuit A', A, R_A, K_A, 0), ('Right, circuit B', B, R_B, K_B, 1)):
     val = ev(s_new, OMEGA[i])
@@ -435,8 +438,8 @@ for name, c, r, k, i in (('Left, circuit A', A, R_A, K_A, 0), ('Right, circuit B
     assert revdot(r, c.right(r, Z, c.s_y(Y))) == ev(k, Y)
     sel.append([name, f'${OMEGA[i]}$', val, rx, tx, bx])
 xz = X * Z % Q
-frag['select'] = (f'The new accumulator is $m(W, {X}, {Y}) = {s_new[0]} + {s_new[1]}W$. Take $z = {Z}$, so that $xz = {xz}$. For each child the circuit reads the wiring value by opening $S_{{\\text{{new}}}}$ at the child\'s domain point, and it adds the trace value and the gate value:\n\n'
-                  + table(['Child', '$\\omega^i$', '$s_i(x, y) = m(\\omega^i, x, y)$', f'$r({xz})$', f't({X}, {Z})'.replace('t(', '$t(').replace(')', ')$'), 'Sum, $b(x)$'], sel)
+frag['select'] = (f'The new accumulator is $m(W, {X}, {Y}) = {s_new[0]} + {s_new[1]}W$. The run of Section 6 drew $x = {X}$, $y = {Y}$ and $z = {Z}$, so $xz = {xz}$. For each child the circuit reads the wiring value by opening $S_{{\\text{{new}}}}$ at the child\'s domain point, and it adds the trace value $a_i(xz)$ and the gate value:\n\n'
+                  + table(['Child', '$\\omega^i$', '$s_i(x, y) = m(\\omega^i, x, y)$', f'$a_i({xz})$', f't({X}, {Z})'.replace('t(', '$t(').replace(')', ')$'), 'Sum, $b(x)$'], sel)
                   + f'\n\nThe script also confirms that each child\'s revdot product at $z = {Z}$ and $y = {Y}$ equals its own $k(y)$, with different wiring and different public inputs on the two sides.')
 all_claims = reg_claims + [('S_{\\text{new}}', 1, ev(s_new, 1)), ('S_{\\text{new}}', 42, ev(s_new, 42))]
 assert all(ev(polys_reg[c], at) == val for c, at, val in all_claims)
@@ -451,10 +454,13 @@ assert ev(s_new, 30) == m(30, X, Y)
 # ------------------------------------------------------------- Section 8
 GATES = 2 ** 11
 NUM_C = 256
+# Internal circuits and bonding polynomials push the registry past 256 entries.
+K_REAL = (NUM_C + 1 - 1).bit_length()
+assert 2 ** K_REAL > NUM_C and K_REAL == 9
 frag['costs'] = table(['Approach', 'What one step puts in its circuit', 'Size for this example'], [
     ['Compute $s_i(x, y)$ directly', 'One term per wiring coefficient of each child\'s circuit', f'At least {2 * 2 ** 13:,} multiplications for two full circuits'],
     ['One merged circuit with selectors', 'The gates of every circuit, on every step', f'{NUM_C * GATES:,} gates'],
-    ['Registry, as in this chapter', 'Field arithmetic on claims, 6 commitments in the fold, and a domain check on 2 indices', f'{len(all_claims)} claims and {2 * 8} squarings'],
+    ['Registry, as in this chapter', 'Field arithmetic on claims, 6 commitments in the fold, and a domain check on 2 indices', f'{len(all_claims)} claims and at least {2 * K_REAL} squarings'],
 ])
 
 # ------------------------------------------------------------- Section 9
@@ -592,9 +598,9 @@ a_pass = sum(revdot(r_mix, A1.right(r_mix, z_, A1.s_y(y_))) == ev(K1, y_) for z_
 b_pass = sum(revdot(r_mix, B1.right(r_mix, z_, B1.s_y(y_))) == ev(K1, y_) for z_ in range(Q) for y_ in range(Q))
 assert a_pass <= 4 * Q and b_pass <= 4 * Q
 assert pow(w_mix, 2, Q) != 1
-frag['mix-attack'] = (f'Take the instance $k(Y) = 1 + 35Y$, whose second coefficient is the public output, and let the prover select the out-of-domain point $w = {w_mix}$. There the weights are ${ell(0, w_mix)}$ and ${ell(1, w_mix)}$, and they add up to 1, so $m({w_mix}, X, 0) = 1$ and the mixture looks like a circuit. '
+frag['mix-attack'] = (f'Take the instance $k(Y) = 1 + 35Y$, whose second coefficient is the public output, and let the prover select the out-of-domain point $\\iota = {w_mix}$. There the weights are ${ell(0, w_mix)}$ and ${ell(1, w_mix)}$, and they add up to 1, so $m({w_mix}, X, 0) = 1$ and the mixture looks like a circuit. '
                       f'The input $x = {x_mix}$ does not satisfy $x^3 + x + 5 = 35$, yet the trace with $b_2 = {b2_mix}$, which is ${vec(r_mix)}$, satisfies the consolidated equation at all {mix_ok} pairs $(z, y)$. The same trace passes against circuit A at {a_pass} pairs and against circuit B at {b_pass}. '
-                      f'The domain check catches the selection, because ${w_mix}^2 = {pow(w_mix, 2, Q)}$, which is not 1.')
+                      f'The domain check catches the selection, because $\\iota^2 = {w_mix}^2 = {pow(w_mix, 2, Q)}$, which is not 1.')
 
 # Substitution among registered circuits: x^4 + 2 = 35 has no solution in F_43, while A's statement does.
 assert not [x_ for x_ in range(Q) if (pow(x_, 4, Q) + 2) % Q == 35]
@@ -613,7 +619,7 @@ sub_passes = [(z_, y_) for z_ in range(Q) for y_ in range(Q) if revdot(R_A1, A2.
 assert all(revdot(R_B1, B2.right(R_B1, z_, B2.s_y(y_))) == ev(K2_TRUE, y_) for z_ in range(Q) for y_ in range(Q))
 assert {y_ for _, y_ in sub_passes} == {0} and len(sub_passes) == Q
 frag['substitution'] = (f'Suppose the verifier wants a proof that some $x$ satisfies $x^4 + 2 = 35$. Trying all 43 values shows that no such $x$ exists, so this statement is false. The verifier computes $k(Y) = 1 + 35Y$, and the prover selects circuit A in place of circuit B, with $x = 3$. Every check passes at all {sub_ok} pairs, because the instance is the same as that of the true statement $3^3 + 3 + 5 = 35$. '
-                        f'Now add a row to each circuit that sets the linear coefficient of $k(Y)$ to a value fixed for that circuit, 2 for A and 3 for B, and let the verifier compute $k(Y) = 1 + 3Y + 35Y^2$. Circuit B with a true output, such as $x = 3$ and the output 40, still passes everywhere. The same substitution with circuit A now passes at {len(sub_passes)} of the {Q * Q} pairs, all of them at $y = 0$.')
+                        f'Now add a row to each circuit that sets the linear coefficient of $k(Y)$ to a value fixed for that circuit, 2 for A and 3 for B, and let the verifier compute $k(Y) = 1 + 3Y + 35Y^2$ for the false statement about circuit B. Circuit B with a true statement still passes everywhere, for example $x = 3$ with the output {K2_TRUE[2]} and the instance $k(Y) = 1 + 3Y + {K2_TRUE[2]}Y^2$. The same substitution with circuit A now passes at {len(sub_passes)} of the {Q * Q} pairs, all of them at $y = 0$.')
 
 # ------------------------------------------------------------- Section 11
 ZA, YA = 5, 7
@@ -652,8 +658,8 @@ assert two_gate_tag == Q
 assert R_A[0] == 9 and R_A1[0] == 0
 points = {commit(tagged_s_x(A1, XC, k_)) for k_ in range(Q)}
 assert len(points) == Q
-frag['tag-run'] = (f'Take $\\kappa = {KAPPA}$. On the trace of [chapter 09\'s constant-wire circuit](./nark.md#_14-the-constant-wire), $\\v{{r}} = {vec(R_A1)}$, the wire $c_0$ is 0, and the tagged wiring polynomial $s(X, Y) + {KAPPA}(XY)^{{11}}$ still satisfies the consolidated equation at all {Q * Q} pairs. The tag cannot be added to our earlier two-gate circuit, whose $c_0 = {R_A[0]}$. There the term contributes ${R_A[0]} \\cdot {KAPPA} \\cdot y^7$, and the honest trace passes at only {two_gate_tag} pairs, those with $y = 0$. '
-                   f'The tag reaches every commitment a fold makes to a restriction. For $x = {XC}$ the commitment to $s_{{\\kappa}}({XC}, Y)$ is ${show(commit(tagged_s_x(A1, XC, KAPPA)))}$, and going through all 43 values of $\\kappa$ gives {len(points)} different points. So a transcript that absorbs this commitment gives challenges that the author of the circuit could not predict before $\\kappa$ was drawn.')
+frag['tag-run'] = (f'Take $\\kappa = {KAPPA}$. On the trace of [chapter 09\'s constant-wire circuit](./nark.md#_15-the-constant-wire), $\\v{{r}} = {vec(R_A1)}$, the wire $c_0$ is 0, and the tagged wiring polynomial $s(X, Y) + {KAPPA}(XY)^{{11}}$ still satisfies the consolidated equation at all {Q * Q} pairs. The tag cannot be added to our earlier two-gate circuit, whose $c_0 = {R_A[0]}$. There the term contributes ${R_A[0]} \\cdot {KAPPA} \\cdot y^7$, and the honest trace passes at only {two_gate_tag} pairs, those with $y = 0$. '
+                   f'The tag reaches every commitment a fold makes to a restriction. For $x = {XC}$ the commitment to the constant-wire circuit\'s tagged restriction $s_{{\\kappa}}({XC}, Y)$ is ${show(commit(tagged_s_x(A1, XC, KAPPA)))}$, and going through all 43 values of $\\kappa$ gives {len(points)} different points. So a transcript that absorbs this commitment gives challenges that the author of the circuit could not predict before $\\kappa$ was drawn.')
 
 # ------------------------------------------------------------- Section 12
 link_rows = []

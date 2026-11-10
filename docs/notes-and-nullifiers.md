@@ -2,10 +2,10 @@
 
 The earlier parts of this site built a proof system that can absorb other proofs. This chapter returns to the application that system serves. [Chapter 1](./scaling-zcash.md) described Tachyon in outline, with epochs, evolving nullifiers, and a window of retained values. Here we work out the objects themselves: which keys a wallet holds, what a note contains, how a note's nullifiers are derived for each epoch, why a spend publishes two of them, and why every action publishes exactly two values of a single kind.
 
-We do not cover how a proof refers to the pool's history or how a spender shows absence from old epochs. The [next chapter](./pool-state.md) builds the pool state, [chapter 21](./oblivious-sync.md) covers absence proofs, and [chapter 22](./proof-tree.md) walks through the steps that prove all of this.
+We do not cover how a proof refers to the pool's history or how a spender shows absence from old epochs. The [next chapter](./pool-state.md) builds the pool state, [chapter 22](./oblivious-sync.md) covers absence proofs, and [chapter 23](./proof-tree.md) walks through the steps that prove all of this.
 
 ::: warning Status of these designs
-Tachyon has not activated on mainnet and its design is still changing. Everything here describes the [Tachyon repository](https://github.com/tachyon-zcash/tachyon/tree/7e502548db33845dbaacdc0efe905d1a3c45e626) at commit `7e50254`, whose [shielded protocol ZIP](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/zips/tachyon-shielded-protocol.md) is still an empty outline. The book's own [key hierarchy page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/keys.md?plain=1#L3) carries a note calling itself significantly outdated, and the book's analysis of nullifiers presents its choice as a [recommendation with an alternative](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nf-analysis.md?plain=1#L1026-L1039). Where the sources differ, we show both and follow the code unless we say otherwise. Tachyon also pins Ragu at [`0725b52`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/Cargo.toml#L74-L76), not at the `3219e08` that the earlier chapters read.
+Tachyon has not activated on mainnet and its design is still changing. Everything here describes the [Tachyon repository](https://github.com/tachyon-zcash/tachyon/tree/7e502548db33845dbaacdc0efe905d1a3c45e626) at commit `7e50254`, whose [shielded protocol ZIP](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/zips/tachyon-shielded-protocol.md) is still an empty outline. The book's own [key hierarchy page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/keys.md?plain=1#L3) carries a note calling itself significantly outdated, and the book's analysis of nullifiers presents its choice as a [recommendation with an alternative](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nf-analysis.md?plain=1#L1026-L1039). Where the sources differ, we show both and follow the code unless we say otherwise. Our accounts of what each proof step computes and checks are reconstructed from code at commit `7e50254`, not confirmed by the authors. Tachyon also pins Ragu at [`0725b52`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/Cargo.toml#L74-L76), not at the `3219e08` that the earlier chapters read.
 :::
 
 ## 1. Fields and stand-ins
@@ -18,13 +18,15 @@ The hashes need a different treatment. Tachyon uses Poseidon throughout, which [
 
 Spending a note requires two separate abilities. The owner has to authorize the spend with a signature, and the owner has to produce the note's nullifiers, which nobody else should be able to compute. The [deep dive](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L81-L86) observes that these are the only two abilities the shielded protocol needs from its keys. Everything else in Orchard's key tree, including viewing keys and diversified addresses, supports delivering notes to recipients and detecting them, and [chapter 1](./scaling-zcash.md#_7-separating-note-delivery-from-the-shielded-protocol) explained that delivery has moved to a separate payment protocol.
 
-The root is a [spending key](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/private.rs#L23-L40) $\mathsf{sk}$ of 32 random bytes, and each ability gets one child derived from it. The two derivations differ only in a one-byte domain, through BLAKE2b-512 with the Zcash expansion personalization:
+The root is a [spending key](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/private.rs#L23-L40) $\mathsf{sk}$ of 32 random bytes, and each ability gets one child derived from it. Both children come from the same keyed hash, which Zcash calls $\text{PRF}^{\text{expand}}$. It runs BLAKE2b-512 over $\mathsf{sk}$ and a one-byte domain, with a fixed personalization string that keeps it apart from other uses of BLAKE2b, and it returns 64 bytes. $\text{ToScalar}$ and $\text{ToBase}$ read those 64 bytes as an integer and reduce it modulo $q$ or modulo $p$, so the result lands in the field the key needs:
 
 $$\mathsf{ask} = \text{ToScalar}\big(\text{PRF}^{\text{expand}}_{\mathsf{sk}}(\texttt{0x21})\big), \qquad \mathsf{nk} = \text{ToBase}\big(\text{PRF}^{\text{expand}}_{\mathsf{sk}}(\texttt{0x22})\big).$$
 
+In the toy we replace BLAKE2b with SHA-256 and reduce modulo 43 for $\mathsf{ask}$ and modulo 65,537 for $\mathsf{nk}$, the stand-in hash range of Section 1.
+
 The **spend authorizing key** $\mathsf{ask}$ is a scalar in $\F_q$, and its public point is the **spend validating key** $\mathsf{ak} = [\mathsf{ask}]\mathcal{G}$. The **nullifier key** $\mathsf{nk}$ is an element of $\F_p$, and it has no public counterpart.
 
-One detail comes from RedPallas, the signature scheme that Orchard and Tachyon share. It requires $\mathsf{ak}$ to have a cleared sign bit in its compressed encoding. A point and its negative have the same $x$ and opposite signs of $y$, so if the derived point has the wrong sign, [the code negates $\mathsf{ask}$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/private.rs#L89-L110), since $[-\mathsf{ask}]\mathcal{G} = -[\mathsf{ask}]\mathcal{G}$. On the toy curve we use the parity of $y$ as the sign.
+One detail comes from RedPallas, the signature scheme that Orchard and Tachyon share. It requires $\mathsf{ak}$ to have a cleared sign bit in its compressed encoding. In Orchard the rule lets the $x$-coordinate alone determine $\mathsf{ak}$, and Orchard's key derivations rely on that. Tachyon's payment key hashes both coordinates, so nothing in this chapter depends on the rule, and it stays for compatibility with the signature scheme. The keys table below shows its one visible effect. A point and its negative have the same $x$ and opposite signs of $y$, so if the derived point has the wrong sign, [the code negates $\mathsf{ask}$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/private.rs#L89-L110), since $[-\mathsf{ask}]\mathcal{G} = -[\mathsf{ask}]\mathcal{G}$. On the toy curve we use the parity of $y$ as the sign.
 
 <!-- worked:generator -->
 
@@ -52,21 +54,23 @@ A sender has to name the owner of a new note. Publishing $(\mathsf{ak}, \mathsf{
 
 $$\mathsf{pk} = \mathsf{Poseidon}_{\texttt{Tachyon-PkDerive}}(\mathsf{ak}_x,\ \mathsf{ak}_y,\ \mathsf{nk}).$$
 
-With our keys, and the stand-in in place of Poseidon, this gives:
+A wallet does not hand one payment key to every sender. Because $\mathsf{pk}$ is a deterministic function of the pair, two senders who received the same payment key could compare notes and learn that they paid the same person. So [unlinkability comes from minting a fresh address per sender](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/keys.md?plain=1#L105-L107). The wallet keeps a master seed, derives one $\mathsf{sk}$ per sender at successive indices, and runs the derivations of Section 2 on each. With Alice's first key, and the stand-in in place of Poseidon, the payment key is:
 
 <!-- worked:payment-key -->
 
 $$\mathsf{pk} = H_{\texttt{PkDerive}}(27,\ 30,\ 40954) = 35507.$$
 
-If the same wallet walks to the next index for a second sender, it obtains $\mathsf{ak} = (14,\,22)$ and $\mathsf{nk} = 35396$, which give $\mathsf{pk} = 3270$. Nothing in the two payment keys shows that they belong to one wallet.
+For a second sender, Alice's wallet moves to the next index. We stand in for that index's $\mathsf{sk}$ with the text `alice-wallet-seed-8`, and the same derivations give $\mathsf{ak} = (14,\,22)$ and $\mathsf{nk} = 35396$, so $\mathsf{pk} = 3270$. Nothing in the two payment keys 35507 and 3270 shows that they belong to one wallet.
 
 <!-- /worked:payment-key -->
 
-Two facts about this hash shape the rest of the design. First, $\mathsf{pk}$ is a deterministic function of the pair, so one payment key handed to two senders would let them compare notes and link the payments. Since a hash admits no tweak, [unlinkability comes from minting a fresh address per sender](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/keys.md?plain=1#L105-L107). The index that makes keys differ sits above $\mathsf{sk}$, which is why our second address started from a second seed. The book gives two reasons for preferring a hash over Orchard's diversified base. That trick has no known secure analogue under lattice assumptions, and [handing $\mathsf{ak}$ to senders](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L160-L163) would let one who kept it attack it later with a quantum computer.
+Orchard reaches unlinkable addresses differently, from a single key. Each Orchard address carries a public diversifier $d$, which hashes to a base point $g_d$, and the address's key is a fixed secret scalar multiplied by $g_d$. Anyone holding that secret can produce as many addresses as they like, and the curve arithmetic hides that they share it. A hash output offers no comparable operation, because nobody can turn one output into another related one without the inputs, so Tachyon needs a separate key pair for each sender.
 
-Second, the hash binds $\mathsf{nk}$ to the note's owner field, and Section 8 shows that this is what stops a spender from inventing a second nullifier sequence.
+The book gives two reasons for accepting this cost. First, the diversified-base construction has no known secure analogue under lattice assumptions, which matters for a future move away from elliptic curves. Second, a design that [handed $\mathsf{ak}$ to senders](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L160-L163) would let a sender who kept it attack it later with a quantum computer.
 
-The wallet can also separate proving from signing. The [**proof authorizing key**](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/proof.rs#L13-L37) $\mathsf{pak} = (\mathsf{ak}, \mathsf{nk})$ gives a device what it needs to build proofs for every note paid to the matching payment key, and it cannot sign. A hardware wallet can therefore hold $\mathsf{ask}$ while another device does the proving. The [key hierarchy page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/keys.md?plain=1#L115) and a [code comment](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/proof.rs#L15-L17) call $\mathsf{nk}$ wallet-wide, so that one $\mathsf{pak}$ covers all of a wallet's notes. That does not fit a fresh $(\mathsf{ak}, \mathsf{nk})$ pair per sender, and the sources do not reconcile the two. The next table lists what each key allows, with the per-sender reading.
+The hash also binds $\mathsf{nk}$ to the note's owner field, and Section 8 shows that this is what stops a spender from inventing a second nullifier sequence.
+
+The wallet can also separate proving from signing. The [**proof authorizing key**](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/proof.rs#L13-L37) $\mathsf{pak} = (\mathsf{ak}, \mathsf{nk})$ gives a device what it needs to build proofs for every note paid to the matching payment key, and it cannot sign. A hardware wallet can therefore hold $\mathsf{ask}$ while another device does the proving. With one key pair per sender, a $\mathsf{pak}$ covers the notes paid to one address, although some sources read it more broadly, as the box after the table records. The next table lists what each key allows.
 
 | Key | Secret? | What its holder can do |
 | --- | --- | --- |
@@ -76,12 +80,8 @@ The wallet can also separate proving from signing. The [**proof authorizing key*
 | $\mathsf{pak} = (\mathsf{ak}, \mathsf{nk})$ | yes | build proofs for every note paid to this $\mathsf{pk}$, without signing |
 | $\mathsf{pk}$ | shared with senders | receive notes, with no other ability |
 
-::: warning Book and code: narrower delegation
-**Book:** the [key hierarchy page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/keys.md?plain=1#L115-L120), marked as outdated, lists a per-note bundle $(\mathsf{ak}, \mathsf{mk})$ that would let a prover work on one note only, where $\mathsf{mk}$ is the per-note key of Section 6.
-
-**Code at `7e50254`:** [`NoteSeed`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/delegation.rs#L123-L149) and [`SpendAction`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L202-L205) both witness a full $\mathsf{pak}$ and rederive $\mathsf{pk}$ from it, so a prover holding only $(\mathsf{ak}, \mathsf{mk})$ could not run them. A [comment on the type](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/proof.rs#L22-L26) also says that proof delegation is yet to be specified.
-
-This site follows the code, and treats per-note proving delegation as unsettled. A sync service, by contrast, receives [only values and no key material](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/master.rs#L26-L27).
+::: warning Book and code: the scope of delegation
+The [key hierarchy page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/keys.md?plain=1#L115) and a [code comment](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/proof.rs#L15-L17) call $\mathsf{nk}$ wallet-wide, so that one $\mathsf{pak}$ would cover all of a wallet's notes, which does not fit a fresh $(\mathsf{ak}, \mathsf{nk})$ pair per sender. The code at `7e50254` [witnesses a full $\mathsf{pak}$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L202-L205) for each note it proves, and a [comment on the type](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/proof.rs#L22-L26) says that proof delegation is yet to be specified. This site follows the per-sender reading and treats the scope of delegation as unsettled. A sync service, by contrast, receives [only values and no key material](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/master.rs#L26-L27).
 :::
 
 ## 4. Notes and commitments
@@ -109,7 +109,7 @@ Bob cannot publish these values, so he publishes a [**note commitment**](https:/
 
 $$\mathsf{cm} = \mathsf{Poseidon}_{\texttt{Tachyon-CmDerive}}(\mathsf{rcm},\ \mathsf{pk},\ v,\ \psi).$$
 
-Sapling and Orchard use variants of the Pedersen commitment, which rely on discrete log, and Tachyon [uses a hash alone](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L188-L200). Each Tachyon use of Poseidon [starts its sponge](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/digest/poseidon.rs#L44-L61) with a zero rate and with the 16-byte domain name as a number in the capacity cell. Different domains therefore behave as unrelated hash functions, even on identical inputs, and Section 11 relies on this. For our note:
+Sapling and Orchard use variants of the Pedersen commitment, which rely on discrete log, and Tachyon [uses a hash alone](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L188-L200). Each Tachyon use of Poseidon [starts its sponge](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/digest/poseidon.rs#L44-L61) with zero [rate cells](./statements-and-challenges.md#the-sponge) and with the 16-byte domain name, read as a number, in the capacity cell. Different domains therefore behave as unrelated hash functions, even on identical inputs, and Section 11 relies on this. For our note:
 
 <!-- worked:commitment -->
 
@@ -171,7 +171,7 @@ The first stage combines the two secrets that make a nullifier belong to this ow
 
 $$\mathsf{mk} = \mathsf{Poseidon}_{\texttt{Tachyon-NfMaster}}(\psi,\ \mathsf{nk}).$$
 
-The sender knows $\psi$ and not $\mathsf{nk}$, and the wallet holds $\mathsf{nk}$ for many notes, so only the owner of this specific note has both. Doing this once also keeps $\mathsf{nk}$ out of later headers. In the proof tree, [`NoteSeed`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/delegation.rs#L101-L114) computes $\mathsf{mk}$ and passes it on, and no later header carries $\mathsf{nk}$, although [`SpendAction`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L202-L205) witnesses $\mathsf{pak}$ again to check the payment key. Our note gives:
+Only the recipient knows both inputs. The sender lacks $\mathsf{nk}$, and nobody else learned $\psi$. Computing $\mathsf{mk}$ once also means the later nullifier computations need only $\mathsf{mk}$, so the wallet's $\mathsf{nk}$ does not have to travel further through the proof. Our note gives:
 
 <!-- worked:master-key -->
 
@@ -189,7 +189,7 @@ For $e = 7$ we get $w = 7 - (7 \bmod 4) = 4$, so $\mathsf{nf}_7$ is the entry at
 
 <!-- /worked:group-example -->
 
-Here is the running note's sequence, created in epoch 3 and spent with target epoch 7, the same example as the [figure in chapter 1](./scaling-zcash.md#_9-catching-double-spends-without-the-full-history). We use "target epoch" for the epoch $e$ that a spend's proof reaches. The sources also call it the anchor's epoch or the present epoch.
+Here is the running note's sequence, created in epoch 3 and spent with target epoch 7, the same example as the [figure in chapter 1](./scaling-zcash.md#_9-catching-double-spends-without-the-full-history). The sources also call the target epoch the anchor's epoch or the present epoch.
 
 <!-- worked:nullifier-table -->
 
@@ -237,7 +237,7 @@ For $e = 6$ the deep dive absorbs $\lfloor 6/4 \rfloor = 1$, while the code abso
 
 <!-- /worked:group-input -->
 
-This site follows the code. Comments in the code also lag behind it. [One](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/note.rs#L19-L29) still gives $\mathsf{nf} = F_{\mathsf{nk}}(\Psi \Vert e)$, [another](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/primitives/epoch.rs#L16-L18) mentions a GGM tree, and [a third](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/note.rs#L31-L34) calls the commitment scheme undecided while the function below it uses Poseidon.
+This site follows the code. Some code comments still describe older designs, so we cite the functions rather than their comments.
 :::
 
 ## 7. Why the wallet derives its own nullifiers
@@ -262,7 +262,7 @@ A step has $2^{11} = 2,048$ multiplication gates, and one Poseidon permutation c
 
 <!-- worked:ggm-space -->
 
-A binary tree over an epoch space of $2^{14}$ days, about 45 years, has depth 14, so one walk takes 14 permutations and overflows a step. A tree with higher arity near the root can cut the depth to 7, which just fits one walk.
+A binary tree over an epoch space of $2^{14}$ days, about 45 years, has depth 14, so one walk takes 14 permutations and overflows a step. The analysis counts epochs as days here, unlike the code's 4,096-block epochs, but only the depth matters for cost. A node with four children costs one permutation, the same as a node with two, because one rate-4 permutation emits 4 outputs. So raising the arity shortens the walk at no extra cost per level, and 7 levels of arity 4 already cover $4^{7} = 16,384 = 2^{14}$ leaves. A walk of depth 7 just fits a step.
 
 <!-- /worked:ggm-space -->
 
@@ -273,20 +273,16 @@ The analysis [wants at least two nullifiers in one step](https://github.com/tach
 | Design | Permutations for one nullifier | Nullifiers per step of 7 permutations |
 | --- | --- | --- |
 | GGM, binary tree of depth 14 | 14 | none, since one walk overflows a step |
-| GGM, mixed arity, depth 7 | 7 | 1 |
+| GGM, higher arity, depth 7 | 7 | 1 |
 | One hash per nullifier (Attempt 3 before batching) | 1 | 7 |
 | Rate-4 squeeze (Attempt 3) | $1/4$ of a permutation | $7 \cdot 4 = 28$ |
 
 <!-- /worked:nf-cost -->
 
-This construction gives up the range key, because a plain hash has no partial key to hand out. [The trade](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L258-L262) is that wallets derive and prove their own nullifiers, and they send the service explicit values. The service then holds a finite list and can compute nothing beyond it, and [chapter 21](./oblivious-sync.md) shows how the wallet later ties the service's work to its note.
+This construction gives up the range key, because a plain hash has no partial key to hand out. [The trade](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L258-L262) is that wallets derive and prove their own nullifiers, and they send the service explicit values. The service then holds a finite list and can compute nothing beyond it, and [chapter 22](./oblivious-sync.md) shows how the wallet later ties the service's work to its note.
 
 ::: warning Book and code: nullifiers per step
-**Analysis page:** [$7 \cdot 4 = 28$ nullifier derivations per step](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nf-analysis.md?plain=1#L4-L6). The same page's [conclusion](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nf-analysis.md?plain=1#L1029-L1039) offers a MiMC-based alternative at about 50 to 68 per step, for those willing to accept the added dependency.
-
-**Code at `7e50254`:** [`NF_DERIVATION_WIDTH`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/nullifier/mod.rs#L9-L10) is 16, so [`NullifierDerive`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/delegation.rs#L152-L161) runs 4 sponges per window, and the step also binds the window to a committed sequence. The sources do not explain the choice of 16.
-
-This site follows the code, and treats 28 as the analysis's upper count.
+The analysis counts up to 28 nullifiers per step, and its [conclusion](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nf-analysis.md?plain=1#L1029-L1039) also offers a MiMC-based alternative. The code at `7e50254` derives [a batch of 16 consecutive nullifiers](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/nullifier/mod.rs#L9-L10) per step, which is four sponges, and the sources do not explain the choice of 16. The code calls such a batch a window, but it has nothing to do with the two-epoch window that validators keep, so this chapter says batch.
 :::
 
 ## 8. How the commitment pins the nullifiers
@@ -304,9 +300,12 @@ flowchart LR
     psi --> mk["mk"]
     nk --> mk
     mk --> nf["nf at each epoch"]
+    e["epoch e"] --> nf
 ```
 
-The proof's [`NoteSeed`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/delegation.rs#L133-L149) step computes $\mathsf{pk}$ from the witnessed $\mathsf{pak}$, builds the note, and derives both $\mathsf{mk}$ and $\mathsf{cm}$ from the same $\psi$ and $\mathsf{nk}$. A seed can name any note it likes, so this step alone proves little. The claim closes later, when [`SpendableInit`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/spendable.rs#L86-L92) requires $\mathsf{cm}$ to be a member of a creation stamp's tachygrams. The spender is therefore held to a commitment that already exists in the pool, and both inputs to $\mathsf{mk}$ sit behind that commitment.
+Each node in the diagram is a hash of the nodes that point into it, where the epoch is public and every other input is secret. The proof recomputes every one of those hashes. The spender supplies one opening of the note, meaning the values $\mathsf{ak}$, $\mathsf{nk}$, $v$, $\psi$ and $\mathsf{rcm}$, as private inputs. From that one opening the proof computes $\mathsf{pk}$, then $\mathsf{cm}$, then $\mathsf{mk}$ and the nullifiers. Because $\psi$ and $\mathsf{nk}$ feed both $\mathsf{cm}$ and $\mathsf{mk}$, the commitment and the nullifiers cannot come from different openings.
+
+On its own this proves little, since a spender could invent any opening and compute a commitment for it. What closes the gap is a separate part of the proof, built in chapters [20](./pool-state.md) and [22](./proof-tree.md), which shows that this $\mathsf{cm}$ was already published in the pool when the note was created. A spender who invents an opening gets a commitment that nobody published, and that part of the proof fails. So the spender is held to an existing commitment, and both inputs to $\mathsf{mk}$ sit behind it.
 
 To cheat, a spender would keep $\mathsf{cm}$ fixed while changing what lies behind it. Our small hash range allows us to try every possible change to one field at a time:
 
@@ -329,7 +328,7 @@ A random function into 65,537 values should produce about one match per row. The
 
 The attack succeeds here only because the range is small. The protection comes entirely from the assumption that nobody can find such a collision, so it needs a hash with a far larger range. Real Poseidon outputs have about 255 bits, and a search of the kind we just ran would be hopeless. Two further assumptions complete the argument. The proof system must not allow a false statement to verify, and the proof must really compute these hashes, which Section 13 qualifies, since these steps do not yet run as real circuits.
 
-The remaining pieces follow the same pattern. [`SpendBind`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/spend.rs#L76-L85) computes the published pair from the threaded $\mathsf{mk}$ and the epoch, so no nullifier is a free witness. It also compares the secret's commitment with the one the spendable lineage carries, and [the proof tree page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L353) notes what this rejects. A phantom note that reuses $\psi$ with a larger value has a different $\mathsf{cm}$, and that commitment was never published.
+The published nullifiers follow the same pattern. The proof computes them from $\mathsf{mk}$ and the epoch, so the spender never gets to supply a nullifier directly. The same chain also blocks an inflated spend. The two matches in the table's $v$ row are toy collisions of this kind, since each gives the same commitment a different value, and the realistic range rules them out for the same reason as the nullifier rows. With such a range, a spender who keeps $\psi$ and $\mathsf{nk}$ but claims a larger $v$ would get the right nullifiers and a [different commitment](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L353), and nobody published that commitment.
 
 ## 9. Reusing a trapdoor
 
@@ -353,25 +352,23 @@ We did not find a wallet check in the crate. This site follows the deep dive her
 
 ## 10. Why a spend publishes two nullifiers
 
-We can now return to the rule that [chapter 1](./scaling-zcash.md#_9-catching-double-spends-without-the-full-history) stated and tested with labels. A spend with target epoch $e$ proves that $\mathsf{nf}_j$ is absent from epoch $j$, for every closed epoch $j$ from the note's creation up to $e - 1$, and validators keep the tachygrams of the [current and preceding epochs](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/tachygrams.md?plain=1#L55). Validators also [accept a stamp for epoch $e$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L1320-L1323) during epoch $e$ or epoch $e + 1$, because a transaction may still be waiting when a new epoch begins, and neither a miner nor a sync service can update the proof on the wallet's behalf.
+[Chapter 1](./scaling-zcash.md#_9-catching-double-spends-without-the-full-history) stated the rule and argued in two cases that it catches every double spend. Validators [accept a stamp for epoch $e$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L1320-L1323) during epoch $e$ or epoch $e + 1$ and keep the tachygrams of the [current and preceding epochs](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/tachygrams.md?plain=1#L55), and the spend publishes both $\mathsf{nf}_e$ and $\mathsf{nf}_{e+1}$. This section builds on that argument rather than repeating it, and adds three things chapter 1 left out: an example of the attack that a single nullifier would allow, the reason the window spans two epochs, and a check of every case on the running note.
 
-A later proof looks for each nullifier only in the epoch with the same number. So the mechanism works only if a spend leaves a value where such a test will find it. The grace period threatens exactly this, because a spend with target $e$ may land in epoch $e + 1$.
+A later proof looks for each nullifier only in the epoch with the same number, so a spend has to leave a value where such a test will find it. The grace period threatens exactly this, because a spend with target $e$ may land in epoch $e + 1$.
 
 <!-- worked:single-fail -->
 
-Suppose instead that a spend published only $\mathsf{nf}_e$. A first spend with target 7 waits in the mempool and gets accepted in epoch 8, so 55113 lands in epoch 8. A second spend with target 8 now tests $\mathsf{nf}_7$ against epoch 7, where it is absent, and it publishes $\mathsf{nf}_8 = 61177$, which nobody has published. Both checks pass and the note is spent twice. Across all 111 scenarios, 48 get through in this way.
+Suppose instead that a spend published only $\mathsf{nf}_e$. A first spend with target 7 waits in the mempool and gets accepted in epoch 8, so 55113 lands in epoch 8. A second spend with target 8 now tests $\mathsf{nf}_7$ against epoch 7, where it is absent, and it publishes $\mathsf{nf}_8 = 61177$, which nobody has published. Both checks pass and the note is spent twice.
 
 <!-- /worked:single-fail -->
 
-Publishing $\mathsf{nf}_{e+1}$ as well closes this gap. Write $a$ for the epoch in which a spend is accepted, so that $a$ is either $e$ or $e + 1$. Both possibilities are covered by the pair, so a spend accepted in epoch $a$ always publishes $\mathsf{nf}_a$ during epoch $a$. The figure shows the three situations.
+Publishing $\mathsf{nf}_{e+1}$ as well closes this gap, because, as chapter 1 noted, the spend then publishes the nullifier of whichever epoch accepts it. In symbols, a spend accepted in epoch $a \in \{e, e + 1\}$ publishes $\mathsf{nf}_a$ during epoch $a$. The figure shows the three situations.
 
 ![A grid of epochs 6 to 9 with a row of tests, each asking whether the nullifier with that epoch's number is absent from that epoch. A pair accepted in epoch 7 places nf7 in epoch 7, where the test fails. A pair accepted in epoch 8 places nf8 in epoch 8, where the test fails. A lone nf7 accepted in epoch 8 matches no test.](./manim/pair-placement.png)
 
-From this one fact, the double-spend argument takes two cases. Let a first spend have target $t_1$ and acceptance epoch $a_1$, and let a second spend of the same note have target $t_2$ and acceptance epoch $a_2 \ge a_1$.
+To check cases by number, we write chapter 1's two cases in symbols. Let a first spend have target $t_1$ and acceptance epoch $a_1$, and let a second spend of the same note have target $t_2$ and acceptance epoch $a_2 \ge a_1$. Chapter 1's first case is $t_2 > a_1$, where the second exclusion proof would have to show $\mathsf{nf}_{a_1}$ absent from epoch $a_1$. Its second case is $t_2 \le a_1$, and the inequalities make each step of it explicit. The case itself gives $t_2 \le a_1$. Since $a_1 \le a_2$ and $a_2 \le t_2 + 1$, we also have $a_1 \le t_2 + 1$. So $a_1$ is $t_2$ or $t_2 + 1$, and the second spend's pair repeats $\mathsf{nf}_{a_1}$.
 
-**Case $t_2 > a_1$.** Epoch $a_1$ is closed and lies before the second target, so the second proof has to show $\mathsf{nf}_{a_1}$ absent from epoch $a_1$. The first spend put it there, so the proof cannot be built.
-
-**Case $t_2 \le a_1$.** Combining $a_1 \le a_2$ with $a_2 \le t_2 + 1$ gives $t_2 \le a_1 \le t_2 + 1$, so $a_1$ is $t_2$ or $t_2 + 1$. The second spend publishes both $\mathsf{nf}_{t_2}$ and $\mathsf{nf}_{t_2+1}$, so it repeats $\mathsf{nf}_{a_1}$. The same inequalities give $a_2 - a_1 \le 1$, so epoch $a_1$ is still retained, and validators reject the duplicate. This is also why the window needs two epochs.
+The same bounds explain the length of the window. From $a_2 \le t_2 + 1$ and $t_2 \le a_1$ we get $a_2 \le a_1 + 1$, so the repeated value can arrive one epoch after the first copy entered the pool, and validators have to still hold the epoch before the current one.
 
 <!-- worked:window-fail -->
 
@@ -379,7 +376,7 @@ Take two spends with target 7, the first accepted in epoch 7 and the second in e
 
 <!-- /worked:window-fail -->
 
-The argument assumes that a spender cannot choose nullifiers, which Section 8 covered, and that proofs cannot be forged. Here is every outcome for a first spend with target 7, using our note's values:
+The argument assumes that a spender cannot choose nullifiers, which Section 8 covered, and that proofs cannot be forged. The next table runs both cases with the running note's values. Chapter 1's table only followed a first spend that landed late, in epoch 8, and this table adds the first spend that lands on time, in epoch 7:
 
 <!-- worked:case-table -->
 
@@ -402,7 +399,7 @@ The argument assumes that a spender cannot choose nullifiers, which Section 8 co
 
 <!-- worked:case-count -->
 
-The script checks this on every pair of spends of our note, with targets from epoch 3 to epoch 9 and each spend accepted in its target epoch or the next. There are 111 such scenarios. In 72 of them $t_2 > a_1$ and the second proof cannot be built, and in the other 39 we have $t_2 \le a_1$ and consensus finds a shared value in its window. No scenario escapes. The two checks also overlap in 6 scenarios, where the first spend was accepted on time and the second targets and lands in the very next epoch, so the window would have caught it too.
+The script checks this on every pair of spends of our note, with targets from epoch 3 to epoch 9 and each spend accepted in its target epoch or the next. There are 111 such scenarios. In 72 of them $t_2 > a_1$ and the second proof cannot be built, and in the other 39 we have $t_2 \le a_1$ and consensus finds a shared value in its window. No scenario escapes. The two checks also overlap in 6 scenarios, where the first spend was accepted on time and the second targets and lands in the very next epoch, so the window would have caught it too. Rerunning the same 111 scenarios with a single published nullifier per spend lets 48 of them through, as in the example above.
 
 <!-- /worked:case-count -->
 
@@ -424,7 +421,7 @@ A circuit's shape cannot depend on secret values, as [chapter 4](./arithmetizati
 
 Earlier Zcash pools keep commitments in a Merkle tree and nullifiers in a separate set. Tachyon instead treats [both as one kind of value](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L486-L494), a **tachygram**, which is a 32-byte element of $\F_p$. A single structure can answer both questions a spend asks, namely whether a commitment is present and whether a nullifier is absent, and consensus does not need to know which kind a value is. This also helps privacy, as long as the published values give no other hint of their kinds.
 
-Counting gives such a hint. A bundle already reveals its number of actions $n$, because each action has one signature. A spend publishes two nullifiers and an output has only one commitment, so without further care the total $t$ would reveal the split, with $s = t - n$ spends.
+Counting gives such a hint. A bundle already reveals its number of actions $n$, because each action has one signature. A spend publishes two nullifiers and an output has only one commitment, so without further care the total $t$ would reveal the split, with $s = t - n$ spends. The table leaves aside the bundle's fee change note, which the end of this section returns to, because it adds the same one value to every row.
 
 <!-- worked:arity -->
 
@@ -440,7 +437,7 @@ Counting gives such a hint. A bundle already reveals its number of actions $n$, 
 
 The deep dive [notes](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L717-L723) that the leak is only about the count, since tachygrams never sit beside a particular action. To remove it, [each action publishes exactly two](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/primitives/tachygram.rs#L16-L18). A spend publishes its pair. An output publishes its commitment and a **padding tachygram**, so the last column of the table is constant.
 
-The pad cannot be any easily computed function of the commitment. To see what an observer could do if it were, start from a bundle's published list:
+The pad cannot be any easily computed function of the commitment. To see what an observer could do if it were, take one bundle and list what it would publish under each design.
 
 <!-- worked:bundle-size -->
 
@@ -448,25 +445,27 @@ Take one bundle ($B = 1$) with $N = 4$ actions, two of each kind. It publishes $
 
 <!-- /worked:bundle-size -->
 
+The first column of the next table is what Tachyon publishes, with each pad derived from its note opening. The second column shows the values that would change if the pad were a hash of the commitment alone.
+
 <!-- worked:bundle -->
 
-| Published tachygram | Known only to the parties involved |
-| --- | --- |
-| 13229 | output 2, pad |
-| 24937 | output 2, $\mathsf{cm}$ |
-| 30698 | spend 2, $\mathsf{nf}_8$ |
-| 31831 | output 1, $\mathsf{cm}$ |
-| 40944 | spend 2, $\mathsf{nf}_7$ |
-| 46656 | output 1, pad |
-| 55113 | spend 1, $\mathsf{nf}_7$ |
-| 55356 | fee change note, $\mathsf{cm}$ |
-| 61177 | spend 1, $\mathsf{nf}_8$ |
+| Published tachygram | If the pad were $H(\mathsf{cm})$ | Known only to the parties involved |
+| --- | --- | --- |
+| 13229 | 38763 | output 2, pad |
+| 24937 | same | output 2, $\mathsf{cm}$ |
+| 30698 | same | spend 2, $\mathsf{nf}_8$ |
+| 31831 | same | output 1, $\mathsf{cm}$ |
+| 40944 | same | spend 2, $\mathsf{nf}_7$ |
+| 46656 | 52667 | output 1, pad |
+| 55113 | same | spend 1, $\mathsf{nf}_7$ |
+| 55356 | same | fee change note, $\mathsf{cm}$ |
+| 61177 | same | spend 1, $\mathsf{nf}_8$ |
 
 <!-- /worked:bundle -->
 
 <!-- worked:pad-test -->
 
-Suppose outputs derived the pad as $H(\mathsf{cm})$. An observer holding the 9 published values hashes each one and looks for the result in the list, which takes 72 ordered comparisons. In our bundle with that design, the test finds exactly 2 matches, (31831, 52667) and (24937, 38763), and so the observer learns the output count. Run the same test on the values in the table above, where each pad comes from the note opening, and it finds no matches. To test the real relation, the observer would need the note's $\mathsf{rcm}$, $\mathsf{pk}$, $v$, and $\psi$.
+Start with the middle column, a hypothetical design in which each output derives its pad as $H(\mathsf{cm})$. Only the two pads change, to 52667 and 38763. An observer holding those 9 values hashes each one and looks for the result among the others, which takes 72 ordered comparisons. The test finds exactly 2 matches, because $H(31831) = 52667$ and $H(24937) = 38763$, and so the observer learns which values are commitments and how many outputs the bundle has. Now run the same 72 comparisons on the first column, where each pad comes from the note opening. They find no matches. To test the real relation, the observer would need the note's $\mathsf{rcm}$, $\mathsf{pk}$, $v$, and $\psi$.
 
 <!-- /worked:pad-test -->
 
@@ -484,13 +483,9 @@ The hiding that the commitment gets from $\mathsf{rcm}$ also hides any relation 
 Both forms resist the pairing test, so the disagreement is about construction. This site follows the code.
 :::
 
-::: warning Sources differ: tachygrams per action
-The [bundle page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md?plain=1#L29) says an action is bound to one tachygram, and the [deep dive's accumulator section](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L496-L501) defines one per action, while its [transaction section](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L703-L715) and the code use two. As in [chapter 1](./scaling-zcash.md#_10-what-validators-store-now), this site follows the code, with two per action and one more per bundle.
-:::
+One value in the table falls outside the pairs. Each bundle's [fee change note](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L62-L68) publishes only its commitment, even when its value is zero, and so a stamp covering $N$ actions in $B$ bundles has [$2N + B$ tachygrams](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/tachygrams.md?plain=1#L39-L40). The extra one appears once per bundle whatever the bundle does, so it adds nothing about the split. Some book pages still count one tachygram per action, and as in [chapter 1](./scaling-zcash.md#_10-what-validators-store-now) we follow the code's two. The [aggregation chapter](./aggregation-and-bundles.md) covers fees.
 
-One value in the table falls outside the pairs. Each bundle's [fee change note](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L62-L68) publishes only its commitment, even when its value is zero, and so a stamp covering $N$ actions in $B$ bundles has [$2N + B$ tachygrams](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/tachygrams.md?plain=1#L39-L40). The extra one appears once per bundle whatever the bundle does, so it adds nothing about the split. The [aggregation chapter](./aggregation-and-bundles.md) covers fees.
-
-A stamp holds its tachygrams as a flat list, and [the wire format requires](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/mod.rs#L325-L341) them to be unique and sorted by their byte encoding. Sorting erases the order in which actions contributed them, and in the code [a spend's step commits its pair as a set](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L228-L236). Every published value is also [required to be nonzero](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L1458-L1462), which keeps each factor of the polynomial in the next section from degenerating. The [proof tree page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L349) gives a different reason, a collision with the note's own commitment, and we did not establish that one independently.
+A stamp holds its tachygrams as a flat list, and [the wire format requires](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/mod.rs#L325-L341) them to be unique and sorted by their byte encoding. Sorting erases the order in which actions contributed them, and in the code [a spend's step commits its pair as a set](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L228-L236). Every published value is also [required to be nonzero](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L1458-L1462). The deep dive ties this rule to the set polynomial, which the [next chapter](./pool-state.md) builds, and we leave the explanation to that chapter.
 
 These privacy statements cover what the published values reveal. As [chapter 2](./pcd-intro.md#proof-size-and-hiding-in-ragu) records, Ragu's book and code do not yet establish zero knowledge, so a separate question remains about what a proof itself reveals.
 
@@ -508,14 +503,15 @@ A spender uses the first kind of test to show that its commitment was published,
 
 ## 13. Where these derivations run
 
-Each object in this chapter is computed inside a step of the proof tree. [Chapter 22](./proof-tree.md) walks through them in order, and this table locates what we have covered:
+Each object in this chapter is computed inside a step of the proof tree. [Chapter 23](./proof-tree.md) walks through them in order, and this table locates what we have covered:
 
 | Step | Who runs it | What it does here |
 | --- | --- | --- |
-| [`NoteSeed`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/delegation.rs#L115-L150) | wallet | derives $\mathsf{pk}$ from $\mathsf{pak}$, then $\mathsf{mk}$ and $\mathsf{cm}$ |
-| [`NullifierDerive`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/delegation.rs#L181-L250) | wallet | derives a window of nullifiers from $\mathsf{mk}$ |
-| [`SpendBind`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/spend.rs#L87-L145) | wallet | derives $\mathsf{nf}_e$ and $\mathsf{nf}_{e+1}$, and checks they are nonzero |
-| [`SpendAction`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L178-L236) | wallet | checks $\mathsf{pak}$ against $\mathsf{pk}$, derives $\alpha$ and $\mathsf{rk}$, and commits the pair |
+| [`NoteSeed`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/delegation.rs#L115-L150) | wallet | derives $\mathsf{pk}$ from $\mathsf{pak}$, then $\mathsf{mk}$ and $\mathsf{cm}$ from one opening (Sections 6 and 8), and passes $\mathsf{mk}$ on in place of $\mathsf{nk}$ |
+| [`SpendableInit`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/spendable.rs#L86-L92) | wallet | requires $\mathsf{cm}$ to be among the tachygrams of the stamp that created the note (Section 8) |
+| [`NullifierDerive`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/delegation.rs#L181-L250) | wallet | derives a batch of 16 consecutive nullifiers from $\mathsf{mk}$ (Section 7) |
+| [`SpendBind`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/spend.rs#L87-L145) | wallet | derives $\mathsf{nf}_e$ and $\mathsf{nf}_{e+1}$ from $\mathsf{mk}$, checks they are nonzero, and checks the note's $\mathsf{cm}$ against the one carried from `SpendableInit` (Sections 8 and 10) |
+| [`SpendAction`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L178-L236) | wallet | witnesses $\mathsf{pak}$ again to check it against $\mathsf{pk}$, derives $\alpha$ and $\mathsf{rk}$, and commits the pair (Section 5) |
 | [`OutputBind`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/output.rs#L51-L96) | wallet | derives $\mathsf{cm}$ and the pad from a note |
 
 ::: warning Reconstructed from code at commit 7e50254, not confirmed by the authors
@@ -527,7 +523,7 @@ At this commit, Tachyon [builds Ragu with its `mock` feature](https://github.com
 This chapter took the following steps:
 
 1. A wallet derives two children from $\mathsf{sk}$. The scalar $\mathsf{ask}$ authorizes spends through its public point $\mathsf{ak}$, and $\mathsf{nk}$ derives nullifiers. No proof constrains these derivations.
-2. The payment key is a hash of $\mathsf{ak}$ and $\mathsf{nk}$, so it reveals neither of them, and wallets mint a fresh one per sender since a hash cannot be tweaked.
+2. The payment key is a hash of $\mathsf{ak}$ and $\mathsf{nk}$, so it reveals neither of them, and wallets mint a fresh one per sender, because a hash has no counterpart to Orchard's diversified addresses.
 3. A note is $(\mathsf{pk}, v, \psi, \mathsf{rcm})$, its commitment is a domain-tagged Poseidon hash of those fields, and the sender knows all four fields but not $\mathsf{nk}$.
 4. Each action signs with a key randomized by $\alpha$, so a published $\mathsf{rk}$ is consistent with every possible owner, and outputs use the same form with no spending authority.
 5. A note's master key is $\mathsf{mk} = \mathsf{Poseidon}(\psi, \mathsf{nk})$, and one sponge over $\mathsf{mk}$ and a group start $w$ gives four consecutive epoch nullifiers. Cost in the proof is the reason this replaced the archived GGM tree.
@@ -535,4 +531,4 @@ This chapter took the following steps:
 7. A spend accepted in epoch $a$ always publishes $\mathsf{nf}_a$ in epoch $a$. This single fact, the exclusion proof, and a two-epoch window together catch every double spend.
 8. Commitments and nullifiers are published as one kind of value. Each action publishes two tachygrams and each bundle one more, derived so that an observer learns the number of actions and not the split between spends and outputs.
 
-All of this is a design at one commit of a proposal that has not activated, and the steps above still run against a mock of Ragu. We have spoken of values being published in the pool without saying how a proof can refer to history that validators have forgotten. The [next chapter](./pool-state.md) builds that structure, starting from the hash chain of anchors.
+All of this is a design at one commit of a proposal that has not activated, and the steps above still run against a mock of Ragu. We have spoken of values being published in the pool without saying how a proof can refer to history that validators have forgotten. The [next chapter](./pool-state.md) builds that structure. It starts from the set polynomial of Section 12, commits to it as a single curve point, and then folds those points into the hash chain of anchors.

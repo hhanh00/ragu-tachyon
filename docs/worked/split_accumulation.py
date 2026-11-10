@@ -274,11 +274,13 @@ ipa_prover = sum(2 * 2 ** j for j in range(1, K + 1))
 assert ipa_prover == 32764
 SHORT_POINTS, SHORT_SCALARS = 30, 9
 frag['atomic-cost'] = (
-    f'Take $n = 2^{{{K}}}$ generators, and one step that holds one earlier accumulator and one new proof. '
-    f'The circuit batches the proof\'s claims, which takes ${batch_own}$ scalar multiplications, runs the proof\'s inner product argument up to the split, which takes ${ipa_split}$, '
+    f'Take $4n = 2^{{{K}}}$ generators, which is the size chapter 09 writes as $4n$ and chapter 11 wrote as $n$. Consider one step that holds one earlier accumulator and one new proof. '
+    f'The circuit batches the proof\'s claims, which takes ${batch_own}$ scalar multiplications (${batch_own - 1}$ to form $\\bar{{P}}$ and one more to scale $v$ by the inner product argument\'s point $U$), runs the proof\'s inner product argument up to the point where it hands off $\\hat{{G}}$, which takes ${ipa_split}$, '
     f'and then runs the merge, which takes ${merge_two}$, for ${atomic_step}$ in all. '
     f'Outside the circuit, the prover commits to $f$ with ${N4:,}$ scalar multiplications and runs two inner product arguments at ${ipa_prover:,}$ each, '
-    f'so ${N4 + 2 * ipa_prover:,}$ at every step.')
+    f'so ${N4 + 2 * ipa_prover:,}$ at every step. '
+    f'When the chain ends, the final verifier does the same work outside any circuit. It splits the last proof\'s inner product argument (${ipa_split}$), '
+    f'checks a merge proof attached to that proof (${merge_two}$), and decides the merged claim once with an MSM of ${N4:,}$.')
 
 # Which verifier steps read a witness vector.
 frag['reads'] = table(
@@ -321,7 +323,7 @@ second = proofs[1]
 ch1 = FOLD_CH[1]
 frag['second-proof'] = (
     f'The second step applies $F$ to ${second["input"]}$ and outputs ${second["output"]}$. Its challenges are $z = {second["z"]}$, $y = {second["y"]}$ and $x = {second["x"]}$, so $xz = {second["x"] * second["z"] % Q}$. '
-    f'The statement gives $k(Y) = {(second["output"] - 5) % Q}\\,Y^3$. The script confirms that this proof\'s revdot product and split check hold, and these are its polynomials and claims:\n\n'
+    f'The statement gives $k(Y) = {(second["output"] - 5) % Q}\\,Y^3$. The script confirms that this proof\'s revdot product and the check on the split of $b(x)$ hold, and these are its polynomials and claims:\n\n'
     + table(['Polynomial', 'Coefficients of $X^0, \\ldots, X^7$', 'Blinding', 'Commitment', 'Point', 'Value'],
             [[f'${n}$', vec(p), g, pt(c), at, val] for n, p, g, c, at, val in second['entries']]))
 
@@ -403,7 +405,7 @@ assert joined.P not in GENS + [H, None] and joined.v
 assert decide(joined.inst, joined.p, joined.gamma)
 frag['tree'] = (
     f'Suppose a second chain has proved ${right_old["output"]} = F({right_start})$ and reached the accumulator $({show(acc_r.P)},\\ {acc_r.u},\\ {acc_r.v})$. A node takes this one and $\\mathsf{{acc}}_2$ from its two children, '
-    f'along with one new proof from each side. The input list has $2 + 2 \\cdot 4 = {len(claims_j)}$ claims. With $\\alpha = 18$, $u = 17$ and $\\beta = 32$, '
+    f'along with one new proof from each side, a proof of ${left["output"]} = F({STATES[2]})$ on the first side and a proof of ${right["output"]} = F({right_old["output"]})$ on the second. The input list has $2 + 2 \\cdot 4 = {len(claims_j)}$ claims. With $\\alpha = 18$, $u = 17$ and $\\beta = 32$, '
     f'the fold outputs $({show(joined.P)},\\ {joined.u},\\ {joined.v})$. The accumulation verifier accepts, and the decider accepts the witness ${vec(joined.p)}$. '
     f'The proof $\\mathsf{{pf}}$ grows to one point and {len(pf_j[1])} values, while the output keeps the same three-part instance and 8-entry witness.')
 
@@ -419,17 +421,21 @@ short_bytes = BYTES * (SHORT_POINTS + SHORT_SCALARS)
 nark_inst_bytes, nark_wit_bytes = 384, 1048832
 assert atomic_bytes == 448 and short_bytes == 1248
 frag['compare'] = table(
-    ['For $n = 2^{13}$ and 32-byte values', 'Atomic (chapter 11)', 'Split (this chapter)'],
+    ['For $4n = 2^{13}$ and 32-byte values', 'Atomic (chapter 11)', 'Split (this chapter)'],
     [
         ['Scalar multiplications in the circuit, one proof and one accumulator', f'${atomic_step}$', f'${split_one}$'],
         ['Scalar multiplications in the circuit, two proofs and two accumulators', f'${atomic_tree}$', f'${split_tree}$'],
-        ['Growth of that count with $n$', 'Logarithmic', 'None'],
+        ['Growth of that count with $4n$', 'Logarithmic', 'None'],
         ['Prover\'s scalar multiplications for this opening work at each step', f'${N4 + 2 * ipa_prover:,}$', f'${N4:,}$, to commit to $f$'],
         ['Accumulator data that the circuit reads', f'${atomic_bytes}$ bytes', f'${inst_bytes}$ bytes'],
         ['Proof and accumulator data handed to the next prover', f'${short_bytes + atomic_bytes:,}$ bytes', f'${nark_inst_bytes + nark_wit_bytes:,}$ bytes'],
         ['How much of that is the accumulator\'s witness', 'None', f'${wit_bytes:,}$ bytes'],
-        ['Decider', f'1 MSM of ${N4:,}$', f'1 MSM of ${N4:,}$ and one evaluation'],
-    ])
+        ['Final verifier\'s scalar multiplications', f'${ipa_split} + {merge_two} + {N4:,} = {ipa_split + merge_two + N4:,}$', f'${split_one} + {N4:,} = {split_one + N4:,}$, and one evaluation'],
+    ]) + (
+    f'\n\nThe atomic handoff is a short proof of ${short_bytes:,}$ bytes and an accumulator of ${atomic_bytes}$ bytes. '
+    f'The split handoff is chapter 09\'s proof, except that the batched $\\v{{p}}$ and $\\gamma$ at its end are now the accumulator\'s witness. '
+    f'In chapter 09 those two entries were the proof\'s own batch. In this scheme a proof has no batch of its own, because Section 5 puts its claims straight into the fold, and the accumulator\'s $\\v{{p}}$ and $\\gamma$ have the same length, so the size does not change. '
+    f'The handoff is therefore ${nark_inst_bytes}$ bytes of instance and ${nark_wit_bytes:,}$ bytes of witness, and the ${wit_bytes:,}$ bytes of the next row are part of that witness.')
 
 # ------------------------------------------------------ the product relation
 u1, w1 = [2, 5], [7, 3]
@@ -474,11 +480,19 @@ cancelling = [i for i in range(5)
               if (pow(ch['beta'], 1 + i, Q) * pow(ch['alpha'], 4 - i, Q) * inv(ch['u'] - claims1[i][1]) + 1) % Q == 0]
 assert sorted({i for i, _ in shift_pass}) == cancelling
 assert len(shift_pass) == 42 * len(cancelling)
+ci = cancelling[0] if cancelling else 0
+cancel_pairs = sum(1 for a_ in range(1, Q) for b_ in range(1, Q)
+                   if pow(b_, 1 + ci, Q) * pow(a_, 4 - ci, Q) % Q == (claims1[ci][1] - ch['u']) % Q)
 frag['tamper'] = (
     f'At the second fold, we replaced $\\bar{{P}}_2$ with each of the 42 other group elements, replaced $v_2$ with each of the 42 other values, and separately replaced $\\bar{{F}}$ with each of the 42 other group elements while keeping the output. '
     f'We also shifted each of the five values at $u$ by each of the 42 nonzero amounts while keeping the output, which makes 210 more cases. '
     + (f'The accumulation verifier rejected all ${42 * 3 + 210}$ altered runs.' if not shift_pass else
-       f'The accumulation verifier rejected ${42 * 3 + 210 - len(shift_pass)}$ of the ${42 * 3 + 210}$ altered runs. The other ${len(shift_pass)}$ are shifts of the value for ${names[cancelling[0]]}$. At these particular challenges the effect on the derived $f(u)$ and the effect on that polynomial\'s own term happen to cancel, so the output stays the same true claim and the prover gains nothing.'))
+       f'The accumulation verifier rejected ${42 * 3 + 210 - len(shift_pass)}$ of the ${42 * 3 + 210}$ altered runs. The other ${len(shift_pass)}$ are shifts of the value for ${names[ci]}$, and a short calculation shows why. '
+       f'Shifting $h_{ci}(u)$ by $\\delta$ has two effects on $v$. It changes the derived $f(u)$ by $\\alpha^{{{4 - ci}}}\\delta/(u - x_{ci})$, and $f(u)$ enters $v$ with weight $\\beta^5$. It also changes the term $\\beta^{{{4 - ci}}} h_{ci}(u)$ by $\\beta^{{{4 - ci}}}\\delta$. Adding the two contributions gives\n\n'
+       f'$$\\Delta v = \\beta^5 \\alpha^{{{4 - ci}}} \\cdot \\frac{{\\delta}}{{u - x_{ci}}} + \\beta^{{{4 - ci}}} \\delta = \\beta^{{{4 - ci}}} \\delta \\cdot \\left( \\frac{{\\beta^{{{1 + ci}}} \\alpha^{{{4 - ci}}}}}{{u - x_{ci}}} + 1 \\right).$$\n\n'
+       f'The bracket is zero exactly when $\\beta^{{{1 + ci}}}\\alpha^{{{4 - ci}}} = x_{ci} - u$. Here $\\beta^{{{1 + ci}}} = {pow(ch["beta"], 1 + ci, Q)}$ and $\\alpha^{{{4 - ci}}} = {pow(ch["alpha"], 4 - ci, Q)}$, whose product is ${pow(ch["beta"], 1 + ci, Q) * pow(ch["alpha"], 4 - ci, Q) % Q}$, and $x_{ci} - u = {claims1[ci][1]} - {ch["u"]} = {(claims1[ci][1] - ch["u"]) % Q}$. '
+       f'The condition holds for this input and fails for the other four, so every shift of this one value leaves the output unchanged. The output then stays the same true claim, and the prover gains nothing. '
+       f'The coincidence comes from our hand-picked challenges. With $u = {ch["u"]}$ fixed, only ${cancel_pairs}$ of the ${42 * 42:,}$ pairs of nonzero $\\alpha$ and $\\beta$ satisfy the condition for this input, about 1 in ${round(42 * 42 / cancel_pairs)}$.'))
 
 # A consistent false F passes Acc.V, and only the decider sees it.
 F_pass, F_decide = 0, 0
@@ -493,9 +507,21 @@ assert F_pass == 42 and F_decide == 0
 other_F = next(c for c in group if c not in (pfs[1][0], None) and c not in GENS
                and fold_instance(claims1, (c, values1), **ch)[0] not in GENS + [H, None])
 other_P, _ = fold_instance(claims1, (other_F, values1), **ch)
+# A cheater who knows what its false F commits to: the MSM passes, the evaluation fails.
+f_star = list(fs[1])
+f_star[0] = (f_star[0] + 1) % Q
+F_star = commit(f_star, ch1['gamma_f'])
+P_star, v_star = fold_instance(claims1, (F_star, values1), **ch)
+assert acc_verify(claims1, (P_star, ch['u'], v_star), (F_star, values1), **ch)
+p_star = lin((pow(ch['beta'], 5, Q), f_star), *[(pow(ch['beta'], 4 - i, Q), items[i][0]) for i in range(5)])
+assert commit(p_star, new1.gamma) == P_star
+assert ev(p_star, ch['u']) != v_star and not decide((P_star, ch['u'], v_star), p_star, new1.gamma)
 frag['consistent'] = (
     f'For example, a prover can send $\\bar{{F}}^* = {show(other_F)}$ and output the matching point {pt(other_P)}. The accumulation verifier recomputes that same point and accepts. '
-    f'This happens for all 42 false values of $\\bar{{F}}$, because the verifier has no way to see what $\\bar{{F}}$ commits to. With the honest witness, the decider rejects all 42.')
+    f'This happens for all 42 false values of $\\bar{{F}}$, because the verifier has no way to see what $\\bar{{F}}$ commits to.\n\n'
+    f'A prover who wants to survive the decider as well has to know a vector behind its false commitment. Say it takes $\\v{{f}}^*$ equal to $\\v{{f}}$ with the constant coefficient raised by 1, '
+    f'so that $\\bar{{F}}^* = {show(F_star)}$ and the output is $({show(P_star)},\\ {ch["u"]},\\ {v_star})$. Combining $\\v{{f}}^*$ with the other polynomials gives $\\v{{p}}^* = {vec(p_star)}$, '
+    f'and the decider\'s MSM accepts it, since it commits to {pt(P_star)}. The evaluation check rejects, because $p^*({ch["u"]}) = {ev(p_star, ch["u"])}$ while the output states ${v_star}$.')
 
 # A false accumulator value carried through honest folds.
 DELTA = 1
@@ -509,13 +535,17 @@ assert not decide(false1.inst, false1.p, false1.gamma)
 assert not decide(false2.inst, false2.p, false2.gamma)
 assert not decide(false3.inst, false3.p, false3.gamma)
 assert false2.p == accs[1].p and false3.p == accs[2].p and false3.P == accs[2].P
+fold3_mult = (-pow(FOLD_CH[2]['beta'], 5, Q) * pow(FOLD_CH[2]['alpha'], 4, Q) * inv(FOLD_CH[2]['u'] - FOLD_CH[1]['u'])) % Q
+assert (false3.v - ev(false3.p, false3.u)) % Q == fold3_mult * (false2.v - ev(false2.p, false2.u)) % Q
 rows = []
 for name, c in (('$\\mathsf{acc}_1$', false1), ('$\\mathsf{acc}_2$', false2), ('$\\mathsf{acc}_3$', false3)):
     rows.append([name, pt(c.P), c.u, c.v, ev(c.p, c.u), (c.v - ev(c.p, c.u)) % Q])
 frag['false-carry'] = (
     f'Take the run of Section 6, but let the prover state $v_1 = {false1.v}$ where the true value is ${accs[0].v}$. Every later step is honest, with the same challenges.\n\n'
     + table(['Accumulator', '$\\bar{P}$', '$u$', 'Stated $v$', 'True $p(u)$', 'Gap'], rows)
-    + '\n\nThe accumulation verifier accepts both folds, because the output instance is what it recomputes. The decider rejects the last accumulator, since its value differs from the polynomial\'s.')
+    + '\n\nThe accumulation verifier accepts both folds, because the output instance is what it recomputes. The decider rejects the last accumulator, since its value differs from the polynomial\'s. '
+    + f'The gap is the same at the last two folds only by coincidence. At the third fold the multiplier $-\\beta^5\\alpha^4/(u - u_{{\\text{{old}}}})$ of the gap formula above equals '
+    + f'$-{FOLD_CH[2]["beta"]}^5 \\cdot {FOLD_CH[2]["alpha"]}^4 / ({FOLD_CH[2]["u"]} - {FOLD_CH[1]["u"]}) = {fold3_mult}$, so it passes the gap on unchanged.')
 
 # The gap formula, and an exhaustive count over the next fold's challenges.
 base_items = inputs_of([accs[0]], [proofs[1]])
@@ -552,7 +582,7 @@ expected_gap = (-pow(ch1['beta'], 5, Q) * pow(ch1['alpha'], 4, Q) * DELTA * inv(
 assert expected_gap == (false2.v - ev(false2.p, false2.u)) % Q
 frag['gap-count'] = (
     f'For the fold above, the formula gives $-{ch1["beta"]}^5 \\cdot {ch1["alpha"]}^4 \\cdot {DELTA} / ({ch1["u"]} - {accs[0].u}) = {expected_gap}$, which matches the table. '
-    f'We also ran all ${nz_runs:,}$ choices of nonzero $\\alpha$, nonzero $\\beta$ and an allowed $u$ out of {n_u} values, with the gap computed directly and compared with the formula. The gap is zero in none of them.')
+    f'We also ran all ${nz_runs:,}$ choices of nonzero $\\alpha$, nonzero $\\beta$ and an allowed $u$ out of {n_u} values, with the gap computed directly and compared with the formula. The allowed values of $u$ leave out the {len(set(points))} distinct points {", ".join(map(str, dict.fromkeys(points)))}, where a quotient\'s denominator $u - x_i$ would vanish. No run gives a zero gap.')
 
 # Swapping a false accumulator for an unrelated true one.
 swap_in = acc_r
@@ -588,12 +618,13 @@ for beta in range(Q):
         g_ = (g_ * beta + gam) % Q
     if decide((P_, ch_u, v_), p_, g_):
         beta_pass.append(beta)
-assert ch_b in beta_pass and len(beta_pass) <= 2
+assert ch_b in beta_pass and len(beta_pass) == 2
 frag['late'] = (
     f'Suppose the transcript leaves out the accumulator, so that the prover knows $\\alpha = {ch_a}$, $u = {ch_u}$ and $\\beta = {ch_b}$ before it fixes $v_1$. '
     f'It states the false value $v_1 = {late.v}$, an error of ${d_}$, and it sends ${lpf[1][0]}$ in place of the true $p_1({ch_u}) = {values1[0]}$, a shift of ${e_}$ that solves one linear equation. '
     f'The two errors cancel in $v_2$, so the output is the true claim $({show(lnew.P)},\\ {lnew.u},\\ {lnew.v})$. The accumulation verifier accepts and the decider accepts, although $\\mathsf{{acc}}_1$ was false. '
-    f'If instead the prover must fix these messages before $\\beta$ arrives, then trying all 43 values of $\\beta$ finds {len(beta_pass)} that pass, namely ${", ".join(map(str, beta_pass))}$.')
+    f'The remedy is for the transcript to absorb $\\mathsf{{acc}}_1.\\text{{inst}}$ before it draws $\\alpha$, so that $v_1$ is fixed before any challenge exists. '
+    f'Even a weaker ordering leaves the prover little. If it fixes the same two messages after seeing $\\alpha$ and $u$ but before $\\beta$, then trying all 43 values of $\\beta$ finds {len(beta_pass)} that pass, $\\beta = {beta_pass[0]}$ and $\\beta = {beta_pass[1]}$.')
 
 # A prover who knows relations among the toy generators.
 logs = [log(g, G[0]) for g in GENS]

@@ -1,10 +1,10 @@
 """Worked examples for proof-tree.md. Prints fragments as JSON.
 
-One spend of chapter 19's note, traced through Tachyon's proof steps. The note,
+One spend of chapter 20's note, traced through Tachyon's proof steps. The note,
 its keys and its nullifiers are imported from notes_and_nullifiers.py, so they
 carry the same stand-in values. Three kinds of number appear below:
 
-- Hash outputs are chapter 19's stand-in, SHA-256 of a tag and inputs reduced
+- Hash outputs are chapter 20's stand-in, SHA-256 of a tag and inputs reduced
   modulo 65537. They are not Poseidon outputs.
 - Set and sequence polynomials live over F_65539, a stand-in for F_p. It is the
   first prime above the hash range in which 2 has no cube root, which the
@@ -13,7 +13,7 @@ carry the same stand-in values. Three kinds of number appear below:
 
 Set commitments are a stand-in as well, a hash of the coefficients, because a
 polynomial over F_65539 does not fit the toy curve's scalars. Only their
-determinism and binding matter here. Chapter 20 runs the Pedersen form.
+determinism and binding matter here. Chapter 21 runs the Pedersen form.
 
 No proof exists anywhere in this script. Each step's body is run natively, which
 is also what the mock Ragu at revision 0725b52 does.
@@ -21,6 +21,7 @@ is also what the mock Ragu at revision 0725b52 does.
 import contextlib
 import io
 import json
+from math import isqrt
 
 with contextlib.redirect_stdout(io.StringIO()):
     import notes_and_nullifiers as n
@@ -36,9 +37,17 @@ assert all(S % k for k in range(2, 300)) and S % 3 == 1 and pow(NR, (S - 1) // 3
 assert 65537 % 3 == 2  # every element has a cube root modulo 65537, so that field cannot host the factor
 assert len({GEN, V, R}) == 3
 
+CUBE_TEST = pow(NR, (S - 1) // 3, S)
+assert len({pow(x, 3, 65537) for x in range(65537)}) == 65537  # cubing permutes F_65537
+assert all(k % 3 != 1 or any(k % d == 0 for d in range(2, k)) for k in range(65538, S))  # S is the next prime that is 1 mod 3
+frag['fields'] = (
+    f'Modulo 65,537 every element is a cube, because $65537 \\equiv {65537 % 3} \\pmod 3$ and so cubing permutes the '
+    f'field. The next prime congruent to 1 modulo 3 is {S:,}, and there $2^{{(p-1)/3}} = {CUBE_TEST} \\neq 1$, so 2 is '
+    f'not a cube.')
+
 CM, MK, PK, PSI, RCM, VAL, NK, AK, ASK = n.CM, n.MK, n.PK, n.PSI, n.RCM, n.V, n.NK, n.AK, n.ASK
 nf = {e: n.nullifier(MK, e) for e in range(32)}
-assert (CM, MK, nf[7], nf[8]) == (55697, 299, 55113, 61177)  # chapter 19's values
+assert (CM, MK, nf[7], nf[8]) == (55697, 299, 55113, 61177)  # chapter 20's values
 
 
 # ------------------------------------------------------------ polynomial tools
@@ -168,7 +177,9 @@ frag['pool'] = '\n'.join(rows)
 frag['pool-note'] = (
     f'The second stamp of epoch 3 is Bob\'s, and its 5 tachygrams include Alice\'s commitment {CM}. Epoch 6 published '
     f'nothing, so its entry and final anchors are both {entry[6]}. Epoch 7 is still open. We write $a_1, a_2, a_3$ for '
-    f'the anchors after its three stamps, which are {trail[7][1]}, {trail[7][2]} and {trail[7][3]}.')
+    f'the anchors after its three stamps, which are {trail[7][1]}, {trail[7][2]} and {trail[7][3]}. In the same way, the '
+    f'anchor after epoch 3\'s first stamp, just before Bob\'s, is {trail[3][1]}, and the anchor after Bob\'s stamp is '
+    f'{trail[3][2]}.')
 
 # ------------------------------------------------------------------- NoteSeed
 frag['note-seed'] = '\n'.join([
@@ -176,7 +187,8 @@ frag['note-seed'] = '\n'.join([
     f'| witness | $v$, $\\psi$, $\\mathsf{{rcm}}$, $\\mathsf{{ak}}$, $\\mathsf{{nk}}$ | {VAL}, {PSI}, {RCM}, ${show(AK)}$, {NK} |',
     f'| $\\mathsf{{pk}}$ | $H_{{\\texttt{{PkDerive}}}}({AK[0]},\\ {AK[1]},\\ {NK})$ | {PK} |',
     f'| $\\mathsf{{mk}}$ | $H_{{\\texttt{{NfMaster}}}}({PSI},\\ {NK})$ | {MK} |',
-    f'| $\\mathsf{{cm}}$ | $H_{{\\texttt{{CmDerive}}}}({RCM},\\ {PK},\\ {VAL},\\ {PSI})$ | {CM} |',
+    f'| $\\mathsf{{cm}}$ | $H_{{\\texttt{{CmDerive}}}}(\\mathsf{{rcm}},\\ \\mathsf{{pk}},\\ v,\\ \\psi) = '
+    f'H_{{\\texttt{{CmDerive}}}}({RCM},\\ {PK},\\ {VAL},\\ {PSI})$ | {CM} |',
 ])
 assert n.payment_key(AK, NK) == PK and H('Tachyon-NfMaster', PSI, NK) == MK and n.commit(RCM, PK, VAL, PSI) == CM
 
@@ -187,7 +199,7 @@ for w in range(0, WIDTH, 4):
     group = n.nullifier_group(MK, w)
     assert group == [nf[w + i] for i in range(4)]
     rows.append('| ' + ' | '.join([str(w)] + [str(x) for x in group]) + ' |')
-frag['window'] = '\n'.join(rows)
+frag['batch'] = '\n'.join(rows)
 
 # The factor, its irreducibility, and why a linear factor would not do.
 F3 = factor(3, nf[3])
@@ -197,34 +209,11 @@ frag['factor'] = (
     f'$$F_{{3,\\,{nf[3]}}}(X) = ({nf[3]} + 4X)^3 - 2 = {poly_tex(F3)}.$$\n\n'
     f'Trying all {S:,} field elements finds no root, so this cubic has no linear factor, and a cubic with no linear '
     f'factor is irreducible.')
-
-m2 = 8 * nf[3] * pow(4, -1, S) % S       # the member at epoch 7 whose linear factor has the same root
-lin = lambda i, m: [m % S, (i + 1) % S]
-root = lambda p: (-p[0]) * pow(p[1], -1, S) % S
-assert root(lin(3, nf[3])) == root(lin(7, m2)) and m2 != nf[3]
-assert factor(3, nf[3]) != factor(7, m2)
-frag['linear-collision'] = (
-    f'The linear factor $m + (i+1)X$ has the root $-m/(i+1)$, so the pair (epoch 3, member {nf[3]}) and the pair '
-    f'(epoch 7, member {m2}) share a root, and the two factors differ only by a constant multiple. Divisibility cannot '
-    f'tell them apart. Their cubic factors have different coefficients, and the leading terms alone already differ, at '
-    f'{factor(3, nf[3])[3]} against {factor(7, m2)[3]}.')
-
-zeta = next(pow(x, (S - 1) // 3, S) for x in range(2, 50) if pow(x, (S - 1) // 3, S) != 1)
-assert pow(zeta, 3, S) == 1 and zeta != 1
-collide = [(i, j) for i in range(WIDTH) for j in range(WIDTH) if i != j
-           and (j + 1) % S in ((i + 1) * zeta % S, (i + 1) * zeta * zeta % S)]
-assert not collide
-PALLAS_P = 0x40000000000000000000000000000000224698fc094cf91b992d30ed00000001
-from math import isqrt  # noqa: E402
-bound_toy, bound_real = isqrt(S // 3), isqrt(PALLAS_P // 3)
-assert 1048576 < bound_real
-assert 2 ** 125 < bound_real < 2 ** 127
-frag['cube-root'] = (
-    f'Two cubic factors can still coincide when the ratio of their linear terms is a cube root of unity. Modulo {S:,} '
-    f'such a root is $\\zeta = {zeta}$, so a collision needs $j + 1 = \\zeta(i + 1)$ or $j + 1 = \\zeta^2(i + 1)$ for two '
-    f'epoch indices. None of the {WIDTH * (WIDTH - 1)} ordered pairs in our window satisfies this. The code\'s comment gives '
-    f'$i + 1$ below $\\sqrt{{p/3}}$ as enough to rule out every such pair. That bound is {bound_toy} for our stand-in field, '
-    f'and it exceeds $2^{{125}}$ for the real $p$, while epoch indices stay below $2^{{20}}$.')
+BOUND = isqrt(S // 3)
+assert BOUND * BOUND <= S / 3 < (BOUND + 1) ** 2 and 2 * WIDTH < BOUND
+frag['factor-bound'] = (
+    f'On our field that bound is $\\lfloor\\sqrt{{{S}/3}}\\rfloor = {BOUND}$, so $i + 1$ must stay below {BOUND}. The '
+    f'epochs in this chapter run from 0 to {2 * WIDTH - 1}, well inside it.')
 
 WINDOW = [(e, nf[e]) for e in range(WIDTH)]
 G0 = seq(WINDOW)
@@ -241,11 +230,11 @@ G_wrong = seq(wrong)
 passing = [x for x in range(S) if pev(G_wrong, x) == pev(G0, x)]
 assert 0 < len(passing) <= 3 * WIDTH
 frag['derive-open'] = (
-    f'The sequence has degree $3 \\cdot {WIDTH} = {3 * WIDTH}$, and its stand-in commitment is {COM_G0}. The challenge '
-    f'derived from that commitment is $z = {z}$. The opening gives $g({z}) = {pev(G0, z)}$, and the step gets the same '
+    f'The batch polynomial has degree $3 \\cdot {WIDTH} = {3 * WIDTH}$, and its stand-in commitment is {COM_G0}. The challenge '
+    f'derived from that commitment is $z = {z}$. The opening gives $N({z}) = {pev(G0, z)}$, and the step gets the same '
     f'value by evaluating the {WIDTH} factors directly from the sponge outputs. Suppose a prover commits instead to a '
-    f'sequence with the member at epoch 5 replaced by {wrong[5][1]}. Testing every challenge shows that this false '
-    f'sequence agrees with the true product at {len(passing)} of the {S:,} points, which is within the degree bound of '
+    f'polynomial with the member at epoch 5 replaced by {wrong[5][1]}. Testing every challenge shows that this false '
+    f'polynomial agrees with the true product at {len(passing)} of the {S:,} points, which is within the degree bound of '
     f'{3 * WIDTH}.')
 
 # NullifierFuse
@@ -254,11 +243,14 @@ G1 = seq(W2)
 GM = pmul(G0, G1)
 zf = chal(com(G0), com(G1), com(GM))
 assert pev(GM, zf) == pev(G0, zf) * pev(G1, zf) % S
+LAST0 = WIDTH - 1                 # NoteNullifiers stores an inclusive last epoch
+OVERLAP = WIDTH - 4               # the next group-aligned start that overlaps
+assert OVERLAP % 4 == 0 and OVERLAP != LAST0 + 1
 frag['nullifier-fuse'] = (
-    f'A second window starting at epoch {WIDTH} passes the contiguity check, since ${WIDTH} = 15 + 1$. At the challenge '
-    f'$z = {zf}$ the product check reads ${pev(GM, zf)} = {pev(G0, zf)} \\cdot {pev(G1, zf)}$ modulo {S:,}. A window '
-    f'starting at epoch 12 would also be group-aligned, but it would repeat four epochs, and the check rejects it '
-    f'because $12 \\neq 16$.')
+    f'The first batch covers epochs 0 to {LAST0}, both included. A second batch starting at epoch {WIDTH} passes the '
+    f'contiguity check, since ${WIDTH} = {LAST0} + 1$. At the challenge $z = {zf}$ the product check reads '
+    f'${pev(GM, zf)} = {pev(G0, zf)} \\cdot {pev(G1, zf)}$ modulo {S:,}. A batch starting at epoch {OVERLAP} would also be '
+    f'group-aligned, but it would repeat four epochs, and the check rejects it because ${OVERLAP} \\neq {LAST0} + 1$.')
 
 # ---------------------------------------------------------------- SpendableInit
 PREV = trail[3][1]
@@ -311,7 +303,7 @@ rows += [f'| `QrUnspentInit` | bucket of epoch 3, $\\mathsf{{nf}}_3$ | {tup(seg3
 frag['segments'] = '\n'.join(rows)
 frag['segments-note'] = (
     f'The fuse checks that the anchors meet at {seg4[4]} and the epochs meet at 5, and then checks '
-    f'$C(z) = L(z) \\cdot R(z)$ at $z = {zu}$, where it reads ${pev(L, zu)} = {pev(elapsed[4], zu)} \\cdot '
+    f'that the joined $\\Delta$ is the product of the two inputs\' polynomials at $z = {zu}$, where it reads ${pev(L, zu)} = {pev(elapsed[4], zu)} \\cdot '
     f'{pev(elapsed[5], zu)}$. The lift\'s product check at $z = {zl}$ reads ${pev(E456, zl)} = {pev(L, zl)} \\cdot '
     f'{pev(elapsed[6], zl)}$. Each segment holds plain numbers, so nothing in the table mentions a note.')
 
@@ -324,41 +316,15 @@ zb = chal(com(E456), com(comp456), com(G0))
 assert pev(G0, zb) == pev(E456, zb) * pev(comp456, zb) % S
 un3 = (CM, entry[3], 3, 4, entry[4])
 un456 = (CM, entry[4], 4, 7, entry[7])
+COMP_EPOCHS = [e for e in range(WIDTH) if e not in (4, 5, 6)]
+assert comp456 == seq([(e, nf[e]) for e in COMP_EPOCHS])
 frag['unspent-bind'] = (
-    f'Dividing the window polynomial, which has degree {len(G0) - 1}, by the composed `elapsed` of degree '
-    f'{len(E456) - 1} leaves remainder 0 and a complement of degree {len(comp456) - 1}, namely the 13 factors for epochs '
-    f'0 to 3 and 7 to 15. At the challenge $z = {zb}$ the check reads ${pev(G0, zb)} = {pev(E456, zb)} \\cdot '
-    f'{pev(comp456, zb)}$. The step outputs {tup(un456)}, whose first entry is $\\mathsf{{cm}}$. The segment for epoch 3 '
-    f'binds the same way, with a complement of degree {len(comp3) - 1}, and gives {tup(un3)}.')
-
-# The attack that the epoch index stops.
-FAKE = 9
-epoch5_spent = roots([t for s in stamps[5] for t in s] + [nf[5], nf[6]])
-assert pev(epoch5_spent, nf[5]) == 0 and pev(epoch5_spent, nf[6]) == 0
-assert pev(epoch5_spent, nf[FAKE]) != 0
-g_plain = roots([nf[e] for e in range(WIDTH)])
-el_plain = roots([nf[3], nf[4], nf[FAKE], nf[6]])
-_, rem_plain = pdivmod(g_plain, el_plain)
-assert not any(rem_plain)
-el_cheat = seq([(3, nf[3]), (4, nf[4]), (5, nf[FAKE]), (6, nf[6])])
-_, rem_cheat = pdivmod(G0, el_cheat)
-assert any(rem_cheat)
-honest = seq([(3, nf[3]), (4, nf[4]), (5, nf[5]), (6, nf[6])])
-comp_honest, r0 = pdivmod(G0, honest)
-assert not any(r0)
-hits = [x for x in range(S) if pev(G0, x) == pev(el_cheat, x) * pev(comp_honest, x) % S]
-assert len(hits) == 2
-frag['epoch-attack'] = (
-    f'Suppose Alice already spent the note with target 5, so epoch 5 now holds $\\mathsf{{nf}}_5$ and '
-    f'$\\mathsf{{nf}}_6$. An honest test at epoch 5 gives ${pev(epoch5_spent, nf[5])}$, and the segment cannot be built. '
-    f'She now tries a second spend with target 7 and tests a different one of her nullifiers at epoch 5, namely '
-    f'$\\mathsf{{nf}}_{FAKE} = {nf[FAKE]}$, which gives {pev(epoch5_spent, nf[FAKE])}, so the bucket reports absence.\n\n'
-    f'With plain factors $X - \\mathsf{{nf}}_e$ the tested values $\\{{\\mathsf{{nf}}_3, \\mathsf{{nf}}_4, '
-    f'\\mathsf{{nf}}_{FAKE}, \\mathsf{{nf}}_6\\}}$ all come from the window, the division leaves remainder 0, and the '
-    f'double spend goes through. With indexed factors, $F_{{5,\\,{nf[FAKE]}}}$ does not divide the window polynomial, '
-    f'because the window holds $F_{{5,\\,{nf[5]}}}$ and $F_{{{FAKE},\\,{nf[FAKE]}}}$. The division now leaves a nonzero '
-    f'remainder. If she commits to the honest complement anyway and hopes for a lucky challenge, then testing all '
-    f'{S:,} challenges shows that the check passes at exactly {len(hits)} of them.')
+    f'For the segment covering epochs 4 to 6, the batch polynomial $N$ has degree {len(G0) - 1} and the segment\'s '
+    f'$\\Delta$ has degree {len(E456) - 1}. Dividing leaves remainder 0 and a complement $C$ of degree '
+    f'{len(comp456) - 1}, which is the product of the {len(COMP_EPOCHS)} factors for epochs 0 to 3 and 7 to 15. The step '
+    f'checks $N = C \\cdot \\Delta$ at a challenge $z = {zb}$, where it reads ${pev(G0, zb)} = {pev(comp456, zb)} \\cdot '
+    f'{pev(E456, zb)}$, and outputs {tup(un456)}, whose first entry is $\\mathsf{{cm}}$. The segment for epoch 3 binds '
+    f'the same way, with a complement of degree {len(comp3) - 1}, and gives {tup(un3)}.')
 
 # --------------------------------------------------------------- SpendableLift
 sp0 = (CM, 4, entry[4])
@@ -366,9 +332,22 @@ assert un3[3] == 4 and un3[4] == entry[4] and pev(contents[3], CM) == 0
 sp1 = (CM, un456[3], un456[4])
 assert un456[0] == sp0[0] and un456[2] == sp0[1] and un456[1] == sp0[2]
 frag['qr-spendable-init'] = (
-    f'For our note, the opening of epoch 3\'s bucket at {CM} gives 0, and the bound segment from the last section has '
+    f'For our note, the opening of epoch 3\'s bucket at {CM} gives 0, and the bound segment for epoch 3 from Section 4 has '
     f'the same extent as the bucket, running from {entry[3]} to {entry[4]}. So the step emits '
     f'$({sp0[0]},\\ {sp0[1]},\\ {sp0[2]})$, which rests on the entry anchor of epoch 4.')
+# What QrSpendableInit's epoch-3 test catches that no later segment does.
+EARLY = roots([t for s_ in stamps[3] for t in s_] + [nf[3], nf[4]])   # epoch 3 with an earlier spend of the note
+assert pev(EARLY, nf[3]) == 0 and pev(contents[4], nf[4]) != 0
+assert not {nf[3], nf[4]} & {nf[7], nf[8]}
+frag['missed-spend'] = (
+    f'Suppose Alice had already spent the note in a later stamp of epoch 3. That spend would have published '
+    f'$\\mathsf{{nf}}_3 = {nf[3]}$ and $\\mathsf{{nf}}_4 = {nf[4]}$, and both values would sit in epoch 3\'s data. Now '
+    f'follow a second spend at epoch 7. The segment for epoch 4 tests {nf[4]} against epoch 4\'s bucket only, where the '
+    f'opening is {pev(contents[4], nf[4])}, so it reports the value absent, and it is right, because the value went into '
+    f'epoch 3. The segments for epochs 5 and 6 test values that nobody published. The second spend publishes {nf[7]} and '
+    f'{nf[8]}, which match neither earlier value, and the consensus window at epoch 7 holds only epochs 6 and 7 anyway. '
+    f'Every one of these checks passes. The only test that finds the first spend is {nf[3]} against epoch 3 itself, where the opening '
+    f'of epoch 3\'s data, with that spend included, gives {pev(EARLY, nf[3])}.')
 OTHER_CM = n.commit(H('sender-rcm', 'bob-to-alice', 3), PK, 9, PSI)
 assert OTHER_CM != CM
 frag['lift-checks'] = '\n'.join([
@@ -384,7 +363,7 @@ frag['lift-rejects'] = (
     f'matches, so the third check fails.')
 assert A_AFTER not in (entry[3], entry[4])
 frag['value-drift'] = (
-    f'Recall the second note from [chapter 19](./notes-and-nullifiers.md#_9-reusing-a-trapdoor) with the same $\\psi$. '
+    f'Recall the second note from [chapter 20](./notes-and-nullifiers.md#_9-reusing-a-trapdoor) with the same $\\psi$. '
     f'It has the same $\\mathsf{{mk}}$ and so the same nullifiers, which means a segment bound through its derivation '
     f'tests identical values. The `cm` check still separates them. With a new $\\mathsf{{rcm}}$ and value 9, its '
     f'commitment is {OTHER_CM}, and {OTHER_CM} $\\neq$ {CM} stops the lift, so a spender cannot move absence evidence '
@@ -407,7 +386,7 @@ def fresh_blind(v, label):
     for i in range(100):
         blind = H('rcv', label, i) % Q
         point = cv_of(v, blind)
-        if blind and point is not None and point[0] not in USED_X:
+        if blind and blind not in (v % Q, -v % Q) and point is not None and point[0] not in USED_X:
             USED_X.add(point[0])
             return blind, point
     raise AssertionError('no blind found')
@@ -425,10 +404,12 @@ frag['spend-bind'] = '\n'.join([
     f'| $\\mathsf{{nf}}_\\text{{next}}$ | $\\mathsf{{mk}} = {MK}$ at epoch 8 | {NF_NEXT} |',
     f'| anchor | spendable | {entry[7]} |',
     f'| $\\mathsf{{pk}}$ | the secret\'s note | {PK} |',
-    f'| $\\mathsf{{cv}}$ | $[{VAL}]\\mathcal{{V}} + [{RCV_S}]\\mathcal{{R}}$ | ${show(CV_S)}$ |',
+    f'| $\\mathsf{{cv}}$ | $[v]\\mathcal{{V}} + [\\mathsf{{rcv}}]\\mathcal{{R}}$ with $v = {VAL}$ and a fresh '
+    f'$\\mathsf{{rcv}} = {RCV_S}$, so $[{VAL}]\\mathcal{{V}} + [{RCV_S}]\\mathcal{{R}}$ | ${show(CV_S)}$ |',
 ])
 frag['value-gens'] = (
-    f'On the toy curve we take $\\mathcal{{V}} = {show(V)}$ and $\\mathcal{{R}} = {show(R)}$.')
+    f'On the toy curve we take $\\mathcal{{V}} = {show(V)}$ and $\\mathcal{{R}} = {show(R)}$. This chapter is the first '
+    f'to commit a value, so this pair is the shared toy pair for value commitments, and later chapters reuse it.')
 
 
 def digest_of(cv, rk):
@@ -449,7 +430,7 @@ assert PK_M != PK
 frag['spend-action'] = '\n'.join([
     '| Quantity | Computation | Value |', '| --- | --- | --- |',
     f'| check on $\\mathsf{{pak}}$ | $H_{{\\texttt{{PkDerive}}}}({AK[0]},\\ {AK[1]},\\ {NK})$ against the header | {PK} matches |',
-    f'| $\\alpha$ | $H_{{\\texttt{{Spend}}}}({THETA},\\ {CM})$, reduced mod {Q} | {ALPHA} |',
+    f'| $\\alpha$ | $H_{{\\texttt{{Spend}}}}(\\theta,\\ \\mathsf{{cm}}) = H_{{\\texttt{{Spend}}}}({THETA},\\ {CM})$, reduced mod {Q} | {ALPHA} |',
     f'| $\\mathsf{{rk}}$ | $\\mathsf{{ak}} + [{ALPHA}]\\mathcal{{G}}$ | ${show(RK)}$ |',
     f'| action digest $d$ | $H_{{\\texttt{{ActionDg}}}}(\\mathsf{{cv}},\\ \\mathsf{{rk}})$ | {D_S} |',
     f'| action set | $X - {D_S}$, as ${poly_tex(A_SPEND)}$ | committed as {com(A_SPEND)} |',
@@ -474,10 +455,14 @@ A_OUT = roots([D_O])
 T_OUT = roots([CM_O, PAD_O])
 frag['output'] = '\n'.join([
     '| Step | Quantity | Computation | Value |', '| --- | --- | --- | --- |',
-    f'| `OutputBind` | $\\mathsf{{cm}}$ | $H_{{\\texttt{{CmDerive}}}}({RCM_O},\\ {PK_C},\\ {OUT_V},\\ {PSI_O})$ | {CM_O} |',
-    f'| `OutputBind` | pad | $H_{{\\texttt{{CmOutPad}}}}({RCM_O},\\ {PK_C},\\ {OUT_V},\\ {PSI_O})$ | {PAD_O} |',
-    f'| `OutputBind` | $\\mathsf{{cv}}$ | $[-{OUT_V}]\\mathcal{{V}} + [{RCV_O}]\\mathcal{{R}}$ | ${show(CV_O)}$ |',
-    f'| `OutputAction` | $\\alpha$ | $H_{{\\texttt{{Output}}}}({THETA_O},\\ {CM_O})$, reduced mod {Q} | {ALPHA_O} |',
+    f'| `OutputBind` | witness | $\\mathsf{{pk}}_\\text{{Carol}}$, $v$, $\\psi$, $\\mathsf{{rcm}}$, $\\mathsf{{rcv}}$ | '
+    f'{PK_C}, {OUT_V}, {PSI_O}, {RCM_O}, {RCV_O} |',
+    f'| `OutputBind` | $\\mathsf{{cm}}$ | $H_{{\\texttt{{CmDerive}}}}(\\mathsf{{rcm}},\\ \\mathsf{{pk}}_\\text{{Carol}},\\ v,\\ \\psi) = '
+    f'H_{{\\texttt{{CmDerive}}}}({RCM_O},\\ {PK_C},\\ {OUT_V},\\ {PSI_O})$ | {CM_O} |',
+    f'| `OutputBind` | pad | $H_{{\\texttt{{CmOutPad}}}}$ on the same four inputs in the same order | {PAD_O} |',
+    f'| `OutputBind` | $\\mathsf{{cv}}$ | $[-v]\\mathcal{{V}} + [\\mathsf{{rcv}}]\\mathcal{{R}} = [-{OUT_V}]\\mathcal{{V}} + [{RCV_O}]\\mathcal{{R}}$ | ${show(CV_O)}$ |',
+    f'| `OutputAction` | witness | $\\theta$ | {THETA_O} |',
+    f'| `OutputAction` | $\\alpha$ | $H_{{\\texttt{{Output}}}}(\\theta,\\ \\mathsf{{cm}}) = H_{{\\texttt{{Output}}}}({THETA_O},\\ {CM_O})$, reduced mod {Q} | {ALPHA_O} |',
     f'| `OutputAction` | $\\mathsf{{rk}}$ | $[{ALPHA_O}]\\mathcal{{G}}$ | ${show(RK_O)}$ |',
     f'| `OutputAction` | digest $d$ | $H_{{\\texttt{{ActionDg}}}}(\\mathsf{{cv}},\\ \\mathsf{{rk}})$ | {D_O} |',
 ])
@@ -492,7 +477,7 @@ stale = entry[6]
 stale_value = pev(M1, stale) * (stale - entry[7]) % S
 assert stale_value != 0
 frag['action-lift'] = (
-    f'Here the spend\'s actions rest on $\\mathsf{{entry}}(7) = {entry[7]}$, and the wallet plans to anchor its bundle at '
+    f'Here the spend\'s actions rest on the entry anchor of epoch 7, {entry[7]}, and the wallet plans to anchor its bundle at '
     f'$a_1 = {A1}$. The span from {entry[7]} to {A1} has the members polynomial $M(X) = X - {A1}$. The check '
     f'$M(a) \\cdot (a - \\text{{start}})$ evaluates to $({entry[7]} - {A1}) \\cdot 0 = 0$, so the lift outputs the same '
     f'sets at anchor {A1}. An anchor from before the span, such as {stale}, gives {stale_value}, and the step rejects it.')
@@ -520,7 +505,12 @@ for seed in range(100):  # a fresh opening whose commitment does not repeat an e
     BLIND_RAW = H('Tachyon-FeeBlind', PK, PSI_F, RCM_F)
     BLIND = BLIND_RAW % Q
     CV_MAX = cv_of(-MAXFEE, BLIND)
-    if BLIND and CV_MAX is not None and CV_MAX[0] not in USED_X:
+    # Keep the sum and bvk distinct from every earlier point, and the blind distinct from the values.
+    BVK_TRY = mul((RCV_S + RCV_O + BLIND) % Q, R)
+    SUM_TRY = add(add(CV_S, CV_O), CV_MAX) if CV_MAX is not None else None
+    if BLIND and BLIND not in (VAL % Q, OUT_V, MAXFEE) and CV_MAX is not None and CV_MAX[0] not in USED_X \
+            and BVK_TRY is not None and SUM_TRY is not None \
+            and len({BVK_TRY[0], SUM_TRY[0], CV_MAX[0]}) == 3 and not {BVK_TRY[0], SUM_TRY[0]} & USED_X:
         break
 assert CV_MAX[0] not in USED_X
 
@@ -542,7 +532,11 @@ assert len(set(PUBLISHED_TG)) == 2 * 2 + 1
 assert roots(PUBLISHED_TG) == T_ST
 frag['fee-setup'] = (
     f'Alice\'s bundle spends {VAL} and creates an output of {OUT_V}. She reserves a maximum fee of {MAXFEE}, which leaves '
-    f'a value balance of ${VAL} - {OUT_V} - {MAXFEE} = {BAL}$.')
+    f'a value balance of $v^{{\\mathsf{{bal}}}} = {VAL} - {OUT_V} - {MAXFEE} = {BAL}$. We let those {BAL} zatoshi leave the '
+    f'shielded pool, for example to a transparent output in the same transaction. That is a choice made for the '
+    f'example, and a balance of zero would work the same way. The max fee note has the opening '
+    f'$(\\mathsf{{pk}}, \\mathsf{{maxfee}}, \\psi, \\mathsf{{rcm}}) = ({PK},\\ {MAXFEE},\\ {PSI_F},\\ {RCM_F})$. Its '
+    f'$\\mathsf{{pk}}$ is Alice\'s own payment key, so the change note that inherits it returns the unused fee to her.')
 frag['fee-fuse'] = '\n'.join([
     '| Quantity | Computation | Value |', '| --- | --- | --- |',
     f'| $r$ | $H_{{\\texttt{{FeeBlind}}}}({PK},\\ {PSI_F},\\ {RCM_F}) = {BLIND_RAW}$, reduced mod {Q} | {BLIND} |',
@@ -552,7 +546,7 @@ frag['fee-fuse'] = '\n'.join([
     f'| change note value | ${MAXFEE} - {FEE}$ | {MAXFEE - FEE} |',
     f'| change commitment | $H_{{\\texttt{{CmDerive}}}}({RCM_F},\\ {PK},\\ {MAXFEE - FEE},\\ {PSI_F})$ | {CM_CHG} |',
     f'| output action set | three roots: {D_S}, {D_O}, {D_F} | committed as {com(A_ST)} |',
-    f'| output tachygram set | five roots, $2N + B = 2 \\cdot 2 + 1$ | committed as {com(T_ST)} |',
+    f'| output tachygram set | five roots, two per action and the change commitment | committed as {com(T_ST)} |',
 ])
 
 # ------------------------------------------------------------ the binding signature
@@ -588,37 +582,23 @@ assert mul(SIG_S, R) == add(NONCE_POINT, mul(SIG_C, BVK))
 for sk, pub, seed_name in ((RSK, RK, 'spend-action'), (ALPHA_O, RK_O, 'output-action')):
     point, s_val, c_val = schnorr(sk, GEN, seed_name)
     assert mul(s_val, GEN) == add(point, mul(c_val, pub))
-frag['binding'] = '\n'.join([
-    '| Quantity | Computation | Value |', '| --- | --- | --- |',
-    f'| $\\mathsf{{bsk}}$ | ${RCV_S} + {RCV_O} + {BLIND}$ mod {Q} | {BSK} |',
-    f'| $\\sum \\mathsf{{cv}}$ | ${show(CV_S)} + {show(CV_O)} + {show(CV_MAX)}$ | ${show(CV_SUM)}$ |',
-    f'| $\\mathsf{{bvk}}$ | ${show(CV_SUM)} - [{BAL}]\\mathcal{{V}}$ | ${show(BVK)}$ |',
-    f'| check | $[{BSK}]\\mathcal{{R}}$ | ${show(mul(BSK, R))}$ |',
-])
-frag['binding-sig'] = (
-    f'With the stand-in sighash {SIGHASH} and nonce point ${show(NONCE_POINT)}$, the challenge is {SIG_C} and the response '
-    f'is {SIG_S}, and both sides of $[s]\\mathcal{{R}} = R + [c]\\mathsf{{bvk}}$ equal ${show(mul(SIG_S, R))}$.')
+COEF_V = [VAL, -OUT_V, -MAXFEE, -BAL]
+assert sum(COEF_V) == 0
+frag['binding-cancel'] = (
+    f'In Alice\'s bundle the $\\mathcal{{V}}$ coefficients are {VAL} from the spend, $-{OUT_V}$ from the output, '
+    f'$-{MAXFEE}$ from $\\mathsf{{cv}}_\\text{{maxfee}}$, and $-{BAL}$ from subtracting the value balance, and '
+    f'${VAL} - {OUT_V} - {MAXFEE} - {BAL} = {sum(COEF_V)}$. The $\\mathcal{{R}}$ coefficients are the three blinds, so '
+    f'collecting terms gives $\\mathsf{{bvk}} = [{sum(COEF_V)}]\\mathcal{{V}} + [{RCV_S} + {RCV_O} + {BLIND}]\\mathcal{{R}}$.')
+frag['binding'] = (
+    f'For Alice\'s bundle the validator adds $\\mathsf{{cv}}$ of the spend, $\\mathsf{{cv}}$ of the output, and '
+    f'$\\mathsf{{cv}}_\\text{{maxfee}}$, which gives ${show(CV_SUM)}$, and subtracts $[{BAL}]\\mathcal{{V}}$ to reach '
+    f'$\\mathsf{{bvk}} = {show(BVK)}$. The planner\'s key is $\\mathsf{{bsk}} = {RCV_S} + {RCV_O} + {BLIND} = {BSK}$ '
+    f'modulo {Q}, and $[{BSK}]\\mathcal{{R}} = {show(mul(BSK, R))}$, so the two agree.')
 
-wrong_bvks = {}
+# The cheat on the balance is chapter 24's example; here we only check that it fails.
 for claim in range(Q):
-    delta = (BAL - claim) % Q
-    point = add(BVK, mul(delta, V))
-    if delta:
-        assert point != mul(BSK, R)
-    wrong_bvks[claim] = point
-assert sum(1 for c, p in wrong_bvks.items() if p == mul(BSK, R)) == 1
-K_LOG = log(V, R)
-CHEAT_CLAIM = (BAL + 10) % Q
-CHEAT_KEY = (BSK + (BAL - CHEAT_CLAIM) * K_LOG) % Q
-assert mul(CHEAT_KEY, R) == wrong_bvks[CHEAT_CLAIM]
-frag['binding-cheat'] = (
-    f'Now suppose Alice claims a value balance of {CHEAT_CLAIM} in place of {BAL}, taking 10 more from the pool. The '
-    f'validator computes $\\mathsf{{bvk}}\' = {show(wrong_bvks[CHEAT_CLAIM])}$, and the surviving term is '
-    f'$[{(BAL - CHEAT_CLAIM) % Q}]\\mathcal{{V}}$. Of the {Q} possible claims in the toy field, only the true one makes '
-    f'$\\mathsf{{bvk}}$ equal $[\\mathsf{{bsk}}]\\mathcal{{R}}$. The signature fails unless Alice can find the discrete '
-    f'log of $\\mathsf{{bvk}}\'$ to base $\\mathcal{{R}}$. On the toy curve she can, by counting, because $\\mathcal{{V}} = '
-    f'[{K_LOG}]\\mathcal{{R}}$ gives her the key {CHEAT_KEY} for the false balance. So this protection rests on the '
-    f'hardness of discrete log.')
+    if (BAL - claim) % Q:
+        assert add(BVK, mul((BAL - claim) % Q, V)) != mul(BSK, R)
 
 # Changing the fee.
 FEE2 = 4
@@ -631,15 +611,8 @@ assert com(A_ST2) != com(A_ST) and com(T_ST2) != com(T_ST)
 frag['fee-change'] = (
     f'If the wallet raises the fee to {FEE2}, the fee digest becomes {D_F2} and the change note, now worth '
     f'{MAXFEE - FEE2}, has the commitment {CM_CHG2}. So both set commitments change, to {com(A_ST2)} and {com(T_ST2)}, and '
-    f'`FeeFuse` has to run again. The sighash stays {SIGHASH}, and $\\mathsf{{bvk}}$ stays ${show(BVK)}$, so no signature '
-    f'has to be made again.')
-assert CHEAT_CLAIM != BAL
-
-# The balance sheet.
+    f'`FeeFuse` has to run again.')
 assert VAL - OUT_V - (MAXFEE - FEE) == BAL + FEE
-frag['balance'] = (
-    f'For our bundle this gives ${VAL} - {OUT_V} - ({MAXFEE} - {FEE}) = {BAL} + {FEE} = {BAL + FEE}$, so {BAL + FEE} '
-    f'zatoshi leave the pool, and the fee change note keeps {MAXFEE - FEE} inside it.')
 
 # ---------------------------------------------------------- StampLift and consensus
 M2_L, M2_R = roots([A2]), roots([A3])
@@ -663,33 +636,15 @@ assert com(missing) != com(A_ST)
 frag['validate'] = '\n'.join([
     '| Validator step | Computation | Result |', '| --- | --- | --- |',
     f'| signatures | action signatures under each $\\mathsf{{rk}}$, binding under $\\mathsf{{bvk}}$ | accepted |',
-    f'| arity | ${len(PUBLISHED_TG)} = 2 \\cdot 2 + 1$ | accepted |',
+    f'| tachygram count | ${len(PUBLISHED_TG)} = 2 \\cdot 2 + 1$ for 2 actions | accepted |',
     f'| tachygram set | rebuild from the 5 published values | {com(rebuilt_t)}, matches the stamp |',
-    f'| action set | rebuild from 2 action and 1 fee descriptors | {com(rebuilt_a)} |',
+    f'| action set | hash the 2 action descriptors and the fee descriptor, rebuild | {com(rebuilt_a)}, matches the stamp |',
     f'| proof | verify against $({com(rebuilt_a)},\\ {com(rebuilt_t)},\\ {A3})$ | accepted, in the design |',
     f'| anchor | look up {A3} in the chain | found, in epoch 7 |',
 ])
 frag['validate-note'] = (
     f'If a miner dropped the output\'s descriptor, the validator would rebuild the action commitment as {com(missing)} '
     f'instead of {com(A_ST)}. The header would then differ from the one the proof covers, so the proof would fail.')
-
-# ------------------------------------------------------- the aggregator's two steps
-DAVE_D = [H('dave-digest', i) for i in range(2)]
-DAVE_T = [H('dave-tg', i) for i in range(3)]
-A_D, T_D = roots(DAVE_D), roots(DAVE_T)
-A_MERGED, T_MERGED = pmul(A_ST, A_D), pmul(T_ST, T_D)
-q_a, r_a = pdivmod(A_MERGED, A_D)
-q_t, r_t = pdivmod(T_MERGED, T_D)
-assert q_a == A_ST and q_t == T_ST and not any(r_a) and not any(r_t)
-_, r_x = pdivmod(T_MERGED, roots([H('not-in-stamp', 1)]))
-assert any(r_x)
-frag['aggregate'] = (
-    f'Suppose an aggregator holds Dave\'s stamp with one action, which has 2 action and fee digests and 3 tachygrams, at '
-    f'the same anchor {A3}. `StampMerge` multiplies the sets, which gives degrees {len(A_MERGED) - 1} and '
-    f'{len(T_MERGED) - 1}, and the merged tachygram set has the commitment {com(T_MERGED)}. If a block then includes '
-    f'Dave\'s transaction alone, `StampUnmerge` divides by his stamp. The quotient has remainder 0 and commitment '
-    f'{com(q_t)}, which is exactly Alice\'s tachygram commitment again. Dividing by a value that was never in the stamp '
-    f'leaves a nonzero remainder.')
 
 # -------------------------------------------------------------------- step budget
 from fractions import Fraction as Fr  # noqa: E402
@@ -705,7 +660,10 @@ out_all = (work['OutputBind'][0] + work['OutputAction'][0], work['OutputBind'][1
 sp_all = (work['SpendBind'][0] + work['SpendAction'][0], work['SpendBind'][1] + work['SpendAction'][1])
 out_share, sp_share = out_all[0] * PERM + out_all[1] * SM, sp_all[0] * PERM + sp_all[1] * SM
 assert out_share > 1 and sp_share > 1
+ob = work['OutputBind']
 frag['budget-note'] = (
+    f'Each share adds a seventh per permutation and a quarter per scalar multiplication, so for `OutputBind` it is '
+    f'${ob[0]} \\cdot \\tfrac{{1}}{{7}} + {ob[1]} \\cdot \\tfrac{{1}}{{4}} \\approx {float(ob[0] * PERM + ob[1] * SM):.2f}$. '
     f'Doing a spend in one step would need {sp_all[0]} permutations and {sp_all[1]} scalar multiplications, which comes to '
     f'{float(sp_share):.2f} of a step before any polynomial opening. An output would need {float(out_share):.2f}. Splitting '
     f'each action in two brings every part under 1.')
@@ -739,10 +697,10 @@ FAMILY = [
     ('fee', 'Applying the fee', 'wallet; `FeeSeed` also aggregator', 'Section 9'),
     ('stamp', 'Moving and combining stamps', 'wallet and aggregator; `StampLift` also possible for the sync service; `StampUnmerge` aggregator only', 'Sections 11 and 12'),
     ('span', 'Anchor spans', 'sync service, aggregator; wallet possible', 'Section 8'),
-    ('unspent', 'Absence segments', 'sync service; wallet possible', 'Section 5'),
-    ('summary', 'Stamp summaries', 'sync service; wallet possible', 'named only here; [chapter 21](./oblivious-sync.md) treats a run of stamps as one intake'),
-    ('qr', 'Routing into buckets', 'sync service; wallet possible', '[chapter 21](./oblivious-sync.md)'),
-    ('tree', 'Evidence trees', 'sync service; wallet possible', '[chapter 21](./oblivious-sync.md)'),
+    ('unspent', 'Absence segments', 'sync service; wallet possible', 'Section 4'),
+    ('summary', 'Stamp summaries', 'sync service; wallet possible', 'named only here; [chapter 22](./oblivious-sync.md) treats a run of stamps as one intake'),
+    ('qr', 'Routing into buckets', 'sync service; wallet possible', '[chapter 22](./oblivious-sync.md)'),
+    ('tree', 'Evidence trees', 'sync service; wallet possible', '[chapter 22](./oblivious-sync.md)'),
 ]
 assert {f[0] for f in FAMILY} == {r[1] for r in ROSTER}
 rows = ['| Family | Steps | Who runs them | Covered in |', '| --- | --- | --- | --- |']
@@ -774,17 +732,17 @@ assert wallet_nodes + sync_nodes == len(NODES)
 assert all(a in {r[0] for r in ROSTER} for a, _ in NODES)
 frag['node-count'] = (
     f'Counting only what the graph shows, this one spend and one output take {len(NODES)} nodes, of which the wallet runs '
-    f'{wallet_nodes} and the sync service {sync_nodes}. The buckets add more, on the service side, and chapter 21 '
+    f'{wallet_nodes} and the sync service {sync_nodes}. The buckets add more, on the service side, and chapter 22 '
     f'describes the steps that build them. The published result is one proof, whose header a validator can rebuild.')
 
 # ------------------------------------------------------------- the threaded fields
 frag['thread'] = '\n'.join([
     '| Node | Header type | $\\mathsf{cm}$ | Epoch | Anchor |', '| --- | --- | --- | --- | --- |',
     f'| `NoteSeed` | `NoteSecret` | {CM} | | |',
-    f'| `NullifierDerive` | `NoteNullifiers` | {CM} | 0 to 15 | |',
-    f'| `UnspentBind` | `NoteUnspent` | {CM} | 3 to 4 | {entry[3]} to {entry[4]} |',
+    f'| `NullifierDerive` | `NoteNullifiers` | {CM} | $[0, {LAST0}]$ | |',
+    f'| `UnspentBind` | `NoteUnspent` | {CM} | $[3, 4)$ | {entry[3]} to {entry[4]} |',
     f'| `QrSpendableInit` | `NoteSpendable` | {CM} | 4 | {entry[4]} |',
-    f'| `UnspentBind` | `NoteUnspent` | {CM} | 4 to 7 | {entry[4]} to {entry[7]} |',
+    f'| `UnspentBind` | `NoteUnspent` | {CM} | $[4, 7)$ | {entry[4]} to {entry[7]} |',
     f'| `SpendableLift` | `NoteSpendable` | {CM} | 7 | {entry[7]} |',
     f'| `SpendBind` | `SpendHeader` | {CM} | | {entry[7]} |',
     f'| `SpendAction` | `Actions` | gone | | {entry[7]} |',

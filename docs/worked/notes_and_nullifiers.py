@@ -79,9 +79,9 @@ frag['generator'] = (
 # -------------------------------------------------------------- payment keys
 frag['payment-key'] = (
     f'$$\\mathsf{{pk}} = H_{{\\texttt{{PkDerive}}}}({AK[0]},\\ {AK[1]},\\ {NK}) = {PK}.$$\n\n'
-    f'If the same wallet walks to the next index for a second sender, it obtains $\\mathsf{{ak}} = {show(AK2)}$ and '
-    f'$\\mathsf{{nk}} = {NK2}$, which give $\\mathsf{{pk}} = {PK2}$. Nothing in the two payment keys shows that they '
-    f'belong to one wallet.')
+    f'For a second sender, Alice\'s wallet moves to the next index. We stand in for that index\'s $\\mathsf{{sk}}$ with the '
+    f'text `{SK2}`, and the same derivations give $\\mathsf{{ak}} = {show(AK2)}$ and $\\mathsf{{nk}} = {NK2}$, so '
+    f'$\\mathsf{{pk}} = {PK2}$. Nothing in the two payment keys {PK} and {PK2} shows that they belong to one wallet.')
 
 # ---------------------------------------------------------------- the note
 V = 25
@@ -303,19 +303,24 @@ assert BUDGET == 7 and BUDGET * PERM <= GATES
 DEPTH = 14
 DAYS_YEARS = 2 ** DEPTH / 365.25
 assert 44 < DAYS_YEARS < 46
+assert RATE ** BUDGET == 2 ** DEPTH
 frag['step-budget'] = (
     f'A step has $2^{{11}} = {num(GATES)}$ multiplication gates, and one Poseidon permutation costs {PERM} of them, so a step fits '
     f'$\\lfloor {num(GATES)} / {PERM} \\rfloor = {BUDGET}$ permutations.')
 frag['nf-cost'] = '\n'.join([
     '| Design | Permutations for one nullifier | Nullifiers per step of 7 permutations |', '| --- | --- | --- |',
     f'| GGM, binary tree of depth {DEPTH} | {DEPTH} | none, since one walk overflows a step |',
-    f'| GGM, mixed arity, depth {BUDGET} | {BUDGET} | 1 |',
+    f'| GGM, higher arity, depth {BUDGET} | {BUDGET} | 1 |',
     f'| One hash per nullifier (Attempt 3 before batching) | 1 | {BUDGET} |',
     f'| Rate-{RATE} squeeze (Attempt 3) | $1/{RATE}$ of a permutation | ${BUDGET} \\cdot {RATE} = {BUDGET * RATE}$ |',
 ])
 frag['ggm-space'] = (
     f'A binary tree over an epoch space of $2^{{{DEPTH}}}$ days, about {DAYS_YEARS:.0f} years, has depth {DEPTH}, so one walk takes '
-    f'{DEPTH} permutations and overflows a step. A tree with higher arity near the root can cut the depth to {BUDGET}, which just fits one walk.')
+    f'{DEPTH} permutations and overflows a step. The analysis counts epochs as days here, unlike the code\'s {num(EPOCH_SIZE)}-block '
+    f'epochs, but only the depth matters for cost. A node with four children costs one permutation, the same as a node with two, '
+    f'because one rate-{RATE} permutation emits {RATE} outputs. So raising the arity shortens the walk at no extra cost per level, and '
+    f'{BUDGET} levels of arity {RATE} already cover ${RATE}^{{{BUDGET}}} = {num(RATE ** BUDGET)} = 2^{{{DEPTH}}}$ leaves. '
+    f'A walk of depth {BUDGET} just fits a step.')
 
 # ------------------------------------------- what the commitment pins down
 hits = {
@@ -402,12 +407,14 @@ for t1, a1, t2, a2 in cases:
 assert all((c[2] == c[1] + 1 and c[1] == c[0] and c[3] == c[2]) == bool(c[2] > c[1] and judge(*c)[1]) for c in cases)
 assert n_exclusion + n_window == len(cases) and n_exclusion and n_window and n_both
 
+single_escapes = [c for c in cases if not any(judge(*c, pair=False))]
 frag['case-count'] = (
     f'The script checks this on every pair of spends of our note, with targets from epoch {CREATED} to epoch 9 and each spend '
     f'accepted in its target epoch or the next. There are {len(cases)} such scenarios. In {n_exclusion} of them $t_2 > a_1$ and the '
     f'second proof cannot be built, and in the other {n_window} we have $t_2 \\le a_1$ and consensus finds a shared value in its '
     f'window. No scenario escapes. The two checks also overlap in {n_both} scenarios, where the first spend was accepted on time and the second '
-    f'targets and lands in the very next epoch, so the window would have caught it too.')
+    f'targets and lands in the very next epoch, so the window would have caught it too. Rerunning the same {len(cases)} '
+    f'scenarios with a single published nullifier per spend lets {len(single_escapes)} of them through, as in the example above.')
 
 
 def case_row(t1, a1, t2, a2):
@@ -431,13 +438,12 @@ frag['case-table'] = '\n'.join(
 fail_case = (7, 8, 8, 8)
 failed_test, shared = judge(*fail_case, pair=False)
 assert not failed_test and not shared
-single_escapes = [c for c in cases if not any(judge(*c, pair=False))]
 assert fail_case in single_escapes
 frag['single-fail'] = (
     f'Suppose instead that a spend published only $\\mathsf{{nf}}_e$. A first spend with target 7 waits in the mempool and gets '
     f'accepted in epoch 8, so {nfs[7]} lands in epoch 8. A second spend with target 8 now tests $\\mathsf{{nf}}_7$ against epoch 7, '
     f'where it is absent, and it publishes $\\mathsf{{nf}}_8 = {nfs[8]}$, which nobody has published. Both checks pass and the note '
-    f'is spent twice. Across all {len(cases)} scenarios, {len(single_escapes)} get through in this way.')
+    f'is spent twice.')
 
 # The window: why two epochs and not one.
 assert not any(judge(7, 7, 7, 8, window=1)) and judge(7, 7, 7, 8, window=2)[1] == [nfs[7], nfs[8]]
@@ -482,28 +488,32 @@ entries_sorted = sorted(entries)
 frag['bundle-size'] = (
     f'Take one bundle ($B = {B}$) with $N = {N}$ actions, two of each kind. It publishes '
     f'$2 \\cdot {N} + {B} = {2 * N + B}$ tachygrams, and the stamp lists them in sorted order.')
-frag['bundle'] = '\n'.join(
-    ['| Published tachygram | Known only to the parties involved |', '| --- | --- |']
-    + [f'| {v} | {what} |' for v, what in entries_sorted])
-
 # The pair-testing attack on the rejected design, and the same test on the real one.
+bad_pad = lambda cm: H('Tachyon-CmOutPad', cm)
+bad_of = {pad_of(*out1): bad_pad(commit(*out1)), pad_of(*out2): bad_pad(commit(*out2))}
+frag['bundle'] = '\n'.join(
+    ['| Published tachygram | If the pad were $H(\\mathsf{cm})$ | Known only to the parties involved |',
+     '| --- | --- | --- |']
+    + [f'| {v} | {bad_of.get(v, "same")} | {what} |' for v, what in entries_sorted])
+
 values = [e[0] for e in entries]
 pairs = [(a, b) for a in values for b in values if a != b]
 assert len(pairs) == (2 * N + B) * (2 * N + B - 1)
 assert not [1 for a, b in pairs if b == H('Tachyon-CmOutPad', a)]
-bad_pad = lambda cm: H('Tachyon-CmOutPad', cm)
-bad_values = [nfs[TARGET], nfs[TARGET + 1], nullifier(MK_S2, TARGET), nullifier(MK_S2, TARGET + 1),
-              commit(*out1), bad_pad(commit(*out1)), commit(*out2), bad_pad(commit(*out2)), commit(*chg)]
+bad_values = [bad_of.get(v, v) for v in values]
 assert len(set(bad_values)) == len(bad_values)
 bad_hits = [(a, b) for a in bad_values for b in bad_values if a != b and b == bad_pad(a)]
 assert len(bad_hits) == 2
+assert sorted(bad_hits) == sorted([(commit(*out1), bad_pad(commit(*out1))), (commit(*out2), bad_pad(commit(*out2)))])
+bad_hits = [(commit(*out1), bad_pad(commit(*out1))), (commit(*out2), bad_pad(commit(*out2)))]
 frag['pad-test'] = (
-    f'Suppose outputs derived the pad as $H(\\mathsf{{cm}})$. An observer holding the {2 * N + B} published values hashes each one '
-    f'and looks for the result in the list, which takes {len(pairs)} ordered comparisons. In our bundle with that design, the test '
-    f'finds exactly {len(bad_hits)} matches, ({bad_hits[0][0]}, {bad_hits[0][1]}) and ({bad_hits[1][0]}, {bad_hits[1][1]}), and so the '
-    f'observer learns the output count. Run the same test on the values in the table above, where each pad comes from the note '
-    f'opening, and it finds no matches. To test the real relation, the observer would need the note\'s $\\mathsf{{rcm}}$, '
-    f'$\\mathsf{{pk}}$, $v$, and $\\psi$.')
+    f'Start with the middle column, a hypothetical design in which each output derives its pad as $H(\\mathsf{{cm}})$. '
+    f'Only the two pads change, to {bad_hits[0][1]} and {bad_hits[1][1]}. An observer holding those {2 * N + B} values hashes '
+    f'each one and looks for the result among the others, which takes {len(pairs)} ordered comparisons. The test finds exactly '
+    f'{len(bad_hits)} matches, because $H({bad_hits[0][0]}) = {bad_hits[0][1]}$ and $H({bad_hits[1][0]}) = {bad_hits[1][1]}$, '
+    f'and so the observer learns which values are commitments and how many outputs the bundle has. Now run the same '
+    f'{len(pairs)} comparisons on the first column, where each pad comes from the note opening. They find no matches. To test '
+    f'the real relation, the observer would need the note\'s $\\mathsf{{rcm}}$, $\\mathsf{{pk}}$, $v$, and $\\psi$.')
 
 
 def f_eval(x):

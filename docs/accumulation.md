@@ -4,8 +4,8 @@ The [chapter on recursive proofs](./recursive-proofs.md) sets up the goal of a p
 
 The technique does not make that computation cheaper. It postpones the computation, and it lets many postponed computations collapse into one. A prover states the output as a claim, each recursive step merges the new claim with the old one using a random spot check, and one party does the expensive work once, at the very end. The technique comes from [Halo](https://eprint.iacr.org/2019/1021), and [Bünz, Chiesa, Mishra and Spooner](https://eprint.iacr.org/2020/499) later gave it foundations under the name **accumulation scheme**.
 
-::: warning Reconstructed from code at commit 3219e08, not confirmed by the authors
-The merge protocol in this chapter is our own assembly. We built it from the [Ragu Book's description of Halo](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L162-L168), the [Halo 2 book's recursion page](https://zcash.github.io/halo2/background/recursion.html), and the argument in [chapter 07](./inner-product-argument.md), and we checked its algebra with the script behind this page. It teaches the idea, and it may differ in detail from the protocols in the two papers, of which we could read only the abstracts. Ragu does not run it, as Section 11 explains, because Ragu's recursion uses a later variant.
+::: warning Reconstructed from the Ragu Book, the Halo 2 book and papers, not confirmed by the authors
+We rebuilt the merge protocol in Sections 2 to 8 from the books and papers, not from code. It is our own assembly of the [Ragu Book's description of Halo](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L162-L168), the [Halo 2 book's recursion page](https://zcash.github.io/halo2/background/recursion.html), and the argument in [chapter 07](./inner-product-argument.md), and we checked its algebra with the script behind this page. It teaches the idea, and it may differ in detail from the protocols in the two papers, of which we could read only the abstracts. Only Section 11 rests on the code at commit `3219e08`.
 :::
 
 ::: tip Terminology
@@ -47,7 +47,7 @@ Here is the split applied to the run of chapter 07, with $\v{u} = (15, 10)$. The
 
 <!-- /worked:split-run -->
 
-The condition matters, because a prover who chooses $\hat{G}$ has real power over the final check. All of the argument's protection against a false value now depends on the claim:
+The condition matters, because a prover who chooses $\hat{G}$ has real power over the final check. As the [recursive proofs chapter](./recursive-proofs.md#_5-why-the-linear-steps-cannot-be-dropped) showed, such a prover can solve the final equation for the point it supplies. Here is that attack on the run of chapter 07, which later sections reuse. All of the argument's protection against a false value now depends on the claim:
 
 <!-- worked:forge -->
 
@@ -89,7 +89,7 @@ Take the claim from chapter 07 and the point $x = 29$. The two factors of $g_{\v
 
 <!-- /worked:spot-one -->
 
-The test catches a false claim for the reason given in [chapter 03](./statements-and-challenges.md#_5-testing-polynomials-at-a-random-point). Suppose $\hat{G}$ actually commits to some other polynomial $h$ of degree below $n$. The difference $h - g_{\v{u}}$ is then a nonzero polynomial with at most $n - 1$ roots, so the opened value matches at no more than $n - 1$ points out of $q$, provided the prover fixes $\hat{G}$ before it learns $x$.
+The test catches a false claim for the reason given in [chapter 03](./statements-and-challenges.md#_5-testing-polynomials-at-a-random-point). Suppose $\hat{G}$ actually commits to some other polynomial $h$ of degree below $n$ (a point with a hidden multiple of $U$ is a separate case, which Sections 5 and 8 handle). The difference $h - g_{\v{u}}$ is then a nonzero polynomial with at most $n - 1$ roots, so the opened value matches at no more than $n - 1$ points out of $q$, provided the prover fixes $\hat{G}$ before it learns $x$.
 
 <!-- worked:spot-count -->
 
@@ -116,21 +116,32 @@ C_M &= \dot{\v{g}_1}{\v{G}} + \alpha \cdot \dot{\v{g}_2}{\v{G}} \\
 \end{aligned}
 $$
 
-which is the commitment to the polynomial $g_1(X) + \alpha\,g_2(X)$. Evaluating that polynomial at a random point $x_M$ gives a value the verifier can compute by itself, since it holds both sets of challenges:
+which is the commitment to the polynomial $g_1(X) + \alpha\,g_2(X)$. We want to open this commitment at a random point $x_M$, so we need the opening in the form that chapter 07 proves, an inner product of the committed vector with the power vector $\v{x_M^n} = (1, x_M, x_M^2, \ldots, x_M^{n-1})$. The committed vector is the witness
+
+$$\v{a}_M = \v{g}_1 + \alpha\v{g}_2,$$
+
+and the prover can compute it from the public challenges. Its inner product with the powers splits along the sum, and each piece is a polynomial evaluated at $x_M$:
+
+$$
+\begin{aligned}
+\dot{\v{a}_M}{\v{x_M^n}} &= \dot{\v{g}_1}{\v{x_M^n}} + \alpha\,\dot{\v{g}_2}{\v{x_M^n}} \\
+&= g_1(x_M) + \alpha\,g_2(x_M).
+\end{aligned}
+$$
+
+The verifier holds both sets of challenges, so it can compute the right side through the product forms, with logarithmic work. We call that value
 
 $$v_M = g_1(x_M) + \alpha\,g_2(x_M).$$
 
-The statement to prove is now an ordinary evaluation claim, that $C_M$ opens at $x_M$ to $v_M$. The verifier computed every part of that statement from the two input claims, and the prover computes the witness vector from the same public data:
-
-$$\v{a}_M = \v{g}_1 + \alpha\v{g}_2.$$
+The statement to prove is now an ordinary evaluation claim, that $C_M$ opens at $x_M$ to $v_M$, with witness $\v{a}_M$. The verifier computed every part of that statement from the two input claims.
 
 Each challenge has a separate job. The point $x_M$ exposes a wrong polynomial, as in Section 4. The weight $\alpha$ stops two wrong polynomials from cancelling each other. Without it, a prover could make $g_1$ too large by some polynomial and $g_2$ too small by the same polynomial, and the sum would be correct at every point.
 
-The argument needs one more ingredient, which [chapter 07](./inner-product-argument.md#scaling-u-by-a-challenge) introduced. The input points come from the prover, so they could contain a hidden multiple of $U$, and a fixed $U$ would let that term stand in for part of the value. We therefore weight $U$ by a third challenge $\tau$, sampled after the input points, and we use $\tau \cdot U$ as the value generator in every round. Section 8 shows the attack that this stops. The statement point for the argument is
+The argument needs one more ingredient, which [chapter 07](./inner-product-argument.md#scaling-u-by-a-challenge) introduced. The input points come from the prover, so they could contain a hidden multiple of $U$. Suppose the first point commits to $g_1 + c$ and also hides $c \cdot U$. Then $C_M$ commits to a polynomial whose value at every $x_M$ exceeds $v_M$ by $c$, and once the verifier adds $v_M \cdot U$, the hidden $c \cdot U$ supplies exactly the missing part of the value. No choice of $x_M$ or $\alpha$ exposes this. We therefore weight $U$ by a third challenge $\tau$, sampled after the input points, and we use $\tau \cdot U$ as the value generator in every round. The hidden term is still $c \cdot U$, while the value now needs $\tau c \cdot U$, so the two match only when $\tau = 1$. Section 8 runs this attack on the toy curve. The statement point for the argument is
 
 $$P_M = C_M + (\tau v_M) \cdot U.$$
 
-The prover now runs the inner product argument of chapter 07 on $\v{a}_M$ with fresh round challenges $\v{u}_M$, and the verifier splits off the final check as in Section 2. With the supplied point $\hat{G}_M$ and $\hat{b}_M = g_{\v{u}_M}(x_M)$, that check reads
+The prover now runs the inner product argument of chapter 07 on $\v{a}_M$ with fresh round challenges $\v{u}_M$, and the verifier splits off the final check as in Section 2. We shorten $g_{\v{u}_M}$ to $g_M$. With the supplied point $\hat{G}_M$ and $\hat{b}_M = g_M(x_M)$, that check reads
 
 $$P_M + \sum_{j=1}^{k} \left(u_j^{-2} \cdot L_j + u_j^{2} \cdot R_j\right) = \hat{a}_M \cdot \left(\hat{G}_M + (\tau \hat{b}_M) \cdot U\right).$$
 
@@ -212,6 +223,8 @@ The rest is the inner product argument with $\v{a}_M$ as the folded vector, even
 
 <!-- /worked:merge-rounds -->
 
+Some points in this table repeat points from earlier tables. For example, $L_1$ equals $\hat{G}_1$, and the two $R_j$ are equal. The toy group has only 43 elements, so such repeats happen by chance and mean nothing.
+
 <!-- worked:merge-final -->
 
 The prover sends $\hat{a}_M = 17$ and supplies $\hat{G}_M = (22,\,7)$. The verifier computes $\hat{b}_M = g_M(29) = 4 \cdot 22 = 2$ from the challenges $\v{u}_M = (8, 12)$, and the final check is
@@ -222,7 +235,7 @@ Both sides are the same point, so the verifier accepts and outputs the single cl
 
 <!-- /worked:merge-final -->
 
-The folded generator is the same point we would get from multiplying out $g_M$, because it depends only on the round challenges and never on the vector being opened. Now suppose this is the last claim, so that a decider takes over:
+The point that an honest prover gets by folding $\v{G}$ is the commitment to $g_M$, because the folding depends only on the round challenges and never on the vector being opened. The verifier never computes it, but the decider does. Now suppose this is the last claim, so that a decider takes over:
 
 <!-- worked:merge-decide -->
 
@@ -232,7 +245,13 @@ The decider multiplies out $g_M$ to get the coefficients $(13, 23, 15, 10)$, com
 
 ## 7. Keeping a running accumulator
 
-A merge turns two claims into one claim of the same form, so we can repeat it. We call the object that carries the current claim forward the **accumulator**, written $\mathsf{acc}$. Each step produces one new claim from the proof it just verified, and merges that claim into the accumulator. The first step has no earlier accumulator, which is one of the base cases that the [recursive proofs chapter](./recursive-proofs.md) handles.
+A merge turns two claims into one claim of the same form, so we can repeat it. We call the object that carries the current claim forward the **accumulator**, written $\mathsf{acc}$. Each step produces one new claim from the proof it just verified, and merges that claim into the accumulator. The first step has no earlier accumulator, which is one of the base cases that the [recursive proofs chapter](./recursive-proofs.md#_9-the-base-case) handles. In this scheme, the first step can merge with a fixed placeholder claim whose point anyone can compute once in advance. One choice is the claim with every challenge equal to 1, whose polynomial has every coefficient equal to 1, so its point is the sum of the generators.
+
+<!-- worked:placeholder -->
+
+On the toy curve the placeholder claim is $((16,\,21),\ (1, 1))$. Its factors are $(1 + X^2)(1 + X)$, and the point is $G_0 + G_1 + G_2 + G_3 = (16,\,21)$, which by chance equals the $C_M$ of Section 6. Merging it with claim 1, reusing the challenges of Section 6, gives $v_M = 20$ and $C_M = (7,\,25)$, the final check passes, and the decider accepts the output claim $((22,\,7),\ (8, 12))$. The placeholder behaves like any other true claim.
+
+<!-- /worked:placeholder -->
 
 ![A row of merge boxes. Each merge takes the previous accumulator from the left and a new IPA claim from above, and passes a new accumulator to the right. A decider at the end performs one MSM of size n.](./manim/accumulation-chain.png)
 
@@ -254,18 +273,18 @@ The decider computes one MSM for the last row, gets $(4,\,25)$, and accepts. Tha
 
 Here is how this fits inside the step that [the previous chapter](./recursive-proofs.md) describes. The previous proof's statement contains the accumulator $\mathsf{acc}_i$. The step's circuit then does the following:
 
-1. It runs the previous proof's verifier up to the split of Section 2, which yields a new claim from the previous proof's own inner product argument.
+1. It runs the previous proof's verifier up to the split of Section 2, which yields a new claim from the previous proof's own inner product argument. This verifier still computes $s(x, y)$, the other linear step from [chapter 09](./nark.md#_17-a-short-proof-from-the-same-parts).
 2. It derives $x_M$, $\alpha$ and $\tau$ from a transcript that contains $\mathsf{acc}_i$ and the new claim, and it computes $C_M$ and $v_M$.
 3. It checks the merge's inner product argument up to the split, using a merge proof that the prover computed outside the circuit and supplied as a witness.
 4. It places the resulting claim in its own statement as $\mathsf{acc}_{i+1}$.
 
-Each of these takes logarithmic work, so the circuit stays small and its size does not depend on how many steps came before. Once a step has proved this, later steps have no use for the old merge proof, because the new proof vouches for the check. The circuit's group operations raise a further problem, because the curve's points do not live in the circuit's field. The [curve cycles chapter](./curve-cycles.md) deals with that, and we ignore it here.
+Steps 2 to 4 take logarithmic work, and so does the inner product part of step 1. The computation of $s(x, y)$ in step 1 is still linear in the circuit size, because accumulating $\hat{G}$ does nothing for it, and [Section 10](#_10-the-other-linear-step) returns to it. What accumulation does guarantee is that none of the circuit's work depends on how many steps came before, because the accumulator stays one point and $k$ challenges however long the chain grows. Once a step has proved the merge check, later steps have no use for the old merge proof, because the new proof vouches for the check. The circuit's group operations raise a further problem, because the curve's points do not live in the circuit's field. The [curve cycles chapter](./curve-cycles.md) deals with that, and we ignore it here.
 
 Proof-carrying data has a tree in place of a chain, so a step with two children holds two accumulators and two new claims. The formula with powers of $\alpha$ from Section 5 covers this case. Here is an example with three inputs at once:
 
 <!-- worked:three -->
 
-Merging claims 1, 2 and 4 in one step with the same challenges gives $v_M = 17$ and $C_M = (6,\,8)$. The final check passes, and the output point is $(22,\,7)$. The output point depends only on $\v{u}_M$, so it matches the two-claim merge above, and the inputs affect the proof only through $C_M$, $v_M$, the cross terms and the final scalar.
+Merge claims 1, 2 and 4 in one step. In a real run the transcript would absorb all three claims, so the challenges would differ from those of Section 6, but we reuse them here so that the two runs can be compared. The merge gives $v_M = 17$ and $C_M = (6,\,8)$, the final check passes, and the output point is $(22,\,7)$, the same as in the two-claim merge. The output point is the folded generator, which depends only on $\v{u}_M$. The inputs enter through $C_M$, $v_M$, the cross terms and the final scalar, and all four of these change when a claim is added.
 
 <!-- /worked:three -->
 
@@ -287,6 +306,8 @@ The verifier's side of a merge is now small, and the prover takes on the linear 
 
 <!-- /worked:costs -->
 
+The verifier rows add up to 29 scalar multiplications only if the verifier never forms $P_M$ as a separate point. Instead it moves the term $(\tau v_M) \cdot U$ to the right side of the final check, where it combines with $(\hat{a}_M \tau \hat{b}_M) \cdot U$ into one multiple of $U$, so the final check costs one multiplication of $\hat{G}_M$ and one of $U$.
+
 The prover's count comes from the rounds. A round on a vector of length $m$ takes $m$ scalar multiplications for $L$ and $R$ and another $m$ for the two weights on each entry of the folded $\v{G}$, and the lengths halve from $n$ down to 2.
 
 <!-- worked:total -->
@@ -297,15 +318,41 @@ Over the same hypothetical $1,000$ claims, the group work that a verifier must d
 
 Deciding needs no help from the prover. Anyone who holds the final accumulator and the public generators can run it, and [the Halo 2 book](https://zcash.github.io/halo2/background/recursion.html) describes this as one linear-time computation that settles an entire batch.
 
+### What the final verifier does
+
+The chain ends with a last proof $\pi_n$, which a verifier outside any circuit receives. Its statement contains the accumulator $\mathsf{acc}_n$, which covers every claim up to the previous step. The last proof also has its own inner product argument, and splitting that argument's final check produces one more claim that no step has merged yet. The final verifier therefore has two claims in hand, and it has two ways to finish. It can decide both claims, which takes two MSMs. Or the prover can send a merge proof for the two claims along with $\pi_n$, computed outside any circuit as usual, and the verifier checks that merge and decides the single result. Here is the second route on the toy chain:
+
+<!-- worked:final -->
+
+Suppose the chain stops after claim 4, and treat claim 4 as the last proof's own claim. The last proof carries the accumulator $((17,\,24),\ (12, 18))$ in its statement, which covers claims 1 to 3. The final verifier runs the last proof's inner product argument up to the split. Its final check passes with the supplied point, and this yields claim 4, $((7,\,25),\ (2, 17))$. It then checks the prover's merge proof for these two claims, which is the third row of the table, and gets the claim $((4,\,25),\ (3, 8))$. Finally it decides that one claim. For $n = 2^{13}$ this costs $28$ scalar multiplications for the split, $29$ for the merge and $8,192$ for the decider, or $8,249$ in all. Deciding the accumulator and the last claim separately needs no merge proof, but it still needs the $28$ for the split and then two MSMs, or $16,412$ scalar multiplications.
+
+<!-- /worked:final -->
+
+Either way, a constant number of MSMs settles the whole chain, and with the extra merge proof the count stays at one.
+
 ## 8. Why cheating fails
 
 Nothing inside the chain runs the MSM, so we need to see why a false claim cannot disappear along the way. A cheater wants some input claim to be false while the final accumulator is true.
 
-The counts below need some care. On the toy curve every point is a known multiple of every other, so the toy curve itself allows forgeries, as [chapter 07 showed](./inner-product-argument.md#why-the-generators-must-have-no-known-relation). To model a real curve, the script also runs the protocol in a formal group, where each point is a list of its coefficients on $G_0, \ldots, G_3$ and $U$, and where two points are equal only if the lists are. It also repeats the first count below on the toy curve at a sample of weights, with the same result.
+We start with something the accumulation verifier cannot do. The merge ends in a final check with a supplied point, just like the check in Section 2, and Section 2 showed that a prover can make such a check pass by adding a suitable multiple of $U$ to the point it supplies. That trick works whatever went wrong earlier in the merge, so the accumulation verifier on its own never stops a prover who is determined to continue. The guarantee that a merge does give is narrower. If any input claim is false, then the output claim is false as well, except at a few unlucky challenges.
+
+The counts below measure that luck. When we say that a merge **passes**, we mean that it passes with the honest output point, the one that the prover gets by folding $\v{G}$, so that the output claim is true. Every other way through the final check leaves a false output claim for the decider.
+
+The counts also need a model of a real curve. On the toy curve every point is a known multiple of every other, so a cheater could solve for a forgery at almost any challenge, as [chapter 07 showed](./inner-product-argument.md#why-the-generators-must-have-no-known-relation), and a count of passing challenges would say nothing about a real curve. The script therefore also runs the protocol in a formal group, where each point is a list of its coefficients on $G_0, \ldots, G_3$ and $U$, and where two points are equal only if the lists are. It also repeats the first count below on the toy curve at a sample of weights, with the same result.
+
+### A false claim moves forward
+
+The first case shows the forged output at work. It feeds the forged claim of Section 2 into a merge, where the honest output point fails and only a false one gets through:
+
+<!-- worked:forge-carry -->
+
+The forged claim from Section 2 is $((26,\,23),\ (15, 10))$, and its point hides $11 \cdot U$. Merge it with the true claim 2, using the challenges of Section 6. The commitment becomes $(4,\,6)$, and the honest fold reaches $\hat{G}_M = (22,\,7)$, but the check fails, since the left side is $(22,\,24)$ and the right side is $(9,\,9)$. The script repeats this in the formal group for all 1,806 pairs and five values of $\tau$, with no acceptances. To continue, the prover has to repeat its trick and supply $\hat{G}_M^* = \hat{G}_M + 31 \cdot U = (8,\,22)$. That passes the final check, so the false claim has moved to the output. The decider then computes $(22,\,7)$, sees that it differs from $(8,\,22)$, and rejects.
+
+<!-- /worked:forge-carry -->
 
 ### A false input
 
-Take the case where the prover holds a real polynomial behind a wrong point, and folds honestly from then on:
+Next we count how often a false input yields a true output. Take the case where the prover holds a real polynomial behind a wrong point, and folds honestly from then on:
 
 <!-- worked:count-one -->
 
@@ -325,17 +372,9 @@ Now make claim 2 false as well, with $h_2 - g_2$ having the coefficients $(1, 40
 
 For a real curve the same reasoning gives a bound of $n$ divided by $q$, which is negligible for $n = 2^{13}$ and a field of about $2^{254}$ elements.
 
-### A false claim moves forward
+### What the decider settles
 
-A cheater can also lie about the output. Section 2 showed that a supplied point can absorb an error in the final check, and the merge's final check has a supplied point too. When an input is false, the merged evaluation claim is false at almost every $x_M$, so the merge's final check can pass only with a false output point:
-
-<!-- worked:forge-carry -->
-
-The forged claim from Section 2 is $((26,\,23),\ (15, 10))$, and its point hides $11 \cdot U$. Merge it with the true claim 2, using the challenges of Section 6. The commitment becomes $(4,\,6)$, and the honest fold reaches $\hat{G}_M = (22,\,7)$, but the check fails, since the left side is $(22,\,24)$ and the right side is $(9,\,9)$. The script repeats this in the formal group for all 1,806 pairs and five values of $\tau$, with no acceptances. To continue, the prover has to repeat its trick and supply $\hat{G}_M^* = \hat{G}_M + 31 \cdot U = (8,\,22)$. That passes the final check, so the false claim has moved to the output. The decider then computes $(22,\,7)$, sees that it differs from $(8,\,22)$, and rejects.
-
-<!-- /worked:forge-carry -->
-
-The false claim therefore survives from merge to merge, and at each merge it has a small chance of turning into a true one through a lucky $x_M$. If it survives to the end it meets the decider, which computes the MSM and catches it. This is the sense in which one decider check covers everything before it. A true final accumulator means that, except with small probability at each merge, every input claim was true too. A verifier who skips the decider has no such assurance, because every step before the decider may be carrying a false claim.
+A false claim therefore survives from merge to merge, and at each merge it has a small chance of turning into a true one through a lucky $x_M$. If it survives to the end it meets the decider, which computes the MSM and catches it. This is the sense in which one decider check covers everything before it. A true final accumulator means that, except with small probability at each merge, every input claim was true too. A verifier who skips the decider has no such assurance, because every step before the decider may be carrying a false claim.
 
 The prover could also send altered $L_j$ and $R_j$ in the merge, instead of folding honestly. [Chapter 07's gap argument](./inner-product-argument.md#counting-the-challenges-a-cheater-can-survive) covers this, and it allows at most 4 surviving challenges per round. On the toy curve that fraction is large, but on a real curve it is negligible.
 
@@ -361,7 +400,7 @@ Take the point $\hat{G}_1 + 6 \cdot G_0 + 6 \cdot U = (27,\,1)$, so that the pro
 
 <!-- /worked:hidden -->
 
-This particular false point does not by itself let an honestly folding prover pass a false value in chapter 07's final check, because the supplied point would add a multiple of $G_0$ to the right side, and nothing on the left side matches it. It still breaks the reasoning above, which needs a passing merge to mean that the input claim is literally true. The weight $\tau$ restores that link at the cost of one more challenge.
+The merge has to reject this point whatever produced it. The chain's guarantee is that a passing merge implies true inputs, so the merge must catch every false input, including one whose hidden $U$ part offsets its $G$ part. The inner product argument alone cannot do this, for the reason [chapter 07](./inner-product-argument.md#why-the-generators-must-have-no-known-relation) gives. Its gap argument proves that the statement point has the form $\dot{\v{a}}{\v{G}} + \dot{\v{a}}{\v{b}} \cdot U$ for some $\v{a}$, and that relation matches the evaluation claim only when the commitment has no $U$ component. Here $C_M$ carries whatever $U$ part the input points carry. The random weight $\tau$ closes this gap in the same way as chapter 07's $z$, at the cost of one more challenge.
 
 ### Assumptions
 
@@ -387,9 +426,9 @@ The [next chapter](./split-accumulation.md) relaxes this by letting the accumula
 
 ## 10. The other linear step
 
-Chapter 09 listed two linear steps, and so far we have dealt only with $\hat{G}$. The other is computing $s(x, y)$, which requires reading the whole circuit. The test we used here relies on $g_{\v{u}}$ having a short product form, and the wiring polynomial has none. The verifier cannot evaluate it cheaply at a random point, so the spot check of Section 4 does not carry over directly.
+Chapter 09 listed two linear steps, and so far we have dealt only with $\hat{G}$, which is why the recursive step of Section 7 still contains a linear computation. The other is computing $s(x, y)$, which requires reading the whole circuit. The test we used here relies on $g_{\v{u}}$ having a short product form, and the wiring polynomial has none. The verifier cannot evaluate it cheaply at a random point, so the spot check of Section 4 does not carry over directly.
 
-The Ragu Book [describes how Halo handled this case](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L154-L161). The prover supplies a claimed commitment to $s(X, y)$, and a parallel protocol reduces such claims together by random spot validation, using a consistency check across variables. Ragu has its own treatment in the chapter on [wiring and the registry](./wiring-and-registry.md), so we leave the details to that chapter.
+The Ragu Book [describes how Halo handled this case](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L154-L161). The prover supplies a claimed commitment to $s(X, y)$, and a parallel protocol reduces such claims together by random spot validation. Ragu has its own treatment in the chapter on [wiring and the registry](./wiring-and-registry.md), so we leave the details to that chapter.
 
 ## 11. Accumulation in Ragu
 
@@ -411,7 +450,7 @@ The field `g` is our $\hat{G}$, and `u` holds our $\v{u}$, in the one-sided conv
 ::: warning Reconstructed from code at commit 3219e08, not confirmed by the authors
 **The deferral is not in use.** Our search finds `use_g` and `compute_g` called only from [one IPA test](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/tests/ipa.rs#L410-L422), and we found no code that merges two such accumulators. The IPA runs at compression, and the [compression verifier](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/batch/verifier.rs#L32-L34) calls `use_challenges`, so it computes the full MSM.
 
-**What Ragu accumulates instead.** The [fuse](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/_10_p.rs#L1-L8) accumulates a polynomial $p(X)$ with a claim $p(u) = v$, which is a batched evaluation claim of the form in [chapter 08](./batched-openings.md), and the proof keeps the polynomial itself. That is split accumulation, the subject of the next chapter. The same file has a private [type also named `Accumulator`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/_10_p.rs#L63), which is unrelated to the IPA type above.
+**What Ragu accumulates instead.** The [fuse](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/_10_p.rs#L1-L8) accumulates a polynomial $p(X)$ with a claim $p(u) = v$ (here $u$ is an evaluation point, not an IPA challenge), which is a batched evaluation claim of the form in [chapter 08](./batched-openings.md), and the proof keeps the polynomial itself. That is split accumulation, the subject of the next chapter. The same file has a private [type also named `Accumulator`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/_10_p.rs#L63), which is unrelated to the IPA type above.
 
 **Planned use.** The [aggregator profile](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/profile.rs#L720-L736) foresees circuits that verify a compressed proof, and those circuits would face this same MSM. They have not landed, and we found nothing that says whether they would use `use_g`, so this remains unsettled.
 :::
@@ -434,7 +473,7 @@ This chapter took the following steps:
 2. A decider can confirm a claim with one MSM, but claims would pile up if each one had to be decided separately.
 3. Opening $\hat{G}$ at a random point tests the claim, because the verifier can evaluate $g_{\v{u}}$ with $k$ factors, and two different polynomials rarely agree at a random point.
 4. A random combination of two claims is an evaluation claim that the verifier can state on its own, and the prover's witness is public. Proving it with one inner product argument yields a single new claim.
-5. Repeating this keeps one fixed-size accumulator across any number of steps, with logarithmic verifier work per merge and one MSM for the decider.
+5. Repeating this keeps one fixed-size accumulator across any number of steps, with logarithmic verifier work per merge. The final verifier merges the last proof's own claim into the accumulator and then runs one MSM as the decider.
 6. A false input passes only at rare challenges, and otherwise it forces a false output, so the false claim travels to the decider. The chain establishes nothing until the decider has run.
 7. The accumulator here is all that the next prover needs, which makes this atomic accumulation. Ragu's code contains the claim type, but its recursion uses a different form.
 

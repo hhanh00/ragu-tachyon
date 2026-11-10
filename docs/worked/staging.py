@@ -226,6 +226,16 @@ assert len({A_PT, F_SQ_PT, F_CU_PT, commit(R_SQ), commit(R_CU)}) == 5
 assert add(A_PT, F_SQ_PT) == commit(R_SQ) and add(A_PT, F_CU_PT) == commit(R_CU)
 assert A_POLY[6] == X and A_POLY[14] == V and A_POLY[7] == ALPHA_A
 
+# ---- Section 3: why each stage carries a random a_0 ----
+ZERO_STAGE = stage_a(0, 0, 0)
+assert commit(ZERO_STAGE) is None and all(e == 0 for e in ZERO_STAGE)
+A0_POS = pos('a', 0, N)
+ZERO_ALPHA_PT = commit(stage_a(0, 0, ALPHA_A))
+assert ZERO_ALPHA_PT is not None and ZERO_ALPHA_PT == mul(ALPHA_A, GENS[A0_POS])
+frag['alpha-zero'] = (
+    f'An honest stage that happens to hold $(x, v) = (0, 0)$ and has $a_0 = 0$ has every entry zero, so its commitment $0 \\cdot G_0 + \\cdots + 0 \\cdot G_{{15}}$ is the identity. '
+    f'Put $\\alpha = {ALPHA_A}$ at $a_0$, which is position ${A0_POS}$ of the trace, and the same stage commits to ${ALPHA_A} \\cdot G_{{{A0_POS}}} = {show(ZERO_ALPHA_PT)}$, a point with coordinates.')
+
 # ---- Section 1: the two costs ----
 sbox_mults = 3                           # x^5 takes three multiplications
 per_perm = (FULL * T + PARTIAL) * sbox_mults
@@ -252,7 +262,7 @@ for i in range(N):
 frag['gate-table'] = table(['Gate $i$', 'Reserved for', '$a_i$', '$b_i$', '$c_i$', '$d_i$'], gate_rows)
 
 frag['gens'] = (
-    f'A vector of $4n = 16$ entries needs 16 generators. We use the twelve from [chapter 09](./nark.md#_14-the-constant-wire), followed by ${", ".join(show(a) for a in _more)}$. '
+    f'A vector of $4n = 16$ entries needs 16 generators. We use the twelve from [chapter 09](./nark.md#_15-the-constant-wire), followed by ${", ".join(show(a) for a in _more)}$. '
     'This chapter never uses the blinding generator $H$, for a reason Section 3 gives.')
 
 # ---- Section 3: gates and the consolidated equation ----
@@ -264,7 +274,7 @@ assert SQUARE.holds_everywhere(R_SQ)
 assert gates_hold(R_SQ, N)
 assert not SQUARE.holds_everywhere(F_SQ)            # the final trace alone is not a witness
 fail_alone = sum(1 for z in range(Q) for y in range(Q) if not SQUARE.holds(F_SQ, z, y))
-frag['free-gate'] = (f'We tried all ${free:,}$ pairs of values for $(a_1, d_1)$, with $b_1 = c_1 = 0$. Every pair satisfies both equations of gate 1.')
+assert free == Q ** 2
 frag['sum-holds'] = (
     f'The right vector at $z = 5$ and $y = 7$ gives $\\langle\\!\\langle \\v{{r}}, \\v{{r}} \\circ \\v{{z^{{16}}}} + \\v{{t}} + \\v{{s}} \\rangle\\!\\rangle = {revdot(R_SQ, SQUARE.right(R_SQ, 5, 7))}$, and $k(7) = 1 + 10 \\cdot 7 = {ev(SQUARE.k, 7)}$. '
     f'The two sides agree at all ${Q ** 2:,}$ pairs $(z, y)$. The final trace alone fails at ${fail_alone:,}$ of those pairs, which shows that the circuit reads its input from the stage polynomial, not from $r\'(X)$.')
@@ -285,11 +295,12 @@ assert commit(R_BAD) == add(A_PT, commit(F_BAD))
 assert not {commit(F_BAD), commit(R_BAD)} & SPECIAL and commit(F_BAD) != A_PT
 assert CUBE.holds_everywhere(R_CU)
 frag['roots'] = (
-    f'Over $\\F_{{43}}$, the equation $x^3 + x + 5 = 35$ has the single solution ${roots_cube[0]}$. The equation $x^2 + 1 = 10$ has the solutions ${", ".join(map(str, roots_sq10))}$, and they share $x = {X}$. '
-    f'The equation $x^2 + 1 = 17$ has the solutions ${", ".join(map(str, roots_sq17))}$, neither of which solves the first equation.')
+    f'Over $\\F_{{43}}$, the equation $x^2 + 1 = 10$ has the solutions ${", ".join(map(str, roots_sq10))}$, and the equation $x^2 + 1 = 17$ has the solutions ${", ".join(map(str, roots_sq17))}$. So $x = {X}$ solves the first equation and not the second.')
+frag['roots-cube'] = (
+    f'Over $\\F_{{43}}$, the cubing equation $x^3 + x + 5 = 35$ has the single solution ${roots_cube[0]}$, while Section 4 found that $x^2 + 1 = 17$ has the solutions ${", ".join(map(str, roots_sq17))}$. No value appears in both lists.')
 frag['overlap'] = (
     f'Let the prover leave $\\bar{{A}} = {show(A_PT)}$ alone, so the stage still says $x = {X}$, and put ${DELTA}$ in slot $a_1$ of the final trace, whose gate 2 now holds $4 \\cdot 4 = 16$. The sum then holds $a_1 = {wires_at(R_BAD, N)[1]["a"]}$, and the circuit for $x^2 + 1 = 17$ accepts it at all ${Q ** 2:,}$ challenge pairs, while the commitments still add up: $\\bar{{A}} + {show(commit(F_BAD))} = {show(commit(R_BAD))}$. '
-    f'The commitment says one input and the circuit ran on another.')
+    f'So the commitment still holds $x = {X}$, while the circuit ran on $x = {wires_at(R_BAD, N)[1]["a"]}$.')
 
 # ---- Section 5: the mask ----
 FB_A = forbidden_degrees(N, 1, 1)
@@ -304,6 +315,12 @@ frag['mask-degrees'] = table(
     ['Gate', 'Wire', 'Position $p$ in the trace', 'Degree $4n - 1 - p$ in the mask'],
     [[i, f'${k}_{i}$', pos(k, i, N), partner(k, i, N)] for i in (2, 3) for k in 'abcd'])
 assert sorted(partner(k, i, N) for i in (2, 3) for k in 'abcd') == FB_A
+ROW_POS = pos('a', 2, N)
+ROW_DEG = partner('a', 2, N)
+assert ROW_DEG in FB_A
+frag['mask-row'] = (
+    f'Take the constraint $a_2 = 0$. The wire $a_2$ sits at position ${ROW_POS}$ of the trace, so its coefficient goes to the partner position ${ROW_DEG}$, which is the power $X^{{{ROW_DEG}}}$. '
+    f'The code numbers this constraint as row ${ROW_DEG}$, so it is weighted by $Y^{{{ROW_DEG}}}$, and the whole row contributes the single term $X^{{{ROW_DEG}}} Y^{{{ROW_DEG}}}$. Every other forbidden wire gives a term of the same kind, with one shared exponent.')
 for y in range(Q):
     assert revdot(A_POLY, mask(N, 1, 1, y)) == 0 and revdot(F_SQ, mask(N, 2, 2, y)) == 0
     assert revdot(F_CU, mask(N, 2, 2, y)) == 0
@@ -342,9 +359,10 @@ assert sum(1 for y in range(1, Q) if revdot(wrong_final, mask(N, 2, 2, y)) == 0)
 assert SQ17.holds_everywhere(plus(A_POLY, wrong_final))
 frag['mask-best'] = (
     f'The cheater has more freedom than this, because the other three wires of gate 1 are also forbidden entries, and it can fill them in the hope of building roots. The product becomes $y^9 + e\\,y + f\\,y^6 + g\\,y^{{14}}$, where $e$, $f$ and $g$ are the entries it adds to $d_1$, $b_1$ and $c_1$. '
-    f'Trying all ${count_free:,}$ choices, the best one has ${best_free}$ nonzero roots, out of the 42 nonzero values of $y$. Only ${count_gates:,}$ of the choices also leave gate 1 satisfied, as the circuit needs, and the best of those has ${best_gates}$ nonzero roots, at $(e, f, g) = {gate_examples}$.')
+    f'We tried all ${count_free:,}$ choices, and none gives more than ${best_free}$ nonzero roots out of the 42 nonzero values of $y$. Only ${count_gates:,}$ of the choices also leave gate 1 satisfied, as the circuit needs, and none of those gives more than ${best_gates}$ nonzero roots, a count reached at $(e, f, g) = {gate_examples}$.')
 assert (4 * N - 1) == 15
-frag['mask-bound'] = (f'For $n = 4$ the mask has degree at most $4n - 1 = 15$ in $y$, so the bound is $15/43 \\approx {15 / 43:.3f}$ and the best rate we found is ${best_gates + 1}/43 \\approx {(best_gates + 1) / 43:.3f}$, which counts the ${best_gates}$ nonzero roots of the best gate-satisfying choice plus $y = 0$. On a field of about $2^{{254}}$ elements with $4n = 2^{{13}}$, the same bound falls below $2^{{-240}}$.')
+assert 0 not in FB_FA and 0 not in FB_A
+frag['mask-bound'] = (f'For $n = 4$ the mask has degree at most $4n - 1 = 15$ in $y$, so a nonzero product vanishes at no more than $15$ of the 43 values, a rate of at most $15/43 \\approx {15 / 43:.3f}$. The cheater that keeps gate 1 satisfied stays well below that bound. It passes at $y = 0$ and at its ${best_gates}$ nonzero roots, which is ${best_gates + 1}$ of the 43 values, a rate of ${(best_gates + 1) / 43:.3f}$. On a field of about $2^{{254}}$ elements with $4n = 2^{{13}}$, the same bound falls below $2^{{-240}}$.')
 
 # ---- Section 6: closed form ----
 for (g_, c_) in [(1, 1), (2, 2), (2, 1), (3, 1)]:
@@ -362,7 +380,7 @@ glob_part = (g_part - (two_n + 1) * (pow(t_run, 7, Q) + 1)) % Q
 notch_part = (1 + two_n) * (pow(t_run, 1, Q) + pow(t_run, 6, Q)) * geo(t_run, 1, Q) % Q
 assert (glob_part - notch_part) % Q == direct == mask_closed(N, 1, 1, t_run)
 frag['closed-run'] = (
-    f'Take $x = 9$ and $y = 7$, so $t = xy = {t_run}$, and the mask of stage $a(X)$, for which $g = 1$ and $m = 1$. The global term is ${glob_part}$ and the notch is ${notch_part}$, so the formula gives ${direct}$. Adding $t^k$ over the eight forbidden degrees gives the same value. '
+    f'Take $x = 9$ and $y = 7$, so $t = xy = {t_run}$, and the mask of stage $a(X)$, for which $g = 1$ and $m = 1$. The global term is ${glob_part}$ and the notch is ${notch_part}$, so the formula gives ${glob_part} - {notch_part} = {direct}$ modulo 43. Adding $t^k$ over the eight forbidden degrees gives the same value. '
     f'We checked the formula against the direct sum for every mask of this chapter at all 42 nonzero values of $t$.')
 BIG_N, BIG_M = 2 ** 11, 100
 terms = 4 * (BIG_N - 1 - BIG_M)
@@ -384,7 +402,23 @@ assert all(revdot(plus(scale(z_, LEFT), RIGHT), mask(N, 1, 1, y)) == 0 for z_ in
 Z_RUN, Y2 = 5, 7
 fold = plus(scale(Z_RUN, LEFT), RIGHT)
 frag['fold-run'] = (
-    f'Take the stage above as the left child\'s, and a right child\'s stage holding $(x, v) = (5, 25)$ with $a_0 = 8$. At $z = {Z_RUN}$ the fold $z \\cdot a_L(X) + a_R(X)$ has coefficients ${vec(fold)}$, and its product with the mask is 0, as it is at all ${Q ** 2:,}$ pairs $(z, y)$. One claim did the work of two.')
+    f'Take the stage above as the left child\'s, and a right child\'s stage holding $(x, v) = (5, 25)$ with $a_0 = 8$. At $\\rho = {Z_RUN}$ the fold $\\rho \\cdot a_L(X) + a_R(X)$ has coefficients ${vec(fold)}$, and its product with the mask is 0, as it is at all ${Q ** 2:,}$ pairs $(\\rho, y)$, so the parent checks one mask claim in place of two.')
+# The cancellation route to the identity, deferred from Section 3.
+RHO_C = Q - 1
+plain = stage_a(X, V, 0)
+fold_plain = plus(scale(RHO_C, plain), plain)
+assert all(e == 0 for e in fold_plain) and commit(fold_plain) is None
+ALPHA_R = RIGHT[pos('a', 0, N)]
+with_alpha = plus(scale(RHO_C, stage_a(X, V, ALPHA_A)), stage_a(X, V, ALPHA_R))
+assert commit(with_alpha) is not None
+zero_rhos = [r_ for r_ in range(Q) if not any(plus(scale(r_, stage_a(X, V, ALPHA_A)), stage_a(X, V, ALPHA_R)))]
+assert zero_rhos == []
+bad_alphas = [ar for ar in range(Q) if any(not any(plus(scale(r_, stage_a(X, V, ALPHA_A)), stage_a(X, V, ar))) for r_ in range(Q))]
+assert bad_alphas == [ALPHA_A]
+frag['alpha-cancel'] = (
+    f'Suppose both children carry the same public data in this stage, $(x, v) = ({X}, {V})$, and neither uses an $\\alpha$. The two stages are then equal, and at $\\rho = {RHO_C}$, which is $-1$ modulo 43, the fold $\\rho \\cdot a_L(X) + a_R(X)$ has every entry zero, so its commitment is the identity. '
+    f'Now give the left stage $\\alpha_L = {ALPHA_A}$ and the right stage $\\alpha_R = {ALPHA_R}$. At $\\rho = {RHO_C}$ the fold keeps ${RHO_C} \\cdot {ALPHA_A} + {ALPHA_R} = {(RHO_C * ALPHA_A + ALPHA_R) % Q}$ at $a_0$, and no value of $\\rho$ makes every entry vanish. '
+    f'Of the 43 possible values of $\\alpha_R$, only ${len(bad_alphas)}$, namely $\\alpha_R = \\alpha_L = {ALPHA_A}$, would let the fold cancel at some $\\rho$.')
 stray = 11
 bad_r = plus(RIGHT, poly(N, {('a', 3): stray}))
 hits_fold = sum(1 for z_ in range(Q) for y in range(Q) if revdot(plus(scale(z_, LEFT), bad_r), mask(N, 1, 1, y)) == 0)
@@ -396,8 +430,8 @@ for dl, dr in product(range(1, Q), repeat=2):
         best_cancel, best_pair = cnt, (dl, dr)
 assert best_cancel == 1
 frag['fold-catch'] = (
-    f'Put a stray ${stray}$ in gate 3 of the right stage. Among all ${Q ** 2:,}$ pairs $(z, y)$, the folded claim passes at ${hits_fold}$, which are the 43 pairs with $y = 0$. '
-    f'Two stray entries at one position, one per child, can cancel each other at a single $z$, since $z\\,\\delta_L + \\delta_R$ is a degree-1 polynomial in $z$. Over all ${42 ** 2:,}$ pairs of nonzero entries, no pair cancels at more than ${best_cancel}$ value of $z$.')
+    f'Put a stray ${stray}$ in gate 3 of the right stage. Among all ${Q ** 2:,}$ pairs $(\\rho, y)$, the folded claim passes at ${hits_fold}$, which are the 43 pairs with $y = 0$. '
+    f'Two stray entries at one position, one per child, can cancel each other at a single $\\rho$, since $\\rho\\,\\delta_L + \\delta_R$ is a degree-1 polynomial in $\\rho$.')
 
 SQ26 = square_circuit(26)
 r1, r2 = R_SQ, plus(stage_a(5, 25, 8), square_final(5, 12))
@@ -522,8 +556,8 @@ frag['nested-run'] = table(
      ['Commit to that stage on $E\'$', '$\\F_{31}$ scalars', f'$\\mathring{{A}} = {show(NESTED)}$'],
      ['Absorb the coordinates of $\\mathring{A}$ and squeeze', '$\\F_{43}$ wires', f'$w = {W}$']])
 frag['deferred-run'] = (
-    f'The circuit over $\\F_{{31}}$ has $n = 3$ gates, so it uses the twelve generators of $E\'$ from [chapter 13](./curve-cycles.md#_8-deferred-operations). Its gate 2 is the first gate of adding $\\bar{{A}}$ to the fixed point ${show(B_FIX)}$. Holding $\\lambda = {LAM}$, it checks ${LAM} \\cdot {(B_FIX[0] - A_PT[0]) % P} = {(B_FIX[1] - A_PT[1]) % P}$ modulo 31, with both differences written as linear rows over the stage wires. '
-    f'Its consolidated equation holds at all ${P ** 2}$ pairs $(z, y)$, and both of its masks return 0 at all 31 values of $y$. The toy curve has too few points for the two remaining gates of the addition, so we stop there.')
+    f'The circuit over $\\F_{{31}}$ uses the twelve generators of $E\'$ from [chapter 13](./curve-cycles.md#_8-deferred-operations), and $4n = 12$ entries cap it at $n = 3$ gates. Its gate 2 is the first gate of adding $\\bar{{A}}$ to the fixed point ${show(B_FIX)}$. Holding the slope $\\sigma = {LAM}$, it checks ${LAM} \\cdot {(B_FIX[0] - A_PT[0]) % P} = {(B_FIX[1] - A_PT[1]) % P}$ modulo 31, with both differences written as linear rows over the stage wires. '
+    f'Its consolidated equation holds at all ${P ** 2}$ pairs $(z, y)$, and both of its masks return 0 at all 31 values of $y$. The full addition needs two more gates, which this circuit has no room for, so we stop after the slope.')
 BAD_DELTA = 7
 F_BR_BAD = plus(F_BR, poly(3, {('a', 1): BAD_DELTA}, P), m=P)
 stray_vals = [revdot(F_BR_BAD, mask(3, 2, 1, y, P), P) for y in range(P)]
@@ -546,34 +580,49 @@ R_CO = plus(A_POLY, B_POLY, F_CO)
 assert COMBINE.holds_everywhere(R_CO) and gates_hold(R_CO, N)
 assert all(revdot(F_CO, mask(N, 3, 1, y)) == 0 for y in range(Q))
 frag['combine-run'] = (
-    f'With $w = {W}$, the prover computes $e = x + w\\,v = {X} + {W} \\cdot {V} = {E_VAL}$ and commits to stage $b(X)$, which holds $(e, v) = ({E_VAL}, {V})$ at gate 2, giving $\\bar{{B}} = {show(B_PT)}$. The final trace holds one gate, $a_3 = {W}$, $b_3 = {V}$ and $c_3 = {W * V % Q}$. '
-    f'Rows of the wiring make $a_3$ and $a_2$ public, tie $b_3$ to $d_2$, and require $c_3 + a_1 - a_2 = 0$. The trace $a(X) + b(X) + r\'(X)$ satisfies the consolidated equation at all ${Q ** 2:,}$ pairs, with $k(Y) = 1 + {W}Y + {E_VAL}Y^2$.')
+    f'With $w = {W}$, the prover computes $e = x + w\\,v = {X} + {W} \\cdot {V} = {E_VAL}$ and commits to stage $b(X)$, which holds $e = {E_VAL}$ in $a_2$ and the copy $v = {V}$ in $d_2$, giving $\\bar{{B}} = {show(B_PT)}$. '
+    f'The final trace holds one gate, which multiplies $a_3 = w = {W}$ by $b_3 = v = {V}$ to give $c_3 = wv = {W * V % Q}$. '
+    f'Besides the row for the constant wire, the wiring has four rows. Two of them make $a_3 = w$ and $a_2 = e$ public inputs. The row $b_3 - d_2 = 0$ ties the gate\'s copy of $v$ to the one in stage $b(X)$, and the row $c_3 + a_1 - a_2 = 0$ states $e = x + wv$, with $a_1 = x$ read from stage $a(X)$. The trace $a(X) + b(X) + r\'(X)$ satisfies the consolidated equation at all ${Q ** 2:,}$ pairs, with $k(Y) = 1 + {W}Y + {E_VAL}Y^2$.')
 
-chain = {}
-for v_ in range(Q):
-    pt = commit(stage_a(X, v_))
+chain, unusable = {}, []
+for x_ in range(Q):
+    pt = commit(stage_a(x_, x_ * x_))
     nest = None if pt is None else dual_commit(bridge_for(pt, ALPHA_BR))
-    if nest is not None:
-        chain[v_] = (X + hash_point(nest) * v_) % Q
-assert chain[V] == E_VAL
+    if nest is None:
+        unusable.append(x_)
+    else:
+        chain[x_] = (x_ + hash_point(nest) * x_ * x_) % Q
+assert chain[X] == E_VAL
+
+
 def only_hit(target):
-    return [v_ for v_, e_ in chain.items() if e_ == target]
+    return [x_ for x_, e_ in chain.items() if e_ == target]
 
 
-TARGET = min(e_ for e_ in set(chain.values())
-             if e_ not in (E_VAL, X) and len(only_hit(e_)) == 1 and only_hit(e_)[0] not in (0, V))
+def early(target):
+    """Inputs x that reach the target if w = W were known before the stage."""
+    return [x_ for x_ in range(Q) if (x_ + W * x_ * x_) % Q == target]
+
+
+TARGET = min(e_ for e_ in range(Q)
+             if e_ not in (E_VAL, X) and len(only_hit(e_)) == 1 and only_hit(e_)[0] != X
+             and any(x_ != X for x_ in early(e_)))
 hit = only_hit(TARGET)
 sol = [w_ for w_ in range(Q) if (X + w_ * V) % Q == TARGET]
-assert len(sol) == 1 and len(hit) == 1 and W not in sol
-early_v = (TARGET - X) * pow(W, -1, Q) % Q
-assert (X + W * early_v) % Q == TARGET
+assert len(sol) == 1 and sol[0] != 0 and len(hit) == 1 and W not in sol
+assert len(unusable) == Q - len(chain)
+early_x = [x_ for x_ in early(TARGET) if x_ != X]
 frag['grind'] = (
-    f'Suppose the prover wants $e = {TARGET}$. With the stage fixed at $(x, v) = ({X}, {V})$, only one of the 43 values of $w$ gives that result, namely $w = {sol[0]}$. If the prover could see $w = {W}$ before fixing the stage, it would set $v = {early_v}$ and reach the target for certain. '
-    f'Instead, every new $v$ changes $\\bar{{A}}$, then $\\mathring{{A}}$, then $w$. We ran that whole chain for the ${len(chain)}$ values of $v$ that give a usable commitment, and one of them, $v = {hit[0]}$, reaches the target. A search of about 43 tries succeeds on a field of 43 elements, which is the [repeated-trials problem from chapter 03](./statements-and-challenges.md#_10-repeated-trials), and the same search has no realistic chance on a 255-bit field.')
+    f'Suppose the target is $e = {TARGET}$. With the stage fixed at $(x, v) = ({X}, {V})$, only one of the 43 values of $w$ gives that result, namely $w = {sol[0]}$. '
+    f'If the prover could see $w = {W}$ before fixing the stage, it would solve $x + {W}\\,x^2 = {TARGET}$, which has the solution{"s" if len(early_x) > 1 else ""} $x = {", ".join(map(str, early_x))}$, and it would reach the target for certain.')
+frag['grind-chain'] = (
+    f'For ${len(unusable)}$ of the 43 values of $x$, one of the two commitments $\\bar{{A}}$ and $\\mathring{{A}}$ is the identity, which Section 3 showed cannot be absorbed, so we skip them. '
+    f'Of the remaining ${len(chain)}$ values, one, $x = {hit[0]}$, reaches the target. '
+    f'A search of about 43 tries succeeds on a field of 43 elements, which is the [repeated-trials problem from chapter 03](./statements-and-challenges.md#_10-repeated-trials), and the same search has no realistic chance on a 255-bit field.')
 
 # ---- Section 13: adding the stage commitments ----
 frag['book-sum'] = (
-    f'In the circuit above, $\\mathring{{A}} = {show(NESTED)}$ and the final trace commits to $\\bar{{R}}\' = {show(F_BR_PT)}$. The whole trace commits to $\\bar{{R}} = {show(R_BR_PT)}$. These are points on $E\'$, so the next circuit over $\\F_{{43}}$ can add them with the $3$ gates of [chapter 13](./curve-cycles.md#_3-a-curve-for-each-field), and the sum matches.')
+    f'In the $\\F_{{31}}$ circuit of Section 11, $\\mathring{{A}} = {show(NESTED)}$ and the final trace commits to $\\bar{{R}}\' = {show(F_BR_PT)}$. The whole trace commits to $\\bar{{R}} = {show(R_BR_PT)}$. These are points on $E\'$, so the next circuit over $\\F_{{43}}$ can add them with the $3$ gates of [chapter 13](./curve-cycles.md#_3-a-curve-for-each-field). The sum matches, because $\\mathring{{A}} + \\bar{{R}}\' = {show(NESTED)} + {show(F_BR_PT)} = {show(R_BR_PT)}$ on $E\'$, which is $\\bar{{R}}$.')
 A_FOLD = plus(scale(LAMBDA_1, R_SQ), scale(LAMBDA_2, R_CU))
 msm_terms = [((LAMBDA_1 + LAMBDA_2) % Q, A_PT), (LAMBDA_1, F_SQ_PT), (LAMBDA_2, F_CU_PT)]
 A_FOLD_PT = None
@@ -589,13 +638,13 @@ assert computed == ev(A_FOLD, XZ)
 frag['code-sum-intro'] = (f'That gives the following run for our two circuits, with $\\lambda_1 = {LAMBDA_1}$, $\\lambda_2 = {LAMBDA_2}$ and the opening point $xz = {XZ}$ from $x = 9$ and $z = 5$:')
 assert 9 * 5 % Q == XZ
 frag['code-sum'] = table(
-    ['Polynomial', 'Commitment', 'Value at the opening point $2$', 'Weight in $A(X)$'],
+    ['Polynomial', 'Commitment', 'Value at the opening point $2$', 'Weight in $r^*(X)$'],
     [['$a(X)$', f'${show(A_PT)}$', a_at, f'$\\lambda_1 + \\lambda_2 = {(LAMBDA_1 + LAMBDA_2) % Q}$'],
      ["$r'_1(X)$", f'${show(F_SQ_PT)}$', f1_at, f'$\\lambda_1 = {LAMBDA_1}$'],
      ["$r'_2(X)$", f'${show(F_CU_PT)}$', f2_at, f'$\\lambda_2 = {LAMBDA_2}$'],
-     ['$A(X)$', f'${show(A_FOLD_PT)}$', computed, 'Derived from the three rows above']])
+     ['$r^*(X)$', f'${show(A_FOLD_PT)}$', computed, 'Derived from the three rows above']])
 frag['code-sum-text'] = (
-    f'The prover gets the commitment to $A(X)$ from three scalar multiplications, ${(LAMBDA_1 + LAMBDA_2) % Q} \\cdot \\bar{{A}} + {LAMBDA_1} \\cdot \\bar{{R}}\'_1 + {LAMBDA_2} \\cdot \\bar{{R}}\'_2$, and a commitment to the full polynomial gives the same point. The verifying circuit computes the expected value ${LAMBDA_1} \\cdot ({a_at} + {f1_at}) + {LAMBDA_2} \\cdot ({a_at} + {f2_at}) = {computed}$ with field arithmetic and compares it with the opening of $A(X)$ at that point.')
+    f'The prover gets the commitment $\\bar{{R}}^*$ to $r^*(X)$ from three scalar multiplications, ${(LAMBDA_1 + LAMBDA_2) % Q} \\cdot \\bar{{A}} + {LAMBDA_1} \\cdot \\bar{{R}}\'_1 + {LAMBDA_2} \\cdot \\bar{{R}}\'_2$, and a commitment to the full polynomial gives the same point. The verifying circuit computes the expected value ${LAMBDA_1} \\cdot ({a_at} + {f1_at}) + {LAMBDA_2} \\cdot ({a_at} + {f2_at}) = {computed}$ with field arithmetic and compares it with the opening of $r^*(X)$ at that point.')
 # The cheat: A* folds a trace with another stage.
 ST_STAR = stage_a(4, 16, ALPHA_A)
 A_STAR = plus(scale(LAMBDA_1, plus(ST_STAR, square_final(4))), scale(LAMBDA_2, R_CU))
@@ -604,14 +653,14 @@ agree = [p_ for p_ in range(Q) if ev(diff, p_) == 0]
 deg = max(i for i, e_ in enumerate(diff) if e_)
 assert len(agree) <= deg
 frag['code-sum-catch'] = (
-    f'Suppose the prover folds a squaring trace with stage input $x = 4$ into $A(X)$, while the commitment $\\bar{{A}}$ in the proof still holds $x = 3$. The polynomial it commits to as $A(X)$ then differs from the expected combination by a nonzero polynomial of degree ${deg}$. Of the 43 opening points, ${len(agree)}$ hide the difference.')
+    f'Suppose the prover folds a squaring trace with stage input $x = 4$ into $r^*(X)$, while the commitment $\\bar{{A}}$ in the proof still holds $x = 3$. The polynomial it commits to as $r^*(X)$ then differs from the expected combination by a nonzero polynomial of degree ${deg}$. Of the 43 opening points, ${len(agree)}$ hide the difference.')
 
 # ---- Section 14: the wrong mask ----
 wrong_mask_vals = [revdot(A_POLY, mask(N, 2, 1, y)) for y in range(Q)]
 assert wrong_mask_vals[7] == (X * pow(7, partner('a', 1, N), Q) + V * pow(7, partner('d', 1, N), Q)) % Q
 wm_roots = [y for y in range(Q) if wrong_mask_vals[y] == 0]
 frag['wrong-mask'] = (
-    f'Check stage $a(X)$ against the mask of $b(X)$, which forbids gate 1. The product is ${X}\\,y^{{{partner("a", 1, N)}}} + {V}\\,y^{{{partner("d", 1, N)}}}$, or ${wrong_mask_vals[7]}$ at $y = 7$, and it vanishes at only ${len(wm_roots)}$ of the 43 values of $y$.')
+    f'For example, the honest stage $a(X)$ fails the mask of $b(X)$, which forbids gate 1. The product is ${X}\\,y^{{{partner("a", 1, N)}}} + {V}\\,y^{{{partner("d", 1, N)}}}$, or ${wrong_mask_vals[7]}$ at $y = 7$, and it vanishes at only ${len(wm_roots)}$ of the 43 values of $y$.')
 
 # ---- Section 15: numbers from the code ----
 BINDERS, STEPS = 8 // 2, 23
@@ -621,8 +670,6 @@ bondings = stage_masks + final_masks
 claims = 2 + 2 + 2 * circuits + bondings
 assert claims == 86 and claims <= 14 * 7
 frag['code-count'] = (
-    f'In the standard profile, the native side has ${circuits}$ internal circuits, of which ${STEPS}$ are endoscaling steps, along with ${stage_masks}$ stage masks and ${final_masks}$ final masks. The [count of revdot claims per fuse](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/mod.rs#L151-L166) is $2 + 2 + 2 \\cdot {circuits} + {bondings} = {claims}$. Each internal circuit counts once per child, and each mask counts once across both children, which saves ${bondings}$ claims.')
-frag['code-preamble'] = (
-    f'The native preamble stage reserves [$2(3h + 1 + 37)$ values](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/stages/preamble.rs#L358-L362) for a header of $h$ elements, which is at least ${2 * (1 + 37)}$ even for an empty header.')
+    f'In the standard profile, the native side has ${circuits}$ internal circuits, of which ${STEPS}$ are endoscaling steps, along with ${stage_masks}$ stage masks and ${final_masks}$ final masks. The [count of revdot claims per fuse](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/mod.rs#L151-L166) adds one raw claim per child, one application claim per child, one claim per child for each internal circuit, and one claim for each mask across both children, which gives $2 + 2 + 2 \\cdot {circuits} + {bondings} = {claims}$. Checking each mask once per child would cost ${bondings}$ more claims.')
 
 print(json.dumps(frag))

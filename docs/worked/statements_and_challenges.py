@@ -70,9 +70,9 @@ TARGET = 35
 witnesses = [x for x in range(Q) if circuit(x) == TARGET]
 assert 3 in witnesses
 frag['cubic-witnesses'] = (
-    f'Evaluating $x^3 + x + 5$ at all 43 elements of $\\F_{{43}}$ finds that the value 35 occurs at '
-    f'$x \\in \\{{{", ".join(map(str, witnesses))}\\}}$. '
-    + ('Our $x = 3$ is the only witness for this instance. ' if len(witnesses) == 1 else
+    f'Evaluating $x^3 + x + 5$ at all 43 elements of $\\F_{{43}}$ finds that the value 35 occurs '
+    + (f'only at $x = {witnesses[0]}$, so our $x = {witnesses[0]}$ is the only witness for this instance. ' if len(witnesses) == 1 else
+       f'at $x \\in \\{{{", ".join(map(str, witnesses))}\\}}$. '
        f'This instance therefore has {len(witnesses)} witnesses, and the relation accepts any of them. ')
     + f'The value $x = 4$ gives ${circuit(4)}$, so the pair $(35, 4)$ falls outside the relation. '
     + f'Some instances have no witness at all, and the instance {next(t for t in range(1, Q) if t not in {circuit(x) for x in range(Q)})} is one of them.')
@@ -307,7 +307,7 @@ e3_roots = [x for x in range(Q) if (e3[0] + e3[1] * x + e3[2] * x * x) % Q == 0]
 frag['rlc-powers'] = '\n'.join(
     ['| Values of $r$ that hide the errors | Nonzero error vectors of length 3 |', '| --- | --- |']
     + [f'| {k} | {power_tally[k]} |' for k in sorted(power_tally)]
-) + (f'\n\nThe counts cover all ${Q ** 3 - 1}$ nonzero vectors, and no vector is hidden by more than 2 of the 43 values, which agrees with the bound $(m - 1)/|\\F| = 2/43$. '
+) + (f'\n\nThe counts cover all ${Q ** 3 - 1}$ nonzero vectors, and no vector is hidden by more than 2 of the 43 values, which agrees with the bound $(m - 1)/|\\F_q| = 2/43$. '
      f'The errors ${vec(e3)}$ from the previous example are hidden by {len(e3_roots)} value{"" if len(e3_roots) == 1 else "s"} in this form'
      + (f', namely $r \\in \\{{{", ".join(map(str, e3_roots))}\\}}$.' if e3_roots else '.'))
 
@@ -486,7 +486,7 @@ atk2_P = mul(pow(weak2_c, -1, Q), sub(mul(atk2_s, GEN), chosen_R))
 assert atk2_P is not None and atk2_P != P
 assert mul(atk2_s, GEN) == add(chosen_R, mul(weak2_c, atk2_P))
 assert not verify_strong(atk2_P, chosen_R, atk2_s)
-frag['omit-instance'] = (f'Start from the public point $R = G_3 = {show(chosen_R)}$, whose relation to $G$ the cheater need not know. The flawed transcript gives $c = {weak2_c}$ without looking at any instance. '
+frag['omit-instance'] = (f'Start from the public point $R = G_3 = {show(chosen_R)}$, one of the fixed points from Section 1, whose discrete log relative to $G$ the cheater is assumed not to know. The flawed transcript gives $c = {weak2_c}$ without looking at any instance. '
                          f'Picking $s = {atk2_s}$ and solving gives $P\' = c^{{-1}} \\cdot (s \\cdot G - R) = {show(atk2_P)}$. The check holds, since $s \\cdot G = {show(mul(atk2_s, GEN))}$ and $R + c \\cdot P\' = {show(add(chosen_R, mul(weak2_c, atk2_P)))}$.')
 
 honest_weak_c = challenge(TAG_A, fs_R)
@@ -523,11 +523,11 @@ for guess in reversed(range(Q)):
                 first = (tried, guess, resp, candidate)
 assert tried == Q * Q - Q and successes == Q - 1
 assert first[3] not in G and first[1] and first[2]
-frag['grinding'] = (f'A cheater repeats the early-challenge trick. It guesses a challenge, picks a response, computes $R = s \\cdot G - c \\cdot P$, and tests whether the hash of the transcript returns its guess. Running through the pairs from the largest values downward with $P = {show(P)}$, attempt {first[0]} succeeds with the guess $c = {first[1]}$, the response $s = {first[2]}$ and $R = {show(first[3])}$. '
+frag['grinding'] = (f'A cheater repeats the early-challenge trick. It guesses a challenge, picks a response, computes $R = s \\cdot G - c \\cdot P$, and tests whether the hash of the transcript returns its guess. With $P = {show(P)}$, it tries guesses $c$ from {Q - 1} downward and, for each guess, responses $s$ from {Q - 1} downward, skipping any pair that gives the identity as $R$. The identity has no affine coordinates for the transcript to absorb, so a proof with that $R$ cannot be written down. Attempt {first[0]} succeeds with the guess $c = {first[1]}$, the response $s = {first[2]}$ and $R = {show(first[3])}$. '
                     f'The honest verifier accepts this proof, and the search never touched $a$. Across all {tried} pairs that give a nonidentity $R$, exactly {successes} succeed, which is one attempt in {tried // successes}.')
 
 trials_exp = 128
-frag['grinding-scale'] = (f'Suppose a cheater can compute $2^{{{trials_exp}}}$ hashes, and each attempt faces the error $d/|\\F|$ with $d = 2^{{{d_exp}}}$ and a field above $2^{{{f_exp}}}$. Each attempt succeeds with probability below $2^{{{d_exp - f_exp}}}$, and all attempts together succeed with probability below $2^{{{trials_exp + d_exp - f_exp}}}$.')
+frag['grinding-scale'] = (f'Suppose a cheater can compute $2^{{{trials_exp}}}$ hashes, and each attempt faces the error $d/|\\F_q|$ with $d = 2^{{{d_exp}}}$ and a field above $2^{{{f_exp}}}$. Each attempt succeeds with probability below $2^{{{d_exp - f_exp}}}$, and all attempts together succeed with probability below $2^{{{trials_exp + d_exp - f_exp}}}$.')
 
 # Section 11: Poseidon
 squares = len({x * x % Q for x in range(Q)})
@@ -577,6 +577,6 @@ absorb_point(zero_b, fs_R)
 zero_b.absorb(0)
 v_a, v_b = zero_a.squeeze(), zero_b.squeeze()
 assert v_a == v_b == fs_c
-frag['zero-absorb'] = (f'Absorb the seven elements from the table above. The seventh waits in the buffer alone, so absorbing a zero after it leaves the sum unchanged. Both runs squeeze the challenge ${v_a}$.')
+frag['zero-absorb'] = (f'Absorb the seven elements from the sponge trace in Section 11. The seventh waits in the buffer alone, so absorbing a zero after it leaves the sum unchanged. Both runs squeeze the challenge ${v_a}$.')
 
 print(json.dumps(frag))

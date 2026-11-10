@@ -8,9 +8,9 @@ Tachyon has not activated on mainnet and its design is still changing. The trace
 
 ## 1. The spend we follow
 
-Alice holds [a note from Bob](./notes-and-nullifiers.md#_4-notes-and-commitments), [created in epoch 3 and spent with target epoch 7](./notes-and-nullifiers.md#_6-deriving-a-note-s-nullifiers). Her bundle has one spend and [one output to Carol](./proof-tree.md#_7-outputs), and [chapter 22's run](./proof-tree.md#_2-the-running-example) carries it as far as a published stamp. All of the values live in those chapters' tables, and most of them come from stand-in hashes rather than real Poseidon outputs.
+Alice holds [a note from Bob](./notes-and-nullifiers.md#_4-notes-and-commitments), [created in epoch 3 and spent with target epoch 7](./notes-and-nullifiers.md#_6-deriving-a-note-s-nullifiers). Her bundle has one spend and [one output to Carol](./proof-tree.md#_7-outputs), and [chapter 23's run](./proof-tree.md#_2-the-running-example) carries it as far as a published stamp. All of the values live in those chapters' tables, and most of them come from stand-in hashes rather than real Poseidon outputs.
 
-[Chapter 23](./aggregation-and-bundles.md) uses bundles of its own for its numbers. Its [bundle Y](./aggregation-and-bundles.md#_1-what-aggregation-removes-and-what-it-keeps) also has one spend and one output, so you can read Y as standing in for Alice's bundle in that chapter.
+[Chapter 24](./aggregation-and-bundles.md) uses bundles of its own for its numbers. Its [bundle Y](./aggregation-and-bundles.md#_1-what-aggregation-removes-and-what-it-keeps) also has one spend and one output, so you can read Y as standing in for Alice's bundle in that chapter.
 
 Sections 2 to 6 and Section 8 follow the spend through Tachyon. Section 7 pauses at one node of the proof tree to go through the proof system underneath it, and Section 9 collects every layer in a table.
 
@@ -24,7 +24,7 @@ Bob then forms the [note](./notes-and-nullifiers.md#_4-notes-and-commitments) $(
 
 Bob's stamp publishes $\mathsf{cm}$ as a [tachygram](./notes-and-nullifiers.md#_11-tachygrams-and-output-padding), the single kind of value that covers both commitments and nullifiers. Validators will eventually forget that tachygram, yet Alice has to prove facts about it later, so the pool keeps a short reference to it.
 
-The stamp's tachygrams become the [roots of a polynomial](./pool-state.md#_2-encoding-a-set-as-a-polynomial), a [Pedersen commitment](./pool-state.md#_3-committing-to-the-set) shrinks that polynomial to one point, and a [Poseidon hash chain](./pool-state.md#_6-folding-stamps-into-a-hash-chain) absorbs the point together with the block's epoch. A [boundary digest](./pool-state.md#_7-crossing-epoch-boundaries) joins each epoch to the next. The chain's state is the anchor, and [chapter 22's pool history](./proof-tree.md#_2-the-running-example) lists the anchors this note lives through. A proof can witness history freely, because [one consensus check at the far end](./pool-state.md#_10-moving-a-proof-along-the-chain) pins every earlier state.
+The stamp's tachygrams become the [roots of a polynomial](./pool-state.md#_2-encoding-a-set-as-a-polynomial), a [Pedersen commitment](./pool-state.md#_3-committing-to-the-set) shrinks that polynomial to one point, and a [Poseidon hash chain](./pool-state.md#_6-folding-stamps-into-a-hash-chain) absorbs the point together with the block's epoch. A [boundary digest](./pool-state.md#_7-crossing-epoch-boundaries) joins each epoch to the next. The chain's state is the anchor, and [chapter 23's pool history](./proof-tree.md#_2-the-running-example) lists the anchors this note lives through. A proof can witness history freely, because [one consensus check at the far end](./pool-state.md#_10-moving-a-proof-along-the-chain) pins every earlier state.
 
 ## 4. What the spend has to show
 
@@ -41,7 +41,7 @@ Testing absence means reading whole epochs, which is the work wallets were suppo
 
 An epoch's polynomial is [too large to open directly](./oblivious-sync.md#_8-why-one-opening-per-epoch-needs-buckets), so a builder routes its tachygrams into [buckets by quadratic-residue profile](./oblivious-sync.md#_11-routing-an-epoch-into-buckets). Each bucket's [seal computes the crossing](./pool-state.md#_9-covering-a-whole-epoch), so that it covers the whole epoch. The service then [opens the matching bucket at the value](./oblivious-sync.md#_12-testing-a-value-against-its-bucket) and [composes the results into a segment](./oblivious-sync.md#_13-composing-segments-and-keeping-evidence), an `ArbitraryUnspent` proof that names no note.
 
-[Chapter 22's segments](./proof-tree.md#segments-from-the-sync-service) give the service all four epochs and use one bucket per epoch to keep the numbers short, while [chapter 21's run](./oblivious-sync.md#_6-a-full-run-on-the-toy-curve) delegates a narrower range. Both are choices of example, and a wallet may run these steps itself.
+[Chapter 23's segments](./proof-tree.md#segments-from-the-sync-service) give the service all four epochs and use one bucket per epoch to keep the numbers short, while [chapter 22's run](./oblivious-sync.md#_6-a-full-run-on-the-toy-curve) delegates a narrower range. Both are choices of example, and a wallet may run these steps itself.
 
 ## 6. The wallet builds the proof tree
 
@@ -56,7 +56,7 @@ Alice's wallet now combines its secrets with the service's segments, working up 
 7. [`FeeFuse`](./proof-tree.md#_9-applying-the-fee) applies a fee chosen after signing, and turns `Actions` into a `Stamp` exactly once.
 8. [`StampLift`](./proof-tree.md#_11-publishing-a-stamp) moves the stamp to a later anchor in epoch 7.
 
-[The whole tree](./proof-tree.md#_13-the-whole-tree) appears in chapter 22, which flags its exact mix of steps as its own reconstruction. Two facts remain outside the proof. A [signature under $\mathsf{rk}$](./proof-tree.md#action-signatures) requires $\mathsf{ask}$, which lets a custody device hold the key while another device proves. Since no step adds up values, a [binding signature](./proof-tree.md#the-binding-signature) shows that the bundle balances.
+[The whole tree](./proof-tree.md#_13-the-whole-tree) appears in chapter 23, which flags its exact mix of steps as its own reconstruction. Two facts remain outside the proof. A [signature under $\mathsf{rk}$](./proof-tree.md#action-signatures) requires $\mathsf{ask}$, which lets a custody device hold the key while another device proves. Since no step adds up values, a [binding signature](./proof-tree.md#the-binding-signature) shows that the bundle balances.
 
 ## 7. What one fuse proves
 
@@ -73,7 +73,7 @@ That proof leaves [the verifier two linear costs](./nark.md#_16-what-the-verifie
 
 [Chapter 18](./ragu-recursion.md#_1-what-one-fuse-has-to-do) assembles these into many small internal circuits. [Three accumulators per side](./ragu-recursion.md#_7-what-a-proof-carries-to-its-parent) pass up the tree, and each fuse replaces two of each with one, so `SpendBind`'s proof has the same shape as the proof at the top.
 
-A proof that leaves the tree goes through [compression](./ragu-recursion.md#_8-from-a-large-proof-to-a-short-one), which replaces its polynomials with commitments and a few values and finishes with an inner product argument on each curve. Its verifier [pays the deferred linear costs once](./ragu-recursion.md#_13-what-the-verifier-pays), and [Section 14 of that chapter](./ragu-recursion.md#_14-the-size-of-the-result) gives the size.
+A proof that leaves the tree goes through [compression](./compression.md#_1-from-a-large-proof-to-a-short-one), which replaces its polynomials with commitments and a few values and finishes with an inner product argument on each curve. Its verifier [pays the deferred linear costs once](./compression.md#_7-what-the-verifier-pays), and [Section 8 of that chapter](./compression.md#_8-the-size-of-the-result) gives the size.
 
 ## 8. From the stamp to a block
 
@@ -88,7 +88,7 @@ The block's validators then run the [checks on the aggregate](./aggregation-and-
 Alice's $\mathsf{nf}_7$ and $\mathsf{nf}_8$ are now in the pool, and a second spend of this note runs into [either the window or the exclusion proof](./notes-and-nullifiers.md#_10-why-a-spend-publishes-two-nullifiers).
 
 ::: warning Reconstructed from code at commit 7e50254, not confirmed by the authors
-The crate has no block validator, so this sequence combines `Bundle::verify` with consensus rules from the book. [Chapter 23](./aggregation-and-bundles.md#_13-why-cheating-fails) and [chapter 20](./pool-state.md#_11-the-consensus-window) both note that this is a reading of the sources, and that no source fixes the full order.
+The crate has no block validator, so this sequence combines `Bundle::verify` with consensus rules from the book. [Chapter 24](./aggregation-and-bundles.md#_13-why-cheating-fails) and [chapter 21](./pool-state.md#_11-the-consensus-window) both note that this is a reading of the sources, and that no source fixes the full order.
 :::
 
 ## 9. The layers and their chapters
@@ -117,7 +117,8 @@ The table lists the layers in the order that the trace meets them.
 | Two fields | points handled on the other curve | [13, Curve Cycles](./curve-cycles.md) |
 | Crossing challenges | one short string serving both curves | [16, Endoscalars](./endoscalars.md) |
 | Shared witness | circuits reading the same stage | [17, Staging](./staging.md) |
-| Assembled fuse | the node's circuits, and compression | [18, Recursion in Ragu](./ragu-recursion.md) |
+| Assembled fuse | the node's circuits | [18, Recursion in Ragu](./ragu-recursion.md) |
+| Compression | the short proof that leaves the tree | [19, Compression in Ragu](./compression.md) |
 | Bundle to block | fees, merging, stripping, block checks | [23, Aggregation and Bundles](./aggregation-and-bundles.md) |
 
 ## 10. What exists at the pinned commits
@@ -135,11 +136,11 @@ The trace reads as one working system, but its parts have very different status,
 
 **What remains open in the design.**
 
-- [Zero knowledge and unlinkability](./ragu-recursion.md#_16-rerandomization-and-zero-knowledge) are not yet established, although the Tachyon book assumes them.
+- [Zero knowledge and unlinkability](./compression.md#_10-rerandomization-and-zero-knowledge) are not yet established, although the Tachyon book assumes them.
 - [Decompression](./aggregation-and-bundles.md#decompression) has not landed, so a compressed proof cannot be fused today, and an aggregator's real costs are unknown.
 - The sources differ on [which anchors consensus accepts and where the crossing sits](./pool-state.md#_8-end-of-block-anchors).
 - [Service privacy measures](./oblivious-sync.md#_14-what-the-service-learns), [fee levels and aggregator payment](./aggregation-and-bundles.md#_12-fee-levels-and-payment), and [per-note proving delegation](./notes-and-nullifiers.md#_3-the-payment-key) are unspecified or unsettled.
-- The [comparison with Orchard](./ragu-recursion.md#_17-performance-against-orchard) is an estimate, and [real proof size](./aggregation-and-bundles.md#_9-what-aggregation-saves) is not settled for Tachyon.
+- The [comparison with Orchard](./compression.md#_11-performance-against-orchard) is an estimate, and [real proof size](./aggregation-and-bundles.md#_9-what-aggregation-saves) is not settled for Tachyon.
 
 ## 11. Where this chapter leaves us
 

@@ -1,23 +1,11 @@
 # Revdot Folding
 
-The [split accumulation chapter](./split-accumulation.md#_2-sorting-the-verifier-s-work-by-what-it-reads) sorted the verifier's work by what it reads, and it folded the evaluation claims. One row of its table stayed open, which was the revdot product $\revdot{\v{a}}{\v{b}}$. That product reads two whole witness vectors, so a recursive verifier cannot compute it, and this chapter folds it instead.
+[Chapter 12 ended](./split-accumulation.md#_8-why-a-nark-is-enough) with a gap in its recursive relation. The fold of that chapter makes every opening sound, which means each commitment really opens to the value its proof states. It does not check that a proof's revdot product $\revdot{\v{a}}{\v{b}}$ equals its target $c$, and it does not check that the vectors $\v{a}$ and $\v{b}$ behind that product are the ones committed in $\bar{A}$ and $\bar{B}$. Chapter 09's verifier did both, by reading the two vectors in full. A recursive verifier reads only instances, so it cannot do the same, and this chapter closes the gap with a second fold that handles revdot claims.
 
-A revdot claim contains a product of two unknown vectors, so it does not combine linearly as an evaluation claim does. [Chapter 12 ended](./split-accumulation.md#_9-folding-schemes) with the first sign of this, a cross term that the prover has to supply. We start from that example and find that its single challenge stops working at three claims. Repairing it leads to the error matrix and the challenges $\mu$ and $\nu$. We then remove the two costs that this fold would place in a circuit, namely the commitment sums and the quadratic field arithmetic, and we finish with the different fold that Ragu's code runs at each step.
+A revdot claim contains a product of two unknown vectors, so it does not combine linearly as an evaluation claim does. [Chapter 12's last section](./split-accumulation.md#_9-folding-schemes) showed the first sign of this, a cross term that the prover has to supply. We start from that example and find that its single challenge stops working at three claims. Repairing it leads to the error matrix and the challenges $\mu$ and $\nu$. We then remove the two costs that this fold would place in a circuit, namely the commitment sums and the quadratic field arithmetic, and we finish with the different fold that Ragu's code runs at each step.
 
 ::: warning The Ragu Book and the code differ here
-**Book, [revdot chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L95-L137):** an error matrix with two challenges per layer, and [$(M, N) = (7, 19)$ for 133 claims](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L262-L266).
-
-**Code at `3219e08`, and the book's [recursion chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/recursion/index.md?plain=1#L26) and [endoscalar ledger](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/extensions/endoscalar.md?plain=1#L197-L214):** the fuse uses a [quotient fold](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/fold_revdot.rs#L1-L12) with one challenge per layer, and [$(M, N) = (7, 14)$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/mod.rs#L144-L149) on the native side. Compression [still uses an error matrix](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/revdot/fold.rs#L1-L19).
-
-This site follows the code for what Ragu does. Sections 2 to 9 nevertheless teach the matrix, because it is the general construction, compression needs it, and the quotient fold is easiest to understand as a change to it. Section 10 makes that change, and Section 11 compares all the forms.
-:::
-
-::: warning Reconstructed from code at commit 3219e08, not confirmed by the authors
-The toy runs and the attacks are our own, checked by the script behind this page. The gate counts for the code's fold in Section 10 are our reading of its functions, and the authors have not published them. The code's comments credit the quotient identity to [ProtoGalaxy](https://eprint.iacr.org/2023/1106), which we could not read, so we derive the identity here without relying on that paper.
-:::
-
-::: tip Terminology
-The book writes $n$ for the number of claims. Here $n$ remains the number of gates, as in every earlier chapter, so we write $m$ for the number of claims. The book uses "cross term" and "error term" [interchangeably](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L80-L93) for an off-diagonal product. The code says "error terms" for the quotient coefficients of Section 10, which are different numbers, so we say cross term for a product and quotient coefficient for the code's values. The book's spot-check point is called $\beta$, which is also the batching challenge of [chapter 08](./batched-openings.md#_7-beta-batching), so we rename the spot-check point $\theta$. We continue to say that claims fold and that a [fuse](./pcd-intro.md#fusing-in-ragu) is the PCD operation containing the folds.
+The book's [revdot chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L95-L137) folds with an error matrix, while the code's fuse at `3219e08` uses a [different fold with one challenge](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/fold_revdot.rs#L1-L12), which Section 10 derives, and Section 11 compares all the forms. We teach the matrix first because it is the general construction and because the code's [compression still uses it](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/revdot/fold.rs#L1-L19).
 :::
 
 ## 1. The claim that remains
@@ -25,6 +13,8 @@ The book writes $n$ for the number of claims. Here $n$ remains the number of gat
 A step of the proof from [chapter 09](./nark.md#_5-building-the-two-multiplicands) ends up holding two commitments and a target value, and it needs to know that the committed vectors have that revdot product. Following the [book's relation](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L6-L17), a **revdot claim** has the instance $(\bar{A}, \bar{B}, c)$ and the witness $(\v{a}, \v{b}, \gamma_a, \gamma_b)$, and it holds when
 
 $$\dot{\v{a}}{\v{G}} + \gamma_a \cdot H = \bar{A}, \qquad \dot{\v{b}}{\v{G}} + \gamma_b \cdot H = \bar{B}, \qquad \revdot{\v{a}}{\v{b}} = c.$$
+
+The first two equations tie the vectors to the commitments, which chapter 12's relation left unchecked, and the third is the product that it also left unchecked. A fold of revdot claims has to keep all three together, so that the vectors whose product is checked are the ones behind the commitments.
 
 <!-- worked:one-claim -->
 
@@ -45,9 +35,9 @@ The earlier chapters offer two ways to check such a claim, and each has a cost i
 
 The direct check cannot go in a circuit, since a recursive verifier [reads only instances](./split-accumulation.md#_5-the-three-algorithms). The split suits a verifier, but the prover would run its FFTs at every step of a long computation, and the book [wants to confine that](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/structured_vectors.md?plain=1#L98-L101) to the places in the tree where a short proof is needed.
 
-Chapter 12 suggests a third route, in which we reduce many claims to one claim of the same form and leave the last one to a decider. The reduction has to handle many claims at once, because a fuse in Ragu's standard profile [has 86 native and 72 nested revdot claims](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/tests.rs#L1416-L1417). The book [names their sources](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L24-L33), which are the consolidated equation of each circuit, the [stage checks](./staging.md), and the accumulators of the previous step.
+Chapter 12 suggests a third route, in which we reduce many claims to one claim of the same form and leave the last one to a decider. The reduction has to handle many claims at once, because a [fuse](./pcd-intro.md#fusing-in-ragu), the PCD operation that contains the folds, collects [many revdot claims](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L24-L33). The previous step's accumulators are among them, and the [staging chapter](./staging.md) lists the rest. As in [chapter 13's cycle](./curve-cycles.md#_6-a-fold-split-across-two-circuits), the point operations of every fold below go to the circuit on the other curve.
 
-[Chapter 09 listed two linear costs](./nark.md#_17-a-short-proof-from-the-same-parts) as targets for this part of the site. This chapter does not address either of them directly. The cost of $\hat{G}$ already [left the recursive path](./split-accumulation.md#_8-why-a-nark-is-enough) in chapter 12. The cost of computing $s(x, y)$ remains after this chapter too, because a fold says nothing about whether $\bar{B}$ was built from the right circuit, and the [wiring chapter](./wiring-and-registry.md) deals with that. What this chapter removes is the need for the split and its FFTs at most steps, as chapter 09 promised.
+This chapter removes the split and its FFTs from most steps, as [chapter 09 promised](./nark.md#_17-a-short-proof-from-the-same-parts). It does not check that $\bar{B}$ was built from the right circuit, which the [wiring chapter](./wiring-and-registry.md) handles.
 
 ## 2. Two claims and one cross term
 
@@ -85,7 +75,7 @@ The natural extension gives claim $i$ the weight $r^i$ on both sides. Bilinearit
 
 $$e_{i,j} = \revdot{\v{a}_i}{\v{b}_j}, \qquad \text{so that } e_{i,i} = c_i \text{ for a true claim.}$$
 
-Expanding for $m = 3$ and collecting powers of $r$ gives
+We write $m$ for the number of claims. The book writes $n$ for this count, but here $n$ remains the number of gates, as in every earlier chapter. Expanding for $m = 3$ and collecting powers of $r$ gives
 
 $$
 \begin{aligned}
@@ -107,13 +97,29 @@ Look at the coefficient of $r^2$. It adds the claim $c_1$ to two cross terms, an
 
 <!-- /worked:three-claims -->
 
-The first two rows are the claims printed in chapters 09 and 12. The third row uses its own blinding factors, since this curve has so few points that repeated factors can land two different vectors on one commitment. Now we attack the fold:
+The first two rows are the claims printed in chapters 09 and 12. The third row uses its own blinding factors, since this curve has so few points that repeated factors can land two different vectors on one commitment. Even so, the point $(27,\,30)$ appears as both $\bar{B}_1$ and $\bar{A}_2$, and later tables repeat points too. The toy group has only 43 points, so repeats are unavoidable and carry no meaning.
+
+For the attack we need one false claim. Chapter 09 built a false witness for the statement $35 = F(3)$ by filling the trace with $x = 4$, a value that does not satisfy the statement. Its target comes from the statement, so it equals claim 0's target, while its vectors have a different revdot product. We call the following list the **false list**, and Sections 4, 9 and 10 reuse it. Slot 1 holds the false witness, and the honest claims 1 and 2 of the table above sit on either side:
+
+<!-- worked:false-list -->
+
+| Slot | Statement | Witness | Stated $c$ | True $\revdot{\v{a}}{\v{b}}$ |
+| --- | --- | --- | --- | --- |
+| 0 | $1 = F(35)$ | Honest proof (claim 1 above) | 35 | 35 |
+| 1 | $35 = F(3)$, the statement of claim 0 | Chapter 09's false trace for $x = 4$, where $F(4) = 30$ | 13 | 18 |
+| 2 | $7 = F(1)$ | Honest proof (claim 2 above) | 39 | 39 |
+
+<!-- /worked:false-list -->
+
+Now we attack the fold:
 
 <!-- worked:collision -->
 
-Put chapter 09's false witness with $x = 4$ in the middle slot, between the two later proofs of the table above. Its vectors give $18$ while its statement requires $c_1 = 13$, so this claim is false by $5$. The honest cross terms are $E_1 = 26$, $E_2 = 11$ and $E_3 = 26$, and the fold rejects at all 42 nonzero values of $r$. The cheater sends $E_2' = 11 + 5 = 16$ instead, before it knows $r$. At $r = 9$ both sides equal $15$, and running all 43 values of $r$ gives 43 passes. The output is a true claim, because the vectors $\v{a}^*$ and $\v{b}^*$ really have that revdot product, so the decider accepts it too.
+The false claim sits in slot 1, so its diagonal entry carries $r^2$, and it is false by $5$. Write $E_k$ for the sum of cross terms in the coefficient of $r^k$, so that $E_1 = e_{0,1} + e_{1,0}$, $E_2 = e_{0,2} + e_{2,0}$ and $E_3 = e_{1,2} + e_{2,1}$. The honest values are $E_1 = 26$, $E_2 = 11$ and $E_3 = 26$, and with them the fold rejects at all 42 nonzero values of $r$. It passes at $r = 0$, where every weight except slot 0's vanishes, so only the true claim in slot 0 is checked. The cheater sends $E_2' = 11 + 5 = 16$ instead, before it knows $r$. At $r = 9$ both sides equal $15$, and running all 43 values of $r$ gives 43 passes. The output is a true claim, because the vectors $\v{a}^*$ and $\v{b}^*$ really have that revdot product, so the decider accepts it too.
 
 <!-- /worked:collision -->
+
+The harm is that the fold's output now certifies the statement $35 = F(3)$, although the only witness behind it was built for $x = 4$ and does not satisfy that statement. A verifier who trusts the chain would accept a computation step that never happened.
 
 The challenge did nothing here, because the error and its cancellation carried the same power of $r$ for every $r$. Two claims escaped this problem because each of their diagonal entries has a power of $r$ to itself, and that stops being true at three claims. We therefore need weights under which no cross term can share a monomial with a diagonal entry.
 
@@ -127,11 +133,11 @@ With $\lambda_i = \lambda^i$ and $\eta_j = \eta^j$ for two independent challenge
 
 $$\lambda_i = \mu^{-i}, \qquad \eta_j = (\mu\nu)^j,$$
 
-so that $\lambda = \mu^{-1}$ and $\eta = \mu\nu$. Multiplying the weights gives
+which is the plain choice with the two challenges renamed, $\lambda = \mu^{-1}$ and $\eta = \mu\nu$. Any pair $(\lambda, \eta)$ with $\lambda \neq 0$ comes from exactly one pair $(\mu, \nu)$, so the two forms fold in the same way and nothing below depends on which one we use. We follow the book because its form makes the diagonal easy to read. Multiplying the weights gives
 
 $$\lambda_i \eta_j = \mu^{-i} \mu^{j} \nu^{j} = \mu^{j-i} \nu^{j}.$$
 
-On the diagonal $\mu$ cancels and the weight is $\nu^i$. The pair of exponents $(j - i,\ j)$ determines the cell $(i, j)$, so no two cells share a monomial. The array of all the $e_{i,j}$ is called the **error matrix**. The folded claim is
+On the diagonal $\mu$ cancels and the weight is $\nu^i$, so the claimed values depend on $\nu$ alone and $\mu$ only spreads the cross terms apart. The pair of exponents $(j - i,\ j)$ determines the cell $(i, j)$, so no two cells share a monomial. The array of all the $e_{i,j}$ is called the **error matrix**. The folded claim is
 
 $$\bar{A}^* = \sum_i \mu^{-i} \cdot \bar{A}_i, \qquad \bar{B}^* = \sum_j (\mu\nu)^j \cdot \bar{B}_j, \qquad c^* = \sum_{i,j} \mu^{j-i} \nu^j e_{i,j},$$
 
@@ -147,7 +153,7 @@ We replay the cheat of Section 3, with the same false claim and the same shift o
 
 <!-- /worked:two-challenge-cheat -->
 
-Section 9 counts the cheater's other options, and Section 11 shows that the book's other chapters write the same family of weights in other ways.
+Section 9 counts the cheater's other options, and Section 11 shows that the book's other chapters and the compression code write the same family of weights in other ways.
 
 ## 5. One fold on the toy curve
 
@@ -225,7 +231,7 @@ Repeating the fold for all 1,806 pairs $(\mu, \nu)$ with $\mu \neq 0$ gives a tr
 
 ## 6. An accumulator of revdot claims
 
-The output has the same form as each input, so it can [serve as an accumulator](./split-accumulation.md#_4-an-accumulator-with-two-parts). The book [says exactly this](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L97-L102). The instance of the accumulator is $(\bar{A}, \bar{B}, c)$ and its witness is $(\v{a}, \v{b}, \gamma_a, \gamma_b)$, and each step places the old accumulator in the list along with the step's new claims. This explains the two names [chapter 09 kept apart](./nark.md#_5-building-the-two-multiplicands), since $\bar{R}$ holds one step's trace while $\bar{A}$ can hold an aggregate of many claims.
+The output has the same form as each input, so it can [serve as an accumulator](./split-accumulation.md#_4-an-accumulator-with-two-parts). The book [says exactly this](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L97-L102). The instance of the accumulator is $(\bar{A}, \bar{B}, c)$ and its witness is $(\v{a}, \v{b}, \gamma_a, \gamma_b)$, and each step places the old accumulator in the list along with the step's new claims. This explains why [chapter 09 kept two names](./nark.md#_5-building-the-two-multiplicands) for what was then the same commitment, the trace commitment $\bar{R}$ and the left factor $\bar{A}$ of the revdot product. In recursion they differ, because $\bar{R}$ holds one step's trace while $\bar{A}$ can hold an aggregate of many claims.
 
 The accumulator sits beside the one from chapter 12, and the book [lists both](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/index.md?plain=1#L187-L188) in the accumulator of one curve. Here is a chain over the first three proofs, which folds one new claim at each step:
 
@@ -259,11 +265,15 @@ The second figure counts radix-2 FFTs at $\tfrac{N}{2} \log_2 N$ multiplications
 
 ## 7. Replacing the commitment sums with evaluations
 
-The verifier of Section 5 computes $\bar{A}^*$ and $\bar{B}^*$, which takes $2m$ scalar multiplications. Inside a circuit those are operations on [points whose coordinates lie in the wrong field](./curve-cycles.md#_1-two-fields-in-one-commitment). Chapter 13 could defer each one to the other circuit, but the book [takes a different route](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L139-L172) that reuses a mechanism we already have.
+The verifier of Section 5 computes $\bar{A}^*$ and $\bar{B}^*$, which takes $2m$ scalar multiplications. Inside a circuit those are operations on [points whose coordinates lie in the wrong field](./curve-cycles.md#_1-two-fields-in-one-commitment), so chapter 13 would [defer each one](./curve-cycles.md#_8-deferred-operations) to the circuit on the other curve. Deferral keeps them out of the wrong field, but each one still costs a scalar multiplication in that other circuit. The book [reduces their number](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L139-L181) by reusing a mechanism we already have, and the operations that remain are deferred as before.
+
+### The spot check
 
 The relation $\bar{A}^* = \sum_i \mu^{-i} \cdot \bar{A}_i$ between commitments says that the polynomials behind them satisfy $a^*(X) = \sum_i \mu^{-i}\, a_i(X)$, as long as the commitments are binding. An identity between polynomials can be [tested at a random point](./polynomial-encoding.md#_1-what-polynomials-provide). So the prover names $\bar{A}^*$ without the verifier computing it, the verifier sends a random $\theta$, and the prover reports the values $a_i(\theta)$ and $a^*(\theta)$. The verifier then checks
 
 $$a^*(\theta) = \sum_i \mu^{-i}\, a_i(\theta).$$
+
+The book calls this point $\beta$, but [chapter 08](./batched-openings.md#_7-beta-batching) already uses $\beta$ for its batching challenge, which appears again below, so we call the point $\theta$.
 
 This is field arithmetic, which a circuit handles natively. It only means something if the reported values are true, so each value becomes an evaluation claim, $(\bar{A}_i, \theta, a_i(\theta))$ for each $i$ and $(\bar{A}^*, \theta, a^*(\theta))$ for the output. The $\bar{B}$ side works in the same way. That makes $2(m + 1)$ claims, which join the list that [chapter 12's accumulator](./split-accumulation.md#_5-the-three-algorithms) folds anyway.
 
@@ -282,27 +292,49 @@ Field arithmetic alone confirms both sums: $1 \cdot 16 + 36 \cdot 5 + 6 \cdot 6 
 
 <!-- /worked:spot-check -->
 
-<!-- worked:spot-batch -->
-
-The list now holds 8 claims, all at the single point $\theta = 22$. Running the fold of chapter 12 with $\alpha = 11$, $u = 17$ and $\beta = 25$ gives $\bar{F} = (25,\,2)$, $f(17) = 33$ and the output $((28,\,21),\ 17,\ 42)$. Its witness $\v{p} = (22, 30, 5, 36, 41, 17, 35, 5)$ with $\gamma = 7$ commits to the same point and evaluates to the same value.
-
-<!-- /worked:spot-batch -->
-
 The challenge $\theta$ has to come after the prover names $\bar{A}^*$ and $\bar{B}^*$, for the reason that every test at a random point needs. A wrong commitment shows up as a nonzero difference polynomial:
 
 <!-- worked:spot-cheat -->
 
-Suppose the prover names $\bar{A}^* = (14,\,22)$, a commitment to $\v{a}^*$ with its entry 4 raised by one, and reports true values for it. The linear check then fails at every $\theta$ except 0. A difference that vanishes at $1, \ldots, 7$ does as well as a difference can, and it passes at those 7 of the 43 values. Outside those roots the prover has to report a false value at $\theta$, which makes that entry of the list a false evaluation claim for chapter 08 to catch.
+Suppose the prover names $\bar{A}^* = (14,\,22)$, a commitment to $\v{a}^*$ with its entry 4 raised by one, and reports true values for that vector. The difference between the two sides of the linear check is then $\theta^4$, so the check fails at every $\theta$ except 0.
 
 <!-- /worked:spot-cheat -->
 
-The saving comes from how [chapter 08's batching](./batched-openings.md#_7-beta-batching) charges for its inputs. Its point combination takes one scalar multiplication per polynomial, however many points that polynomial is queried at, and the [book makes this argument](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L174-L181) for why the total falls:
+<!-- worked:spot-cheat7 -->
+
+A cheater who chooses the change more carefully does better, but only up to a limit. The vectors have 8 entries, so the difference is a polynomial of degree at most 7 and has at most 7 roots. Adding $(X - 1)(X - 2) \cdots (X - 7)$ to $a^*(X)$ reaches that limit. The prover names $\bar{A}^* = (24,\,1)$, and the check passes at $\theta = 1, \ldots, 7$, which is 7 of the 43 values. At the other 36 values, a prover who wants the linear check to pass has to report a false value for some polynomial, and that entry of the list becomes a false evaluation claim for chapter 08's batching to catch.
+
+<!-- /worked:spot-cheat7 -->
+
+### Why the spot check costs less
+
+The saving depends on what the list already contains. Chapter 12's list holds the [claims of each fresh proof](./nark.md#_8-batching-the-evaluation-claims), and two of them are about the same commitments as that proof's revdot claim, because the proof's $\bar{A}$ and $\bar{B}$ are [the commitments that the NARK opens](./split-accumulation.md#the-input-list) at $xz$ and at $x$. So the spot check adds a second point to polynomials that are already queried.
+
+<!-- worked:spot-old -->
+
+For the three proofs of Section 5, chapter 12's list already holds these six claims, one about $a_i$ at $x_i z_i$ and one about $b_i$ at $x_i$:
+
+| Proof | $x_i$ | $z_i$ | $x_i z_i$ | $a_i(x_i z_i)$ | $b_i(x_i)$ |
+| --- | --- | --- | --- | --- | --- |
+| 0 | 9 | 5 | 2 | 9 | 35 |
+| 1 | 37 | 16 | 33 | 27 | 24 |
+| 2 | 31 | 33 | 34 | 4 | 32 |
+
+<!-- /worked:spot-old -->
+
+[Chapter 08's batching](./batched-openings.md#_10-claims-that-share-a-polynomial-or-a-point) combines all the claims into one commitment $\bar{P}$, with one $\beta$-weighted term per distinct polynomial and one more for the quotient commitment $\bar{F}$, so it pays one scalar multiplication per polynomial however many points that polynomial is queried at. The claimed values go into one number $f(u)$, which costs only field arithmetic. Counting the scalar multiplications in $\bar{P}$ before and after the spot check's claims at $\theta$ join the list gives the saving:
 
 <!-- worked:spot-count -->
 
-For the fold above with $m = 3$, computing the commitment sums directly takes $2m = 6$ scalar multiplications in the circuit. In the batched form each of the 8 polynomials takes one power of $\beta$, so the proof's own $\bar{A}_i$ and $\bar{B}_i$ cost nothing extra when the list already contains them, and only $\bar{A}^*$ and $\bar{B}^*$ are new. That makes $2$ new scalar multiplications in place of $6$, and they happen in the circuit on the other curve.
+Before the spot check, $\bar{P}$ combined $\bar{F}$ and the 6 commitments $\bar{A}_i$ and $\bar{B}_i$, at one scalar multiplication each. After it, $\bar{P}$ combines $\bar{F}$ and 8 commitments. The 6 old polynomials keep their single power of $\beta$, and only $\bar{A}^*$ and $\bar{B}^*$ are new. The spot check therefore adds $2$ scalar multiplications to the work deferred to the circuit on the other curve, where the direct sums would add $2m = 6$. Its other new work is 8 terms of $f(u)$ and the two weighted sums of the spot check, all of which are field arithmetic.
 
 <!-- /worked:spot-count -->
+
+The book [states the condition](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L174-L181), that the saving appears when some $a_i(X)$ is already queried elsewhere. A claim whose polynomials no other check queries, such as an old accumulator in our runs, gains nothing, since its $\bar{A}$ and $\bar{B}$ enter $\bar{P}$ as new polynomials and cost one scalar multiplication each, as the direct sum would.
+
+::: warning Reconstructed from code at commit 3219e08, not confirmed by the authors
+The code has no separate $\theta$. It [reuses the NARK's point $x$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/compute_v.rs#L499-L508), and it fixes the folded pair before it draws $x$, so $x$ plays the role of a $\theta$ drawn after $\bar{A}^*$ and $\bar{B}^*$ are fixed. The [chapter on recursion in Ragu](./ragu-recursion.md) shows the order of the messages.
+:::
 
 ## 8. Two layers
 
@@ -377,26 +409,15 @@ Applying Horner's rule at each layer gives the [book's count](https://github.com
 
 $$\big(N M^2 - N + 2\big) + \big(N^2 + 1\big) = N M^2 + N^2 - N + 3.$$
 
-The term $N M^2$ favours small groups and the term $N^2$ favours few groups, so a balance exists:
+The term $N M^2$ favours small groups and the term $N^2$ favours few groups, so the best split lies between the extremes.
 
-<!-- worked:param-table -->
+<!-- worked:param-choice -->
 
-| $M$ | $N$ | Room for | Constraints |
-| --- | --- | --- | --- |
-| One layer |  | 133 | 17,690 |
-| $19$ | $7$ | 133 | 2,572 |
-| $8$ | $17$ | 136 | 1,363 |
-| $7$ | $19$ | 133 | 1,276 |
-| $6$ | $23$ | 138 | 1,337 |
-| $5$ | $27$ | 135 | 1,380 |
+For its 133 claims the book picks $(M, N) = (7, 19)$, which costs 1,276 constraints, where one layer over all 133 claims would cost $133^2 + 1 = 17,690$.
 
-<!-- /worked:param-table -->
+<!-- /worked:param-choice -->
 
-<!-- worked:param-note -->
-
-Among all $M$ from 2 to 66, each with the smallest $N$ that gives room for 133 claims, the book's pair $(7, 19)$ has the lowest count, 1,276. That is 93% below the single layer, and the book reports the same two counts.
-
-<!-- /worked:param-note -->
+The code's fuse runs a different fold, so the [cost table of Section 10](#_10-the-quotient-fold-in-ragu-s-fuse) compares the matrix with that fold on the code's own parameters.
 
 ## 9. Why cheating fails
 
@@ -406,17 +427,17 @@ This argument is informal. The toy curve permits forgeries, since [every discret
 
 <!-- worked:cheat-honest -->
 
-Take the false list of Section 3 and let the prover send every cross term honestly. The stated $c^*$ then differs from the true product by the diagonal error alone, $(13 - 18)\,\nu = 38\,\nu$, which is zero only at $\nu = 0$. The fold passes at 42 of the 1,806 pairs, all of them with $\nu = 0$, where the second and third claims drop out.
+Take the false list of Section 3, whose false claim sits in slot 1 with diagonal weight $\nu$, and let the prover send every cross term honestly. The stated $c^*$ then differs from the true product by the diagonal error alone, $(13 - 18)\,\nu = 38\,\nu$, which is zero only at $\nu = 0$. The fold passes at 42 of the 1,806 pairs, all of them with $\nu = 0$, where the claims in slots 1 and 2 drop out.
 
 <!-- /worked:cheat-honest -->
 
-Those passes are a real weakness of $\nu = 0$, but a random challenge rarely takes that value. A false claim in slot 0 has weight $\nu^0 = 1$ and no such exception.
+The fold really does accept a false claim at $\nu = 0$, but a uniform challenge takes that value with probability $1/|\F|$, which is one chance in 43 on the toy curve and negligible on a 255-bit field. A false claim in slot 0 has weight $\nu^0 = 1$ and no such exception.
 
 ### Choosing the cross terms
 
 <!-- worked:cheat-best -->
 
-A cheater can also move the cross terms away from their honest values. The difference between the two sides then becomes a polynomial in $\mu$ and $\nu$, nonzero because of the diagonal error, and multiplying by $\mu^{m-1}$ clears the negative powers and leaves total degree at most $3(m - 1) = 6$. The Schwartz–Zippel bound therefore allows at most $258$ of the $43^2$ pairs. The best attack we found raises $e_{0,1}$ by $22$ and $e_{2,1}$ by $32$. The difference becomes $\nu(38 + 22\mu + 32\mu^{-1})$, which vanishes for every $\nu$ at $\mu = 3$ and $\mu = 7$, and it passes at 126 of the 1,806 pairs. The best of 300 random choices of offsets passes at 83.
+A cheater can also move the cross terms away from their honest values. The difference between the two sides then becomes a polynomial in $\mu$ and $\nu$, nonzero because of the diagonal error, and multiplying by $\mu^{m-1}$ clears the negative powers and leaves total degree at most $3(m - 1) = 6$. The multiplication changes no root with $\mu \neq 0$, because $\mu^{m-1}$ is nonzero there. The [Schwartz–Zippel bound](./statements-and-challenges.md#_6-polynomials-in-several-variables) therefore allows at most $258$ roots among all $43^2$ pairs, so at most $258$ among the 1,806 pairs with $\mu \neq 0$ that the fold can use, and the counts below are over those 1,806. The best attack we found raises $e_{0,1}$ by $22$ and $e_{2,1}$ by $32$. The difference becomes $\nu(38 + 22\mu + 32\mu^{-1})$, which vanishes for every $\nu$ at $\mu = 3$ and $\mu = 7$, and it passes at 126 of the 1,806 pairs. The best of 300 random choices of offsets passes at 83.
 
 <!-- /worked:cheat-best -->
 
@@ -442,7 +463,7 @@ A false claim survives the first layer as a false intermediate claim, which the 
 
 <!-- worked:cheat-layers -->
 
-Now place the false claim in group 0 of the six-claim run, with honest cross terms. At $\mu = 6$ and $\nu = 13$ the group's stated value $c^{(0)} = 39$ differs from the true product by $21$, and over all pairs the first layer passes at 42 of 1,806. That error sits in a diagonal slot of the second layer, in the group with weight 1, so with honest cross terms the second layer passes at 0 of its 1,806 pairs.
+Now put the false claim in slot 1 of group 0 of the six-claim run, in place of the honest proof of $1 = F(35)$, and keep the cross terms honest. At $\mu = 6$ and $\nu = 13$ the group's stated value $c^{(0)} = 39$ differs from the true product by $21$, and over all pairs the first layer passes at 42 of 1,806. That error sits in a diagonal slot of the second layer, in the group with weight 1, so with honest cross terms the second layer passes at 0 of its 1,806 pairs.
 
 <!-- /worked:cheat-layers -->
 
@@ -460,7 +481,7 @@ As in [chapter 12](./split-accumulation.md#a-false-claim-travels-to-the-decider)
 
 <!-- worked:cheat-carry -->
 
-Start the chain of Section 6 from the false claim in place of the true one, keeping every later step honest.
+Start the chain of Section 6 from the false witness of the false list in place of the proof of $35 = F(3)$, keeping every later step honest. The false claim is now the starting accumulator, in slot 0 of each fold.
 
 | Step | Stated $c$ | True $\revdot{\v{a}}{\v{b}}$ | Stated minus true |
 | --- | --- | --- | --- |
@@ -492,11 +513,17 @@ The reasoning relies on the [discrete log relation assumption](./polynomial-comm
 
 ## 10. The quotient fold in Ragu's fuse
 
-The matrix has one remaining cost, which the table at the end of this section measures. The prover sends one field element per off-diagonal cell, and each of those values enters the circuit. The verifier uses them only through the weighted sum $c^*$, so we can ask whether a shorter message could determine that sum. The code at `3219e08` answers this by [changing the weights](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/fold_revdot.rs#L1-L26).
+The matrix has one remaining cost, which the table at the end of this section measures. The prover sends one field element per off-diagonal cell, and each of those values enters the circuit. The verifier uses them only through the weighted sum $c^*$, so we can ask whether a shorter message could determine that sum. The code at `3219e08` answers this by [changing the weights](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/fold_revdot.rs#L1-L26). This new fold has a single challenge, which we write $\tau$ to keep it apart from the matrix's $\mu$ of Sections 4 to 9. The code and the later chapters call it $\mu$, and its second-layer counterpart $\mu'$, so read $\tau$ as $\mu$ when comparing with them.
 
 ### The derivation
 
-Treat the claims as the values of one curve through the points $0, 1, \ldots, m - 1$. Let $L_i(T)$ be the Lagrange basis polynomial that equals 1 at $T = i$ and 0 at the other nodes, and define
+Section 3 showed why a single challenge failed. The prover's message entered the check with the same power of $r$ as a claim's own diagonal entry, so the prover could use the message to cancel that claim's error. The matrix fixed this by giving every cell its own monomial, at the price of $m^2 - m$ messages. A different fix keeps one challenge and instead makes the message harmless at the places where the claims are checked. Suppose each claim $i$ is checked by what some polynomial in a new variable $T$ says at $T = i$. If the prover's message enters only through a product with
+
+$$Z(T) = \prod_i (T - i),$$
+
+then the message drops out at every node $T = i$, because $Z(i) = 0$, and nothing the prover sends can change what claim $i$'s own check sees.
+
+To put claim $i$ at $T = i$ we interpolate. Let $L_i(T)$ be the [Lagrange basis polynomial](./polynomial-encoding.md#_3-interpolating-the-rows) that equals 1 at $T = i$ and 0 at the other nodes, built as in chapter 05 but on the nodes $0, 1, \ldots, m - 1$, and define
 
 $$\v{A}(T) = \sum_i L_i(T)\, \v{a}_i, \qquad \v{B}(T) = \sum_i L_i(T)\, \v{b}_i, \qquad K(T) = \sum_i L_i(T)\, c_i.$$
 
@@ -510,15 +537,17 @@ At the node $T = i$ these reduce to $\v{a}_i$, $\v{b}_i$ and $c_i$. So the diffe
 
 $$R(T) = \revdot{\v{A}(T)}{\v{B}(T)} - K(T)$$
 
-equals $e_{i,i} - c_i$ at node $i$, and it vanishes at every node exactly when all the claims are true. A polynomial that vanishes at all $m$ nodes is a multiple of $Z(T) = \prod_i (T - i)$. Bilinearity gives the first term of $R(T)$ as
+equals $e_{i,i} - c_i$ at node $i$, and it vanishes at every node exactly when all the claims are true. A polynomial that vanishes at all $m$ nodes is a multiple of $Z(T)$. This is the [divisibility test of chapter 05's QAP](./polynomial-encoding.md#_5-the-vanishing-polynomial-and-the-quotient), applied to a list of claims in place of a list of gates. The nodes $0, \ldots, m - 1$ play the role of the domain, $Z$ is its vanishing polynomial, and as there the prover fixes the quotient before a random point tests the identity. Bilinearity gives the first term of $R(T)$ as
 
 $$\revdot{\v{A}(T)}{\v{B}(T)} = \sum_{i,j} L_i(T) L_j(T)\, e_{i,j},$$
 
-which has degree at most $2m - 2$. Since $Z$ has degree $m$, the quotient $Q(T) = R(T) / Z(T)$ has degree at most $m - 2$, and therefore only $m - 1$ coefficients. This is the shorter message. The prover sends the coefficients of $Q$, and the verifier sends one challenge $\mu$. Evaluating at $\mu$ gives the new claim, with weights $\lambda_i = L_i(\mu)$ on both sides:
+which has degree at most $2m - 2$. Since $Z$ has degree $m$, the quotient $Q(T) = R(T) / Z(T)$ has degree at most $m - 2$, and therefore only $m - 1$ coefficients. This is the shorter message. The prover sends the coefficients of $Q$, and the verifier sends one challenge $\tau$. Evaluating at $\tau$ gives the new claim, with the weights $\ell_i = L_i(\tau)$ on both sides:
 
-$$\bar{A}^* = \sum_i \lambda_i \cdot \bar{A}_i, \qquad \bar{B}^* = \sum_i \lambda_i \cdot \bar{B}_i, \qquad c^* = K(\mu) + Z(\mu)\, Q(\mu).$$
+$$\bar{A}^* = \sum_i \ell_i \cdot \bar{A}_i, \qquad \bar{B}^* = \sum_i \ell_i \cdot \bar{B}_i, \qquad c^* = K(\tau) + Z(\tau)\, Q(\tau).$$
 
-The value is right because $\revdot{\v{A}(\mu)}{\v{B}(\mu)} = K(\mu) + R(\mu) = K(\mu) + Z(\mu) Q(\mu)$. Notice that the prover's work has not shrunk, since the sum over $i, j$ still needs every product, including the diagonal.
+The value is right because $\revdot{\v{A}(\tau)}{\v{B}(\tau)} = K(\tau) + R(\tau) = K(\tau) + Z(\tau) Q(\tau)$. The prover's message enters only through $Z(\tau)\,Q(\tau)$, which is the product with $Z$ that the opening paragraph asked for. The prover's work has not shrunk, though. Expanding the sum over $i, j$ still needs every cross term $e_{i,j}$ with $i \neq j$, which are the same products that the matrix fold needs. The diagonal adds nothing, because an honest prover already knows $e_{i,i} = c_i$, as in Section 5, and can put $c_i$ in those terms without computing the product.
+
+The code calls the coefficients of $Q$ "error terms". The book uses "cross term" and "error term" [interchangeably](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L80-L93) for an off-diagonal product $e_{i,j}$, which is a different number, so we keep "cross term" for a product and say "quotient coefficient" for the code's values. As with the cross terms, "sends" means that the transcript absorbs the coefficients before it produces the challenge. In the code the prover [commits to a stage holding them, and the transcript absorbs that commitment before squeezing $\tau$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/mod.rs#L137-L169).
 
 ### A run with three claims
 
@@ -534,27 +563,27 @@ Using the matrix of Section 5 in the expansion gives the coefficients of $T^0, \
 | $K(T)$ | $(13, 31, 34)$ |
 | $R(T)$ | $(0, 25, 3, 27, 31)$ |
 
-Dividing by $Z(T)$ leaves no remainder and gives $Q(T) = 34 + 31T$. The prover commits to these two coefficients before it sees the challenge.
+Dividing by $Z(T)$ leaves no remainder and gives $Q(T) = 34 + 31T$. The prover sends these two coefficients before it sees the challenge.
 
 <!-- /worked:q-divide -->
 
 <!-- worked:q-run -->
 
-The verifier sends $\mu = 20$. The three weights are $\lambda_i = L_i(20)$, which gives $(42, 27, 18)$, and the same weights apply on both sides, so $\bar{A}^* = (22,\,7)$ and $\bar{B}^* = (8,\,22)$. The verifier computes $K(20) = 0$, $Z(20) = 3$ and $Q(20) = 9$, so the new value is $c^* = 0 + 3 \cdot 9 = 27$. The prover's folded vectors are $\v{a}^* = (17, 13, 17, 14, 14, 14, 0, 0)$ and $\v{b}^* = (17, 37, 18, 17, 28, 36, 16, 33)$, and their revdot product is $27$. All 43 values of $\mu$ pass for these honest claims. The prover sent two field elements where the error matrix needed six.
+The verifier sends $\tau = 20$. The three weights are $\ell_i = L_i(20)$, which gives $(42, 27, 18)$, and the same weights apply on both sides, so $\bar{A}^* = (22,\,7)$ and $\bar{B}^* = (8,\,22)$. The verifier computes $K(20) = 0$, $Z(20) = 3$ and $Q(20) = 9$, so the new value is $c^* = 0 + 3 \cdot 9 = 27$. The prover's folded vectors are $\v{a}^* = (17, 13, 17, 14, 14, 14, 0, 0)$ and $\v{b}^* = (17, 37, 18, 17, 28, 36, 16, 33)$, and their revdot product is $27$. All 43 values of $\tau$ pass for these honest claims. The prover sent two field elements where the error matrix needed six.
 
 <!-- /worked:q-run -->
 
 ### Why one challenge is enough
 
-Section 3 showed that one challenge with weights $r^i$ fails, so we need to see what has changed. Suppose claim $i$ is false. For any quotient $Q$ the prover might send, the difference between the two sides is
+The opening of the derivation gives the argument. Suppose claim $i$ is false. For any quotient $Q$ the prover might send, the difference between the two sides is
 
-$$\revdot{\v{A}(T)}{\v{B}(T)} - K(T) - Z(T)\,Q(T),$$
+$$\revdot{\v{A}(T)}{\v{B}(T)} - K(T) - Z(T)\,Q(T).$$
 
-and at node $i$ the last term vanishes because $Z(i) = 0$. The difference there equals $e_{i,i} - c_i$, which is not zero. So no choice of $Q$ can make this polynomial zero, and it has at most $2m - 2$ roots. In Section 3 the prover's message shared a power of $r$ with the false claim and could cancel it. Here the message is multiplied by $Z$, which is zero at the place where the false claim shows up.
+At node $i$ the last term vanishes, and the difference equals $e_{i,i} - c_i$, which is not zero. So no choice of $Q$ makes this polynomial zero, and as a nonzero polynomial of degree at most $2m - 2$ it has at most $2m - 2$ roots $\tau$.
 
 <!-- worked:q-count -->
 
-Take the false list of Section 3, with slot 1 false by $5$. We tried all $43^2 = 1,849$ values of the two quotient coefficients against all 43 values of $\mu$. The best choice passes at 4 values of $\mu$, which is the bound $2m - 2 = 4$. Every choice passes at $\mu = 0$ and $\mu = 2$, because at a node the weights select one claim and $Z$ vanishes, so the fold checks only the claim in that slot. No choice passes at $\mu = 1$, the node of the false claim.
+Take the false list of Section 3, whose false claim sits in slot 1 and is false by $5$. We tried all $43^2 = 1,849$ values of the two quotient coefficients against all 43 values of $\tau$. The best choice passes at 4 values of $\tau$, which is the bound $2m - 2 = 4$. Every choice passes at $\tau = 0$ and $\tau = 2$, because at a node the weights select one claim and $Z$ vanishes, so the fold checks only the claim in that slot. No choice passes at $\tau = 1$, the node of the false claim.
 
 <!-- /worked:q-count -->
 
@@ -562,105 +591,90 @@ The passes at nodes show the fold's weak spot. The [code's comments](https://git
 
 <!-- worked:q-late -->
 
-At $\mu = 20$ the cheater needs $Q(20) = 30$, and one linear equation in the two coefficients provides it. This is why the code fixes the quotient before the challenge.
+At $\tau = 20$ the cheater needs $Q(20) = 30$, and one linear equation in the two coefficients provides it. This is why the code fixes the quotient before the challenge.
 
 <!-- /worked:q-late -->
 
 <!-- worked:q-bound -->
 
-The code's comments give each layer a failure bound of $(2m - 2)/|S|$ for a challenge uniform on a set $S$, and they put the nested challenges at $|S| = 2^{143}$. The largest reduction on the nested side has $m = 10$, which gives $18/2^{143}$, and that is below $2^{-138}$.
+The code's comments give each layer a failure bound of $(2m - 2)/|S|$ for a challenge uniform on a set $S$, and they put the nested challenges at $|S| = 2^{143}$, the [143-bit endoscalar challenges](./curve-cycles.md#shorter-challenges) of chapter 13. The largest reduction on the nested side has $m = 10$, which gives $18/2^{143}$, and that is below $2^{-138}$.
 
 <!-- /worked:q-bound -->
 
 ### Two layers in the code
 
-The code still folds in two layers. The second layer treats the groups' values as its targets and has a fresh challenge $\mu'$:
+The code still folds in two layers. The second layer treats the groups' values as its targets and has a fresh challenge $\tau'$:
 
 <!-- worked:q-layers -->
 
-For the six claims of Section 8 with the groups unchanged, the first layer commits to $Q_0 = (34, 31)$ and $Q_1 = (10, 15)$. At $\mu = 20$ the groups give values $c^{(0)} = 27$ and $c^{(1)} = 37$. The second layer has two inputs, so its quotient has the single coefficient $3$. At $\mu' = 33$ the final value is $c^* = 42$, which equals the revdot product of the final vectors. The prover sent $2 \cdot 2 + 1 = 5$ field elements, where Section 8 sent 14.
+For the six claims of Section 8 with the groups unchanged, the prover sends the first layer's quotients $Q_0 = (34, 31)$ and $Q_1 = (10, 15)$. At $\tau = 20$ the groups give values $c^{(0)} = 27$ and $c^{(1)} = 37$. The second layer has two inputs, so its quotient has the single coefficient $3$. At $\tau' = 33$ the final value is $c^* = 42$, which equals the revdot product of the final vectors. The prover sent $2 \cdot 2 + 1 = 5$ field elements, where Section 8 sent 14.
 
 <!-- /worked:q-layers -->
 
-Its comments [give the reason](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/fold_revdot.rs#L82-L87) for keeping two layers. The number of carried coefficients is $b - 1$ for any split of a budget of $b$ slots, while the prover's count of revdot products depends on the split, and the choice of seven per group sits near the minimum. So the two layers now serve the prover more than the circuit. The next table applies the counts to the native parameters:
+A second layer still helps, even though the quotient fold already sends only $m - 1$ numbers per layer. The derivation showed that the prover still computes $\revdot{\v{A}(T)}{\v{B}(T)}$, which needs every product $\revdot{\v{a}_i}{\v{b}_j}$ with $i \neq j$ among the claims it folds together. Grouping limits those products to pairs inside one group, plus pairs of the groups' results. The code's comments [give this reason](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/fold_revdot.rs#L82-L87), and they note that the prover sends $b - 1$ quotient coefficients in total for a budget of $b$ slots however the slots are grouped, so the grouping costs the message nothing. On the native parameters:
+
+<!-- worked:q-why-layers -->
+
+With one layer over all 98 slots, the prover needs every product $\revdot{\v{a}_i}{\v{b}_j}$ with $i \neq j$, which is $98 \cdot 97 = 9,506$ products. With 14 groups of 7, it needs $7 \cdot 6 = 42$ products inside each group and $14 \cdot 13 = 182$ between the intermediate claims, so $14 \cdot 42 + 182 = 770$ in all, the same number as the book's two-layer matrix. The circuit's count also falls, from 484 gates to 262, because the Lagrange weights for 98 nodes cost more to compute than the weights for 7 nodes and 14 nodes together.
+
+<!-- /worked:q-why-layers -->
+
+The next table sets the three options side by side:
 
 <!-- worked:q-costs -->
 
 | For 98 slots, $(M, N) = (7, 14)$ | Book's two-layer error matrix | Code's quotient fold | Quotient fold with one layer |
 | --- | --- | --- | --- |
-| Field elements the prover commits to | 770 | 97 | 97 |
-| Revdot products the prover computes | 770 | 882 | 9,604 |
+| Field elements the prover sends before the challenges | 770 | 97 | 97 |
+| Off-diagonal revdot products the prover computes | 770 | 770 | 9,506 |
 | Multiplication gates for the scalar fold | 871 | 262 | 484 |
 
 <!-- /worked:q-costs -->
 
-The last row of the first column uses the book's formula, and the other two use our count of the multiplications in the code's [`Basis`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/fold_revdot.rs#L302-L370), which is $3m - 5$ per layer for the basis and $2m - 1$ per group. These rows cover only the folding of scalars. The circuit also computes the targets $k(y)$, and another circuit [checks the folded evaluations](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/compute_v.rs#L509-L531).
+The first two columns compute the same products, so the quotient fold does not trade prover work for a shorter message. It sends and checks far less for the same work. The last row of the first column uses the book's formula from Section 8. The other two columns use our count of the multiplications in the code's [`Basis`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/fold_revdot.rs#L302-L370), which computes the Lagrange weights and then folds each group's scalars. These rows cover only the folding of scalars, since the circuit also computes each claim's target.
 
-<!-- worked:q-nested -->
+<!-- worked:q-code-diag -->
 
-By the same count, the nested side's $(M, N) = (8, 10)$ has room for $80$ claims, commits to $79$ coefficients, and uses 213 multiplication gates for its scalar folds.
+The code forms the diagonal products as well. Its division routine [computes every product of a group, the diagonal included](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/fold_revdot.rs#L188-L224) and uses each diagonal product as that claim's target, which adds $98 + 14$ products to the count, for $882$ in all. This is a choice of the implementation and not a requirement of the fold, since substituting $c_i$ gives the same quotient.
 
-<!-- /worked:q-nested -->
+<!-- /worked:q-code-diag -->
 
-### Locating the fold in the code
-
-The formula $c^* = K(\mu) + Z(\mu) Q(\mu)$ appears in [`corrected`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/fold_revdot.rs#L358-L369), where `target` is $K(\mu)$, the loop is Horner's rule for $Q(\mu)$, and `self.z` is $Z(\mu)$:
-
-```rust
-let target = self.linear(dr, targets)?;
-if quotient.is_empty() {
-    return Ok(target);
-}
-let mut q = quotient.last().expect("quotient").clone();
-for coefficient in quotient[..quotient.len() - 1].iter().rev() {
-    q = q.mul(dr, r)?.add(dr, coefficient);
-}
-let correction = self.z.mul(dr, &q)?;
-Ok(target.add(dr, &correction))
-```
+The fold's output has the form of its inputs, so the code carries it as Section 6's accumulator. The folded pair is stored as the proof's $A$ and $B$, and at the next fuse it [enters the list as a claim](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/claims.rs#L167-L170) whose target is [the previous fold's $c$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/collapse.rs#L237-L247). The order in which the fuse absorbs the quotients and squeezes the challenges, the stages that hold the quotients, and the circuit that checks the fold belong with the [staging chapter](./staging.md) and the [chapter on recursion in Ragu](./ragu-recursion.md).
 
 ::: warning Reconstructed from code at commit 3219e08, not confirmed by the authors
+- **Our derivation.** The code's comments credit the quotient identity to [ProtoGalaxy](https://eprint.iacr.org/2023/1106), which we could not read, so the derivation above is our own and does not rely on that paper. The toy runs and the attacks in this chapter are also our own, checked by the script behind this page.
+- **Gate counts.** The counts for the code's fold in the cost table are our reading of its functions. The authors have not published them.
 - **Parameters.** The native side has [14 groups of 7](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/mod.rs#L144-L149), which gives 98 slots for its [86 claims](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/tests.rs#L1416), and the nested side has [10 groups of 8](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/nested/mod.rs#L175-L180) for its 72. [Unused slots stay zero](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/fold_revdot.rs#L137-L143).
-- **Order of messages.** The [fuse](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/mod.rs#L154-L210) absorbs the first layer's stage commitment and squeezes $\mu$, then absorbs the second layer's and squeezes $\mu'$, then absorbs the commitment for $A$ and $B$ and squeezes $x$. The quotient coefficients sit in [`inner_error`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/stages/inner_error.rs#L25-L33) and `outer_error` stages, which the [staging chapter](./staging.md) explains.
-- **The circuit.** The [`collapse` circuit](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/collapse.rs#L250-L287) checks that each group folds to the value witnessed in `outer_error`, and that those values fold to the instance's $c$. Its comments state that this last check is [waived for the bootstrap step](./recursive-proofs.md#the-base-case-in-ragu), which takes only dummy inputs.
-- **The spot check.** The code has no separate $\theta$. It [reuses $x$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/compute_v.rs#L499-L508), and it checks $A$ at $xz$ and $B$ at $x$, because each trace's $b$ contains $r_i(Xz)$. Both checks then read the same values $r_i(xz)$, which saves separate queries.
-- **The commitments.** The prover computes $A$'s commitment with a [small MSM over the children's commitments](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/_06_ab.rs#L155-L178) and commits to $B$ directly. These are the polynomials [`AbA` and `AbB`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/proof/mod.rs#L405-L409) that chapter 09 noticed. At the next fuse they [enter as "raw" claims](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/claims.rs#L167-L170), with [the child's $c$ as the target](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/collapse.rs#L237-L247). This is the accumulator of Section 6.
-- **The decider.** The [uncompressed verifier](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/verify.rs#L175-L180) recomputes the revdot product of each claim that the proof carries.
+- **The formula.** The value $c^* = K(\tau) + Z(\tau) Q(\tau)$ is computed in [`corrected`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/fold_revdot.rs#L358-L369), which evaluates $Q(\tau)$ by Horner's rule.
 - **Blinding.** The book's accumulator has $\gamma_a$ and $\gamma_b$. The code stores each polynomial with its commitment and no such factors, as [chapter 12 found](./split-accumulation.md#_11-split-accumulation-in-ragu) for $p$. Our runs include them to match chapter 09.
-- **Both curves.** [One set of challenges drives both sides' folds](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/extensions/endoscalar.md?plain=1#L205-L208), as [chapter 13 described](./curve-cycles.md#_9-sharing-one-set-of-challenges) for the other challenges, and the [endoscalars chapter](./endoscalars.md) gives the lift.
+- **Both curves.** [One set of challenges drives both sides' folds](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/extensions/endoscalar.md?plain=1#L205-L208), as [chapter 13 described](./curve-cycles.md#_9-sharing-one-set-of-challenges) for the other challenges.
 :::
 
 All of this describes the Ragu revision at `3219e08`. Tachyon, which has not activated on mainnet and whose design is still changing, pins a [different Ragu revision](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/Cargo.toml#L83) and [runs its steps against a mock](./proof-tree.md) of Ragu, so nothing at its pinned commit executes this fold.
 
 ## 11. Compression and the forms of the fold
 
-Compression [folds again when a proof leaves the tree](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/revdot/fold.rs#L1-L19), and here the matrix returns, with plain weights $\mu^i$ on the $\v{a}$ side and $\nu^j$ on the $\v{b}$ side. These are the same family as Section 4 under a change of names, where the plain weights' bases are the book's $\mu^{-1}$ and $\mu\nu$:
+Compression [folds again when a proof leaves the tree](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/revdot/fold.rs#L1-L19), and here the matrix returns. The compression code names its two challenges $\mu$ and $\nu$ as well, but they enter differently from the book's, so we write them $\mu_c$ and $\nu_c$. Compression puts the weight $\mu_c^i$ on $\v{a}_i$ and $\nu_c^j$ on $\v{b}_j$. These are the plain weights $\lambda^i$ and $\eta^j$ that Section 4 started from, with $\mu_c = \lambda$ and $\nu_c = \eta$, so the renaming $\lambda = \mu^{-1}$, $\eta = \mu\nu$ of Section 4 carries the book's form to compression's:
 
 <!-- worked:reparam -->
 
-For the fold of Section 5, the book's $\mu = 6$ and $\nu = 13$ correspond to the plain weights $\lambda = 36$ and $\eta = 35$, and these give the same $\v{a}^*$, $\v{b}^*$ and $c^* = 19$. The form in the structured vectors chapter at the same $\mu$ and $\nu$ gives a different pair of vectors with revdot product $18$, and its stated formula holds as well.
+For the fold of Section 5, the book's $\mu = 6$ and $\nu = 13$ correspond to the plain weights $\mu_c = \lambda = 36$ and $\nu_c = \eta = 35$, and these give the same $\v{a}^*$, $\v{b}^*$ and $c^* = 19$.
 
 <!-- /worked:reparam -->
 
-Its verifier does not read the cross terms either. The prover packs them into a vector $\v{E}$ and commits to it, and the [public vector $\v{W}$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/revdot/fold.rs#L199-L232) holds their weights in mirrored positions, so that the weighted sum becomes one more revdot product $\varepsilon = \revdot{\v{E}}{\v{W}}$. With the numbers of Section 5 and one layer:
+Its verifier does not read the cross terms either. The prover packs them into a committed vector $\v{E}$, and a [public vector $\v{W}$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/revdot/fold.rs#L199-L232) holds their weights in mirrored positions, so that the weighted sum of the cross terms becomes one more revdot product $\varepsilon = \revdot{\v{E}}{\v{W}}$. The [chapter on compression in Ragu](./compression.md) runs this packing on the toy curve.
 
-<!-- worked:e-w -->
-
-The six cross terms of Section 5, packed row by row, give $\v{E} = (37, 19, 35, 27, 36, 27, 0, 0)$. The public vector with the weights mirrored is $\v{W} = (0, 0, 38, 6, 25, 36, 21, 35)$, and $\varepsilon = \revdot{\v{E}}{\v{W}} = 12$. The diagonal contributes $7$, so the target of the folded pair is $7 + 12 = 19$, the value of $c^*$ from Section 5.
-
-<!-- /worked:e-w -->
-
-The fold then leaves [three revdot claims, $(A, B)$ and one $(E, W)$ per layer](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/revdot/mod.rs#L1-L12), and the split of [chapter 05](./polynomial-encoding.md#_12-splitting-the-product) proves a random combination of them. This is the one place that pays for the product polynomial and its FFTs. The [chapter on recursion in Ragu](./ragu-recursion.md) continues from there.
+Compression folds in two layers, and each layer packs its cross terms into its own pair $(\v{E}, \v{W})$. The fold therefore leaves [three revdot claims](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/revdot/mod.rs#L1-L12), namely the folded pair $(A, B)$ and the two pairs $(E, W)$. The split of [chapter 05](./polynomial-encoding.md#_12-splitting-the-product) then proves a random combination of the three at once. This is the one place that pays for the product polynomial and its FFTs. The [chapter on compression in Ragu](./compression.md) continues from there.
 
 ::: warning The Ragu Book and the code differ here
 The sources contain four forms of this fold:
 
-| Source | Weight on $\v{a}_i$ | Weight on $\v{b}_j$ | Prover's message for $m$ claims | Parameters |
-| --- | --- | --- | --- | --- |
-| [Book, revdot chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L60-L70) | $\mu^{-i}$ | $(\mu\nu)^j$ | $m(m - 1)$ cross terms | $M = 7$, $N = 19$ |
-| [Book, structured vectors](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/structured_vectors.md?plain=1#L50-L63) | $(\mu\nu)^i$ | $\mu^{-j}$ | The whole matrix $E$, with the diagonal enforced | None given |
-| [Code's fuse](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/fold_revdot.rs#L1-L12), [book's recursion chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/recursion/index.md?plain=1#L26) | $L_i(\mu)$ | $L_j(\mu)$ | $m - 1$ quotient coefficients | $M = 7$, $N = 14$ native, $M = 8$, $N = 10$ nested |
-| [Code's compression](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/revdot/fold.rs#L188-L197), [book's compression chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/recursion/compression.md?plain=1#L56-L63) | $\mu^i$ | $\nu^j$ | One commitment to $m(m - 1)$ cross terms, and $\varepsilon$ | Groups of 7 |
+| Source | Challenges (source's name, ours) | Weight on $\v{a}_i$ | Weight on $\v{b}_j$ | Prover's message for $m$ claims | Parameters |
+| --- | --- | --- | --- | --- | --- |
+| [Book, revdot chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L60-L70) | $\mu, \nu$, the same | $\mu^{-i}$ | $(\mu\nu)^j$ | $m(m - 1)$ cross terms | $M = 7$, $N = 19$ |
+| [Book, structured vectors](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/structured_vectors.md?plain=1#L50-L63) | $\mu, \nu$, the same | $(\mu\nu)^i$ | $\mu^{-j}$ | The whole matrix $E$, with the diagonal enforced | None given |
+| [Code's fuse](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/fold_revdot.rs#L1-L12), [book's recursion chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/recursion/index.md?plain=1#L26) | $\mu$ and $\mu'$, ours $\tau$ and $\tau'$ | $L_i(\tau)$ | $L_j(\tau)$ | $m - 1$ quotient coefficients | $M = 7$, $N = 14$ native, $M = 8$, $N = 10$ nested |
+| [Code's compression](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/revdot/fold.rs#L188-L197), [book's compression chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/recursion/compression.md?plain=1#L56-L63) | $\mu, \nu$, ours $\mu_c, \nu_c$ | $\mu_c^i$ | $\nu_c^j$ | One commitment to $m(m - 1)$ cross terms, and $\varepsilon$ | Groups of 7 |
 
 The first, second and fourth rows are one family of weights written in different ways. The book's revdot chapter also says that its 133 claims belong to "Ragu's fuse operation", whereas the code's fuse has 86 native claims and uses the third row. The site follows the code. We found no statement in the sources of why the fuse uses one form and compression another, so we offer none.
 :::
@@ -673,9 +687,9 @@ This chapter took the following steps:
 2. Folding two claims with one challenge needs one cross term, but with three claims a cross term shares a power of $r$ with a claimed value, which lets a false claim pass at every $r$.
 3. Independent weights give each cell of the error matrix its own monomial, and the book's choice is $\mu^{-i}$ and $(\mu\nu)^j$. The prover sends the $m^2 - m$ off-diagonal cells before the challenges.
 4. The result has the form of its inputs, so it serves as an accumulator, and steps avoid the split and its FFTs. A decider finishes with two MSMs and one revdot product.
-5. A spot check at a random $\theta$ replaces the commitment sums in the circuit with field arithmetic and evaluation claims for chapter 08's batching.
+5. A spot check at a random $\theta$ reduces the commitment sums in the circuit to field arithmetic, evaluation claims for chapter 08's batching, and 2 deferred scalar multiplications for $\bar{A}^*$ and $\bar{B}^*$. The saving is real only for claims whose polynomials another check already queries.
 6. Two layers with fresh challenges cut the quadratic field arithmetic, from $(MN)^2 + 1$ constraints to $NM^2 + N^2 - N + 3$.
 7. A false claim passes only at rare challenges, as long as each layer's messages come before that layer's challenges and nobody knows a relation among the generators. If it passes, it stays false until the decider.
-8. Ragu's fuse replaces the matrix with a quotient polynomial of $m - 1$ coefficients and one challenge per layer, using Lagrange weights. Compression keeps a committed form of the matrix and then runs the split.
+8. Ragu's fuse replaces the matrix with a quotient polynomial of $m - 1$ coefficients and one challenge per layer, using Lagrange weights. The prover computes the same off-diagonal products as for the matrix, but it sends and the circuit checks far fewer values. Compression keeps a committed form of the matrix and then runs the split.
 
 The fold accepts any $\bar{B}$ whose vector has the right product, and we have not yet asked whether that vector contains the right circuit's wiring. The verifier's other linear cost, computing $s(x, y)$, concerns the same question. The [next chapter](./wiring-and-registry.md) answers it.

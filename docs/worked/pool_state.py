@@ -131,7 +131,8 @@ frag['set-poly'] = '\n'.join([
     '',
     f'$$\\begin{{aligned}}',
     f'(X - {ta})(X - {tb}) &= X^2 - {ta + tb}X + {ta * tb} = {pshow(f2)},\\\\',
-    f'({pshow(f2)})(X - {tc}) &= {pshow(f3)}.',
+    f'({pshow(f2)})(X - {tc}) &= X^3 + ({f2[1]} - {tc})X^2 + ({f2[0]} - {f2[1]} \\cdot {tc})X - {f2[0]} \\cdot {tc}\\\\',
+    f'&= X^3 + {f2[1] - tc} \\cdot X^2 {"-" if f2[0] - f2[1] * tc < 0 else "+"} {abs(f2[0] - f2[1] * tc)}X - {f2[0] * tc} = {pshow(f3)}.',
     f'\\end{{aligned}}$$',
 ])
 for perm in itertools.permutations(STAMPS['A']):
@@ -194,13 +195,27 @@ assert fake_root not in values
 pfake = roots_poly([t for t in STAMPS['A'] if t != tc] + [fake_root] + STAMPS['B'])
 assert commit(pfake) != cab
 passing = [x for x in range(Q) if ev(pfake, x) == ev(fa, x) * ev(fb, x) % Q]
-assert len(passing) <= 6 and r not in passing and ev(pfake, tc) != 0 and ev(pfake, fake_root) == 0
-frag['union-cheat'] = (
+assert len(passing) <= 5 and r not in passing and ev(pfake, tc) != 0 and ev(pfake, fake_root) == 0
+# Both products are monic of degree 6 and share every factor except one.
+kept = [t for t in STAMPS['A'] if t != tc]
+diff = [(x - y) % Q for x, y in zip(pfake, pab)]
+shared = pmul(roots_poly(kept), fb)
+lead = (tc - fake_root) % Q
+assert diff[-1] == 0 and diff == pmul(shared, [lead]) + [0]
+assert sorted(passing) == sorted(kept + STAMPS['B'])
+frag['union-cheat'] = '\n'.join([
     f'Suppose a prover claims a union $p\'$ with the root ${tc}$ replaced by ${fake_root}$. Then $p\'({tc}) = {ev(pfake, tc)}$, '
     f'so ${tc}$ would look absent from the merged set, and $p\'({fake_root}) = 0$, so ${fake_root}$ would look present. '
-    f'Trying every challenge in $\\F_{{{Q}}}$, the false product passes at exactly {len(passing)} of the {Q} values, namely {", ".join(str(x) for x in passing)}. '
-    f'The degree bound allows at most 6, since $p\' - f_A f_B$ has degree at most 6 and each passing challenge is one of its roots. '
-    f'The chance {len(passing)}/{Q} is large here only because the field is tiny. On a field of about $2^{{254}}$ elements, the same bound is negligible.')
+    f'Trying every challenge in $\\F_{{{Q}}}$, the false product passes at exactly {len(passing)} of the {Q} values, namely {", ".join(str(x) for x in passing)}.',
+    '',
+    f'The bound explains this count. Both $p\'$ and $f_A f_B$ are monic of degree 6, so their leading terms cancel and the difference has degree at most 5. '
+    f'Here the two products share every factor except one, so the difference factors as',
+    '',
+    f'$$p\'(X) - f_A(X)f_B(X) = (X - {kept[0]})(X - {kept[1]})\\,f_B(X)\\,\\big((X - {fake_root}) - (X - {tc})\\big) = {lead}\\,(X - {kept[0]})(X - {kept[1]})\\,f_B(X).$$',
+    '',
+    f'Its roots are the five values that the two products share, and those are exactly the passing challenges, so this example meets the bound of 5. '
+    f'The chance {len(passing)}/{Q} is large here only because the field is tiny. On a field of about $2^{{254}}$ elements, the same bound is negligible.',
+])
 
 q_ok, rem_ok = pdiv(pab, fb)
 assert q_ok == fa and all(c == 0 for c in rem_ok)
@@ -233,7 +248,7 @@ frag['recompute'] = '\n'.join([
     f'Suppose stamp A publishes the list ${ta}$, ${tb}$, ${tc}$ but carries a commitment to the polynomial with roots ${ta}$, ${tb}$, ${fake_root}$. That commitment is ${show(c_tampered)}$.',
     '',
     f'- **Recomputation.** The validator builds $f_A$ from the list and commits to it, which gives ${show(COMMIT["A"])}$. The two points differ, so it rejects the stamp.',
-    f'- **Evaluation at a random point.** The validator computes $({r} - {ta})({r} - {tb})({r} - {tc}) = {y}$ from the list. The polynomial behind the carried commitment gives ${ev(ftamp, r)}$ at $r = {r}$, so an opening to the value {y} fails. The two polynomials agree at {len(tamper_pass)} of the {Q} challenges, which is the prover\'s chance of getting past this test.',
+    f'- **Evaluation at a random point.** The validator picks a point $r = {r}$ after it sees the commitment, so the prover cannot choose the commitment to suit $r$. It computes $({r} - {ta})({r} - {tb})({r} - {tc}) = {y}$ from the list. The polynomial behind the carried commitment gives ${ev(ftamp, r)}$ at $r = {r}$, so an opening to the value {y} fails. The two polynomials agree at {len(tamper_pass)} of the {Q} challenges, which is the prover\'s chance of getting past this test.',
 ])
 
 # ---------------------------------------------------------------- limbs
@@ -297,6 +312,13 @@ assert entry[1] == final[1] and entry[0] != final[0] and entry[2] != final[2]
 assert final[0] == after['C'][3] and final[2] == after['E'][3]
 assert entry[2] == h_ep(entry[1], 2)
 
+# The anchor a stamp carries versus the state its absorption produces.
+assert end_code[0] == after['A'][3] and after['B'][2] == after['A'][3]
+frag['carried'] = (
+    f'Stamp B lands in block 2. Suppose its wallet built its proofs while the state after block 0, {end_code[0]}, was the latest, so that B carries the anchor {end_code[0]}. '
+    f'When the validator absorbs B, the chain moves from {after["B"][2]} to {after["B"][3]}. The carried value {end_code[0]} names a state that existed before B, and the value {after["B"][3]} is a new state that B\'s absorption creates. '
+    f'Stamp C in the same block could carry {end_code[0]} as well, even though its absorption starts from {after["C"][2]}.')
+
 # Effects of order, epoch, and domain on one fold.
 a0 = genesis
 swap_ab = h_st(h_st(a0, 0, COMMIT['B']), 0, COMMIT['A'])
@@ -305,14 +327,16 @@ assert swap_ab != fwd_ab and fwd_ab == after['B'][3]
 wrong_epoch = h_st(a0, 1, COMMIT['A'])
 assert wrong_epoch != after['A'][3] and wrong_epoch not in all_values
 frag['absorb'] = (
-    f'The genesis state is {a0}. Stamp A lands in epoch 0, so the new anchor is $H_\\mathsf{{st}}({a0},\\ 0,\\ {lo},\\ {hi}) = {after["A"][3]}$. '
+    f'The chain starts from the genesis state {a0}, which is the entry anchor of epoch 0 that Section 7 derives as $H_\\mathsf{{ep}}(0,\\ 0)$. Stamp A lands in epoch 0, so the new anchor is $H_\\mathsf{{st}}({a0},\\ 0,\\ {lo},\\ {hi}) = {after["A"][3]}$. '
     f'Absorbing B after A gives {fwd_ab}, while absorbing A after B gives {swap_ab}, so the anchor records the order of stamps even though each stamp\'s own polynomial does not. '
     f'Claiming epoch 1 for stamp A would give {wrong_epoch} instead of {after["A"][3]}, and that value does not appear anywhere in the chain below.')
 
 # Which states consensus acknowledges under each placement of the crossing.
 seq_values_code = []
 rows = ['| Block | Epoch | End-of-block state, crossing at the start of the new epoch (code, `anchor.md`) | End-of-block state, crossing at the end of the old epoch (deep dive) |', '| --- | --- | --- | --- |']
-for h in [0, 1, 2, 3, 4, 7, 8, 9, 10, 11, 12]:
+differ = [h for h in range(LAST_HEIGHT + 1) if end_code[h] != end_deep[h]]
+assert differ == [3, 7, 11]
+for h in differ:
     rows.append(f'| {h} | {h // EPOCH_SIZE} | {end_code[h]} | {end_deep[h]} |')
 frag['placement'] = '\n'.join(rows)
 assert end_code[3] == final[0] and end_deep[3] == entry[1]
@@ -321,11 +345,34 @@ assert end_code[4] == entry[1]
 assert entry[2] not in set(end_code.values())
 assert final[2] == end_code[11] and final[2] not in set(end_deep.values())
 assert after['B'][3] not in set(end_code.values())
+assert end_code[3] == final[0] and end_deep[3] == entry[1] and end_code[7] == final[1] and end_deep[7] == entry[2]
+assert end_deep[11] == entry[3]
 frag['placement-note'] = (
-    f'Both columns come from the same sequence of states, and only the choice of which states count as end-of-block differs. '
-    f'With the code\'s placement, the final anchor of epoch 2, {final[2]}, is acknowledged at block 11, and the entry anchor of epoch 2, {entry[2]}, is never an end-of-block value because block 8 carries a stamp. '
-    f'With the deep dive\'s placement, the reverse holds for this example. '
-    f'In both columns, the state {after["B"][3]} just after stamp B never appears, because stamp C follows it in the same block.')
+    f'The table lists only the blocks where the two placements disagree, and each of them is the last block of an epoch. '
+    f'With the code\'s placement, that block ends on its own epoch\'s final anchor, such as {final[0]} for epoch 0. '
+    f'With the deep dive\'s placement, it ends on the next epoch\'s entry anchor, such as {entry[1]} for epoch 1. '
+    f'So under the code\'s placement the entry anchor of epoch 2, {entry[2]}, is never an end-of-block value, because block 8 carries a stamp, and under the deep dive\'s placement the final anchor of epoch 2, {final[2]}, never is. '
+    f'Under both placements, the state {after["B"][3]} just after stamp B is never an end-of-block value, because stamp C follows it in the same block.')
+
+assert end_code[8] == after['D'][3] and after['D'][2] == entry[2]
+frag['placement-short'] = (
+    f'With the crossing at the start of the new epoch, which this site follows, block 8 opens epoch 2 by crossing to the entry anchor {entry[2]} and then absorbs stamp D, so it ends on {end_code[8]}. '
+    f'The entry anchor {entry[2]} is therefore never an end-of-block value. '
+    f'Section 10 shows what this means for proofs that end on an entry anchor, and it compares the other placement there.')
+
+# ---------------------------------------------------------------- walking an epoch
+probe = STAMPS['B'][2]
+rows = ['| Step | Anchor | Running product | Product at $' + str(probe) + '$ |', '| --- | --- | --- | --- |']
+rows.append(f'| start at $\\mathsf{{entry}}(0)$ | {entry[0]} | $1$ | 1 |')
+prod = [1]
+for name in ['A', 'B', 'C']:
+    prod = pmul(prod, POLY[name])
+    label = {'A': 'f_A', 'B': 'f_A f_B', 'C': 'f_A f_B f_C = e_0'}[name]
+    rows.append(f'| absorb stamp {name} | {after[name][3]} | ${label}$ | {ev(prod, probe)} |')
+assert prod == e0
+rows.append(f'| crossing into epoch 1 | {entry[1]} | $e_0$ | {ev(e0, probe)} |')
+frag['epoch-walk'] = '\n'.join([f'Here is the walk for epoch 0 of the run, testing the value {probe} from stamp B.', ''] + rows)
+assert ev(POLY['A'], probe) != 0 and ev(e0, probe) == 0
 
 # ---------------------------------------------------------------- stopping short
 stop = after['A'][3]
@@ -337,15 +384,38 @@ assert final[0] in col
 others = [x for x in col if x != final[0]]
 assert not set(others) & set(all_values)
 frag['short-seal'] = (
-    f'Suppose someone builds evidence for epoch 0 that stops after stamp A, at anchor {stop}, and omits B and C. '
-    f'That anchor is a real end-of-block value from block 0, so a consensus check on it would pass. Now perform the crossing from it. '
+    f'Suppose a prover runs this walk for epoch 0 and stops after stamp A, at anchor {stop}, leaving out B and C. '
+    f'Its product is then only $f_A$, and $f_A({probe}) = {ev(POLY["A"], probe)}$ is nonzero, so the value {probe} from stamp B would look absent from epoch 0. '
+    f'The anchor {stop} is a real end-of-block value from block 0, so a consensus check on it would pass. Now perform the crossing from it. '
     f'The result is $H_\\mathsf{{ep}}({stop},\\ 1) = {short}$, while the true entry anchor of epoch 1 is {entry[1]} = $H_\\mathsf{{ep}}({final[0]},\\ 1)$. '
     f'The value {short} appears nowhere in the chain, so nothing built on it can reach a published anchor.')
 frag['short-count'] = (
-    f'Our stand-in hash has only {Q} outputs, so we can count the inputs that would rescue the short evidence. '
-    f'Of the {Q} possible states $x$, the crossing $H_\\mathsf{{ep}}(x,\\ 1)$ lands on {entry[1]} for {len(col)} of them: '
-    + (f'the true final anchor {final[0]} and the colliding value{"s" if len(others) > 1 else ""} {", ".join(map(str, others))}. ' if others else f'only the true final anchor {final[0]}. ')
+    f'Our stand-in hash has only {Q} outputs, so we can count the inputs that would rescue the short run. '
+    f'Of the {Q} possible states $x$, the crossing $H_\\mathsf{{ep}}(x,\\ 1)$ lands on {entry[1]} for {len(col)} of them. They are '
+    + (f'the true final anchor {final[0]} and the colliding value{"s" if len(others) > 1 else ""} {" and ".join(map(str, others))}. ' if others else f'only the true final anchor {final[0]}. ')
     + 'A collision like this is what a cheater would need, and on the real field finding one means breaking Poseidon.')
+
+# Starting the walk late, at a genuine state inside the epoch.
+late = after['A'][3]
+w = late
+for name in ['B', 'C']:
+    w = h_st(w, 0, COMMIT[name])
+assert w == final[0] and h_ep(w, 1) == entry[1]
+late_prod = pmul(POLY['B'], POLY['C'])
+late_probe = STAMPS['A'][1]
+assert ev(late_prod, late_probe) != 0 and ev(e0, late_probe) == 0
+frag['late-start'] = (
+    f'Suppose instead that a prover starts the walk for epoch 0 at the state {late}, just after stamp A, and folds only B and C. '
+    f'Its product is $f_B f_C$, and $f_B({late_probe}) f_C({late_probe}) = {ev(late_prod, late_probe)}$ is nonzero, so the value {late_probe} from stamp A would look absent. '
+    f'The walk passes through {after["B"][3]} and ends at {w}, which is the true final anchor, and the crossing gives $H_\\mathsf{{ep}}({w},\\ 1) = {entry[1]}$, the true entry anchor of epoch 1. '
+    f'The check at the end of the walk passes, so the defense has to come from the start.')
+pre_late = [x for x in range(Q) if h_ep(x, 0) == late]
+pre_true = [x for x in range(Q) if h_ep(x, 0) == entry[0]]
+assert pre_true == [0] and not set(pre_late) & set(all_values)
+frag['late-count'] = (
+    f'The seal asks the prover for a state $x$ with $H_\\mathsf{{ep}}(x,\\ 0) = {late}$. In the chain, {late} is the output $H_\\mathsf{{st}}({entry[0]},\\ 0,\\ {lo},\\ {hi})$ of a stamp fold, so any such $x$ is a collision between the two domains. '
+    + (f'Our stand-in has only {Q} outputs, and {len(pre_late)} such inputs exist, namely {" and ".join(map(str, pre_late))}. ' if pre_late else f'Our stand-in has none. ')
+    + f'For the genuine start {entry[0]}, the only input is $x = {pre_true[0]}$, as Section 7 defined. On the real field, finding any $x$ for a stamp-fold output means breaking Poseidon across domains.')
 
 # A free-witnessed predecessor.
 bad_prev = (after['A'][3] + 1) % Q
@@ -355,6 +425,39 @@ assert bad_after not in all_values and bad_after != after['B'][3]
 frag['free-witness'] = (
     f'For instance, a wallet could witness the predecessor {bad_prev} in place of {after["A"][3]} for stamp B. The fold then gives {bad_after}, '
     f'which is not in the chain, so the proof runs without complaint and the error surfaces only when consensus looks up the anchor.')
+
+# An invented boundary digest at the start of the walk.
+def walk_from(x, names):
+    states = [h_ep(x, 0)]
+    for name in names:
+        states.append(h_st(states[-1], 0, COMMIT[name]))
+    states.append(h_ep(states[-1], 1))
+    return states
+inv_x = next(x for x in range(1, Q)
+             if not set(walk_from(x, ['A', 'B', 'C']) + walk_from(x, ['A', 'C'])) & set(all_values))
+full = walk_from(inv_x, ['A', 'B', 'C'])
+skip = walk_from(inv_x, ['A', 'C'])
+assert full[0] == skip[0] and full[1] == skip[1]
+assert full[-1] != entry[1] and skip[-1] != entry[1]
+skip_hits = [x for x in range(1, Q) if walk_from(x, ['A', 'C'])[-1] == entry[1]]
+frag['invented-start'] = '\n'.join([
+    f'Take epoch 0 of the run and suppose a prover witnesses $x = {inv_x}$ in place of the true $x = 0$. '
+    f'The seal accepts a walk that starts at $H_\\mathsf{{ep}}({inv_x},\\ 0) = {full[0]}$. '
+    f'The table follows two such walks, one that folds the genuine stamps A, B and C, and one that leaves out stamp B so that the value {probe} would look absent.',
+    '',
+    '| Step | Folding A, B, C | Folding A and C only |',
+    '| --- | --- | --- |',
+    f'| start at $H_\\mathsf{{ep}}({inv_x},\\ 0)$ | {full[0]} | {skip[0]} |',
+    f'| absorb stamp A | {full[1]} | {skip[1]} |',
+    f'| absorb stamp B | {full[2]} | (skipped) |',
+    f'| absorb stamp C | {full[3]} | {skip[2]} |',
+    f'| crossing into epoch 1 | {full[4]} | {skip[3]} |',
+    '',
+    f'None of these values appears in the chain table of Section 7, whose states are {", ".join(map(str, all_values[:-1]))} and {all_values[-1]}. '
+    f'The crossings {full[4]} and {skip[3]} both miss the published entry anchor {entry[1]}. '
+    + (f'We tried all {Q - 1} invented values of $x$, and none of them makes the walk that skips B end at {entry[1]}.' if not skip_hits
+       else f'Of the {Q - 1} invented values of $x$, {len(skip_hits)} make the walk that skips B end at {entry[1]}, and each of them is a collision.'),
+])
 
 # ---------------------------------------------------------------- spans
 start = entry[2]
@@ -408,34 +511,7 @@ assert in_window(1) == ['A', 'B', 'C'] and in_window(2) == ['D', 'E'] and in_win
 val = STAMPS['C'][1]
 frag['retained-note'] = (
     f'The value ${val}$ from stamp C is therefore rejected if a stamp republishes it in epoch 1, and it passes this check in epoch 2, because epoch 0 has left the window. '
-    f'This is safe for spends because of the exclusion proof, as the next table shows.')
-
-# Double-spend cases for a first spend with target t1 = 5.
-t1 = 5
-rows = ['| First accepted in | Second target | Second accepted in | Shared nullifiers | What stops the second spend |', '| --- | --- | --- | --- | --- |']
-total = by_window = by_excl = both = 0
-for a1 in (t1, t1 + 1):
-    for t2 in range(t1 - 1, t1 + 3):
-        for a2 in (t2, t2 + 1):
-            if a2 < a1:
-                continue
-            first, second = {t1, t1 + 1}, {t2, t2 + 1}
-            shared = sorted(first & second)
-            window = bool(shared) and a1 in (a2, a2 - 1)
-            exclusion = a1 < t2     # nf_{a1} was published in epoch a1, inside the exclusion range
-            assert window or exclusion, (a1, t2, a2)
-            total += 1
-            by_window += window
-            by_excl += exclusion
-            both += window and exclusion
-            sh = ', '.join(f'$\\mathsf{{nf}}_{{{j}}}$' for j in shared) or 'none'
-            why = ' and '.join(x for x, on in [('duplicate window', window), (f'exclusion proof (epoch {a1})', exclusion)] if on)
-            rows.append(f'| {a1} | {t2} | {a2} | {sh} | {why} |')
-frag['double-spend'] = '\n'.join(rows)
-assert by_window and by_excl
-frag['double-spend-note'] = (
-    f'All {total} cases are stopped: {by_window} by the window and {by_excl} by the exclusion proof, with {both} stopped by both. '
-    'The exclusion column works because the first spend publishes the nullifier of the epoch that accepts it, whichever of its two acceptance epochs that is, and that value lies inside the range a later target must prove absent.')
+    'Forgetting epoch 0 at that point is safe for spends. A spend accepted in epoch 2 targets epoch 1 or 2, so its exclusion proof already covers epoch 0.')
 
 # ---------------------------------------------------------------- what the chain costs
 BLOCK_SECONDS = 75
@@ -449,7 +525,7 @@ gb = stamps_year * 32 / 1e9
 frag['chain-cost'] = '\n'.join([
     f'At the 75-second block target there are {blocks_year:,} blocks per year. Take the hypothetical {TPS} transactions per second from [chapter 1](./scaling-zcash.md), which is {per_block:,} transactions per block. These inputs are illustrative.',
     '',
-    '| Case | Folds per block | Anchors per year if every state is kept | Size at 32 bytes each |',
+    '| Case | Folds per block | Anchors per year, if validators keep every inner state | Size at 32 bytes each, if validators keep every inner state |',
     '| --- | --- | --- | --- |',
     f'| Every transaction is an autonome | {per_block:,} | {stamps_year:,} | {gb:,.1f} GB |',
     f'| One aggregate per block | 1 | {blocks_year:,} | {mb:,.1f} MB |',

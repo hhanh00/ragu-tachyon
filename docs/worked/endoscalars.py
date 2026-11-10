@@ -256,7 +256,7 @@ def main():
     assert all(on_curve(phi(a, P), P) for a in curve_points())
     n_pairs = len(curve_points()) ** 2
     frag['endo-hom'] = (
-        f'Take $A = {show(A)}$ and $B = {show(B_)}$ from [chapter 08](./batched-openings.md#_8-the-complete-protocol). Their sum is ${show(sm)}$, which maps to ${show(phi(sm, P))}$. '
+        f'Take $A = {show(A)}$ and $B = {show(B_)}$ from [Chapter 8](./batched-openings.md#_8-the-complete-protocol). Their sum is ${show(sm)}$, which maps to ${show(phi(sm, P))}$. '
         f'Mapping first gives $\\phi(A) = {show(phi(A, P))}$ and $\\phi(B) = {show(phi(B_, P))}$, and these add to ${show(add(phi(A, P), phi(B_, P)))}$. We confirmed the identity on all ${n_pairs:,}$ ordered pairs of affine points of $E$.')
 
     # ---- Section 2: the eigenvalue ----
@@ -286,8 +286,27 @@ def main():
     assert [r[4] for r in pair_rows] == ['$6$', '$36$', '$5$', '$25$']
     frag['pairing'] = rows(['Curve', 'Coordinate field', '$\\zeta$', 'Scalar field', '$\\lambda$'], pair_rows)
 
+    lam_of = {(r[0], int(r[2].strip('$'))): int(r[4].strip('$')) for r in pair_rows}
+    c31, c43, bad43 = ZETA[P], ZETA[Q], 36
+    assert lam_of[('$E$', c31)] == c43 and lam_of[("$E'$", c43)] == c31
+    assert lam_of[('$E$', c31)] != bad43
+    sq31, sq43 = c31 * c31 % P, c43 * c43 % Q
+    assert lam_of[('$E$', sq31)] == sq43 and lam_of[("$E'$", sq43)] == sq31
     frag['pairing-choice'] = (
-        f'The table shows that the toy cycle has such a choice. We take the constant ${ZETA[P]}$ for $\\F_{{31}}$ and the constant ${ZETA[Q]}$ for $\\F_{{43}}$, so that each is the coordinate constant of its own curve and the eigenvalue on the partner curve.')
+        f'Take the pair $c_{{31}} = {c31}$ and $c_{{43}} = {c43}$. In row 1, $\\zeta = {c31}$ on $E$ gives $\\lambda = {lam_of[("$E$", c31)]}$, which equals $c_{{43}}$, so the first equation holds. In row 3, $\\zeta = {c43}$ on $E\'$ gives $\\lambda = {lam_of[("$E\'$", c43)]}$, which equals $c_{{31}}$, so the second holds too. '
+        f'The pair $c_{{31}} = {c31}$ and $c_{{43}} = {bad43}$ fails the first equation, because row 1 still gives $\\lambda = {lam_of[("$E$", c31)]}$ on $E$, and that disagreement is the mismatch of the example above. '
+        f'The squares, $c_{{31}} = {sq31}$ and $c_{{43}} = {sq43}$, form the other consistent pair, through rows 2 and 4.')
+    # What breaks when the constants do not line up: 3 + 2 lambda on E, with F_43's
+    # constant 36 in place of 6.
+    mm = (3, 2)
+    walked = add(mul(3, G0), mul(2, phi(G0, P)))
+    good = (mm[0] + mm[1] * ZETA[Q]) % Q
+    badc = 36
+    badv = (mm[0] + mm[1] * badc) % Q
+    assert walked == mul(good, G0) and walked != mul(badv, G0) and pow(badc, 3, Q) == 1
+    frag['pairing-mismatch'] = (
+        f'Take the combination $3 \\cdot G_0 + 2 \\cdot \\phi(G_0)$ on $E$, where $\\phi$ uses $\\zeta = {ZETA[P]}$. The secondary circuit, over $\\F_{{31}}$, computes it with point additions and gets ${show(walked)}$, which is ${good} \\cdot G_0$ because $\\phi$ acts as multiplication by ${ZETA[Q]}$. '
+        f'The primary circuit, over $\\F_{{43}}$, has to produce the matching number $3 + 2\\lambda$ from its own constant. With the constant ${ZETA[Q]}$ it gets $3 + 2 \\cdot {ZETA[Q]} = {good}$, which agrees. With the other cube root, ${badc}$, it gets $3 + 2 \\cdot {badc} = {3 + 2 * badc}$, which is ${badv}$ modulo 43, and ${badv} \\cdot G_0 = {show(mul(badv, G0))}$ is a different point. The number and the point would then describe different scalars.')
     pal, ves = (PASTA_P - 1, 2), (PASTA_Q - 1, 2)
     assert on_curve_pasta(pal, PASTA_P) and on_curve_pasta(ves, PASTA_Q)
     assert fmul(PASTA_ZQ, pal, PASTA_P) == phi(pal, PASTA_P)
@@ -371,6 +390,8 @@ def main():
         v = digit(*dg)
         nxt = e_add(cur, e_scale(-1, v))
         assert nxt[0] % 3 == 0 and nxt[1] % 3 == 0
+        if not dec_rows:
+            dec_first = (cur, v, nxt, (nxt[0] // 3, nxt[1] // 3))
         nxt = (nxt[0] // 3, nxt[1] // 3)
         dec_rows.append([f'${e_show(cur)}$', f'$({cur[0] % 3},\\ {cur[1] % 3})$', f'${e_show(v)}$', f'${e_show(nxt)}$'])
         decoded.insert(0, dg)
@@ -380,7 +401,8 @@ def main():
         f'Take the 11-bit string `{bstr(bits3)}`, which has three digits. Its first two bits say $s_0 = {s0}$ and $e_0 = {e0}$, its digits are ${e_show(digit(*digs[0]))}$, ${e_show(digit(*digs[1]))}$ and ${e_show(digit(*digs[2]))}$, and Horner gives $k = {e_show(k3)}$. Starting from $k$ alone, we read the last digit from its residue modulo 3, subtract it, and divide by 3:')
     frag['decode'] = rows(['Current value', 'Modulo 3', 'Digit it must end in', 'After subtracting and dividing by 3'], dec_rows)
     frag['decode-end'] = (
-        f'The value that remains is ${e_show(cur)}$, which is $2 \\cdot ({e_show(unit(s0, e0))})$, so the first two bits are $s_0 = {s0}$ and $e_0 = {e0}$. The string comes back in full.')
+        'In the first row, for instance, subtracting the digit gives $' + e_show(dec_first[0]) + ' - (' + e_show(dec_first[1]) + ') = ' + e_show(dec_first[2]) + ' = 3(' + e_show(dec_first[3]) + ')$, so the division by 3 is exact. '
+        f'The value that remains after the last row is ${e_show(cur)}$, which is $2 \\cdot ({e_show(unit(s0, e0))})$, so the first two bits are $s_0 = {s0}$ and $e_0 = {e0}$. The string comes back in full.')
 
     for n_ in range(0, 5):
         width = 2 + 3 * n_
@@ -435,7 +457,7 @@ def main():
     for f, pt, curve, scal, nm in [(P, G0, '$E$', beta, '$G_0$'), (Q, GP, "$E'$", beta_n, "$G'$")]:
         a0, tr, d_, end = plain_walk(bits, pt, f)
         assert end == smul(scal, pt, f)
-        w_rows.append([curve, f'{nm} $= {show(pt)}$', f'${show(a0)}$', f'${show(tr)}$', f'${show(d_)}$', f'${show(end)}$', f'${scal}$'])
+        w_rows.append([curve, f'${nm.strip("$")} = {show(pt)}$', f'${show(a0)}$', f'${show(tr)}$', f'${show(d_)}$', f'${show(end)}$', f'${scal}$'])
     frag['walk-note'] = (
         f'Both rows end at the multiple the lift predicts. On $E\'$ the tripled point returns to $G\'$ itself, because $A_0$ has index $-2\\lambda$ and $3 \\cdot (-2 \\cdot {ZETA[P]}) = {3 * -2 * ZETA[P]}$, which is $1$ modulo 31.')
     assert 3 * -2 * ZETA[P] % P == 1
@@ -496,6 +518,27 @@ def main():
     frag['selector-check'] = (
         f'We compared both selectors with direct point arithmetic for all eight digits at every affine point of both curves, which makes ${checked:,}$ comparisons, and they all agreed.')
 
+    # The three-gate selector on our string's digit, at r = 8.
+    sw = Wires(P)
+    s_d, u_d, v_d = split_bits(bits)[2][0]
+    third = pow(3, -1, P)
+    left_f = (r + (z - 1) * 4 * third * third * u_d) % P
+    right_f = ((z - 1) * u_d + (z * z - 1) * v_d) % P
+    h_ = left_f * right_f % P
+    j_ = (u_d + v_d - 1) * h_ % P
+    xd_ = (r + h_ + (z - 1) * third * j_ + z * third * 4 * u_d) % P
+    yd_ = (1 - 2 * s_d) * (r - 2 * z * third * j_) % P
+    assert select_plain(sw, r, s_d, u_d, v_d) == (xd_, yd_) == tr['digits'][0]['D'] and len(sw.gates) == 3
+    assert (xd_, yd_) == (tw_x, (-tw_y) % P)
+    frag['selector-run'] = (
+        f'For our string `{bstr(bits)}` the digit bits are $(s, e_1, e_2) = ({s_d}, {u_d}, {v_d})$. On $\\F_{{31}}$ we have $r = {r}$, $\\zeta = {z}$ and $1/3 = {third}$:\n\n'
+        + rows(['Gate', 'Equation', 'Value'],
+               [[1, '$h = \\big(r + \\tfrac{4}{9}(\\zeta - 1) e_1\\big)\\big((\\zeta - 1) e_1 + (\\zeta^2 - 1) e_2\\big)$', f'$h = {left_f} \\cdot {right_f} = {h_}$'],
+                [2, '$j = (e_1 + e_2 - 1)\\, h$', f'$j = {j_}$'],
+                [3, '$y_D = (1 - 2s)\\big(r - \\tfrac{2\\zeta}{3} j\\big)$', f'$y_D = {yd_}$'],
+                ['none', '$x_D = r + h + \\tfrac{\\zeta - 1}{3} j + \\tfrac{4\\zeta}{3} e_1$', f'$x_D = {xd_}$']])
+        + f'\n\nThe point $D = ({xd_},\\,{yd_})$ is the negation of the $1 - \\lambda$ row of the table, $({tw_x},\\,{tw_y})$, as the sign bit $s = 1$ requires.')
+
     d0_log = tr['digits'][0]
     a0x, a0y = tr['A0']
     frag['triple-run'] = rows(
@@ -512,7 +555,7 @@ def main():
     dd = d0_log['D']
     assert add(add(add(a0, dd), a0), a0) == d0_log['out'] == (d0_log['x3'], d0_log['y3'])
     frag['triple-setup'] = (
-        f'Here is the digit step for our string on $G_0$. The normalized accumulator is $A_0 = {show(a0)}$ and the digit point is $D = {show(dd)}$.')
+        f'Here is the digit step for our string `{bstr(bits)}` on $G_0$. Its first two bits make the initial unit $-\\lambda$, so the 4-gate doubling turns the normalized base point $({r},\\,{r})$ into $A_0 = -2\\lambda \\cdot ({r},\\,{r}) = {show(a0)}$. The digit point is the $D = {show(dd)}$ that the selector produced above.')
     c3 = c * c * c % P
     frag['triple-end'] = (
         f'So the result on the normalized curve is ${show(d0_log["out"])}$, which three additions outside the circuit confirm. Dividing by $c^2 = {c * c % P}$ and $c^3 = {c3}$ gives ${show(out)}$, and that is ${beta} \\cdot G_0$. The tracer counted ${gates_toy}$ gates, namely 3 to normalize, 4 for the doubling, 10 for the digit and 3 to move back.')
@@ -547,6 +590,11 @@ def main():
     assert walk(w2, tv_bits, ves) == fmul(kp, ves, PASTA_Q)
     assert kq != kp and kq != tv and kp != tv
     assert len(w1.gates) == len(w2.gates) == 480
+    lift_pasta = traced_lift(Wires(PASTA_P), tv_bits)
+    assert lift_pasta == 1 + 2 * 47 and 0.18 < lift_pasta / len(w1.gates) < 0.2
+    lift_toy = traced_lift(Wires(Q), bits)
+    frag['lift-cost'] = (
+        f'Inside a circuit the lift is a Horner loop over the digits. Our traced version spends one gate on the product $s_0 e_0$ of the first two bits, and then two gates per digit, one for the product $e_1 e_2$ and one to apply the sign. For our 5-bit string that is ${lift_toy}$ gates. On Pasta, with 47 digits, it is ${lift_pasta}$ gates, just under a fifth of the ${len(w1.gates)}$ gates of one walk.')
     frag['pasta-run'] = (
         f'The code\'s [consistency test](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/endoscalar.rs#L1126-L1149) uses the endoscalar ${tv}$. Our Python lift sends it to a scalar beginning `{f"{kq:#066x}"[:18]}...` in $\\F_q$ and a scalar beginning `{f"{kp:#066x}"[:18]}...` in $\\F_p$. The walk on $(-1,\\,2)$ on Pallas, in gates over $\\F_p$, gives the same point as a direct multiplication by the first, and the walk on $(-1,\\,2)$ on Vesta, in gates over $\\F_q$, gives the same point as a direct multiplication by the second. Each walk took ${len(w1.gates)}$ gates.')
 
@@ -600,7 +648,7 @@ def main():
     assert bad in exc[Q] and element(bits_of(bad, 5)) == (7, -1)
     frag['exceptional'] = (
         f'We ran all 32 strings on every affine point of both curves, which makes ${runs:,}$ walks. Every walk that finished gave the point the lift predicts. On $E$, ${len(exc[P])}$ strings failed with equal $x$-coordinates in an addition, and on $E\'$, ${len(exc[Q])}$ failed. '
-        f'One failure on $E\'$ is the string `{bstr(bits_of(bad, 5))}`, with $A_0 = 2 \\cdot T$ and digit $1 - \\lambda$. After the first addition the accumulator is $A_0 + D$, and adding $A_0$ again would give the index $2 \\cdot 2 + (1 - \\lambda) = 5 - \\lambda$, the norm-31 element from Section 4, which is the identity on $E\'$.')
+        f'One failure on $E\'$ is the string `{bstr(bits_of(bad, 5))}`, with $A_0 = 2 \\cdot T$ and digit $1 - \\lambda$. After the first addition the running point is $A_0 + D$, and adding $A_0$ again would give the index $2 \\cdot 2 + (1 - \\lambda) = 5 - \\lambda$, the norm-31 element from Section 4, which is the identity on $E\'$.')
 
     # ---- Section 9: extraction ----
     cap = 5
@@ -618,7 +666,7 @@ def main():
     lq = math.log2(PASTA_Q - 2 ** 254) - 254
     assert -130 < lp < -128.5 and -130 < lq < -128.5
     frag['extract-real'] = (
-        f'Both Pasta primes lie just above $2^{{254}}$, so the capacity is 254 bits. The rejected values make up about $2^{{{lp:.1f}}}$ of $\\F_p$ and about $2^{{{lq:.1f}}}$ of $\\F_q$, which is the figure of about $2^{{-129}}$ in the source. Each 143-bit string has exactly $2^{{{254 - 143}}}$ in-range values above it, so a uniform in-range value gives a uniform string.')
+        f'Both Pasta primes lie just above $2^{{254}}$, so the capacity is 254 bits. The rejected values make up about $2^{{{lp:.1f}}}$ of $\\F_p$ and about $2^{{{lq:.1f}}}$ of $\\F_q$, which is the figure of about $2^{{-129}}$ in the source. Each 143-bit string is the low 143 bits of exactly $2^{{{254 - 143}}}$ in-range values, so a uniform in-range value gives a uniform string.')
 
     # ---- Section 10: the fold, with lifted challenges ----
     s1, s2 = Side(Q), Side(P)
@@ -627,7 +675,7 @@ def main():
     alpha_n, u_n = lift(bits_of(alpha, 5), P), lift(bits_of(u, 5), P)
     assert alpha_n and u_n
     frag['fold-challenges'] = (
-        f'Let the transcript give $\\alpha = {alpha}$, $u = {u}$ and `pre_beta` $= {beta_val}$ in $\\F_{{43}}$, all below 32. The circuit over $\\F_{{43}}$ uses $\\alpha$ and $u$ as they are, and it lifts `pre_beta` to $\\beta = {beta}$. The circuit over $\\F_{{31}}$ uses only lifts of the same bit strings, which are $\\alpha\' = {alpha_n}$, $u\' = {u_n}$ and $\\beta\' = {beta_n}$.')
+        f'Let the transcript give $\\alpha = {alpha}$, $u = {u}$ and `pre_beta` $= {beta_val}$ in $\\F_{{43}}$, all below 32. The primary circuit uses $\\alpha$ and $u$ as they are, and it lifts `pre_beta` to $\\beta = {beta}$. The secondary circuit uses only lifts of the same bit strings, which are $\\alpha\' = {alpha_n}$, $u\' = {u_n}$ and $\\beta\' = {beta_n}$.')
 
     c0, c1 = s1.claim((7, 2, 5, 3), 9), s1.claim((3, 1, 8, 4), 5)
     d0_, d1_ = s2.claim((4, 9, 2, 6), 5), s2.claim((8, 3, 7, 5), 3)
@@ -637,17 +685,19 @@ def main():
     a2 = endo_fold(s2, [d0_, d1_], alpha_n, u_n, beta_n, bits, secondary, primary)
     assert s1.commit(a1['poly']) == a1['P'] and ev(a1['poly'], u, Q) == a1['v']
     assert s2.commit(a2['poly']) == a2['P'] and ev(a2['poly'], u_n, P) == a2['v']
+    frag['fold-commit'] = (
+        f'On the first side $\\alpha$ is still ${alpha}$, so the quotient combination $f$ and its commitment $F = {show(a1["F"])}$ on $E$ are those of Chapter 13. On the second side the batching uses $\\alpha\' = {alpha_n}$, which gives a new combination $f\'$ with commitment $F\' = {show(a2["F"])}$ on $E\'$.')
     frag['fold-table'] = rows(
         ['Output', 'Computed in', 'Scalar used', 'Operation', 'Result', 'Gates'],
-        [['$v$ over $\\F_{43}$', 'Circuit over $\\F_{43}$', f'$\\beta = {beta}$', 'Field arithmetic', f"${a1['v']}$", a1['value_gates']],
-         ["$P'$ on $E'$", 'Circuit over $\\F_{43}$', f"Bits, acting as $\\beta' = {beta_n}$", 'Walk', f"${show(a2['P'])}$", a2['group_gates']],
-         ["$v'$ over $\\F_{31}$", 'Circuit over $\\F_{31}$', f"$\\beta' = {beta_n}$", 'Field arithmetic', f"${a2['v']}$", a2['value_gates']],
-         ['$P$ on $E$', 'Circuit over $\\F_{31}$', f'Bits, acting as $\\beta = {beta}$', 'Walk', f"${show(a1['P'])}$", a1['group_gates']]])
+        [['$v$ over $\\F_{43}$', 'Primary, over $\\F_{43}$', f'$\\beta = {beta}$', 'Field arithmetic', f"${a1['v']}$", a1['value_gates']],
+         ["$P'$ on $E'$", 'Primary, over $\\F_{43}$', f"Bits, acting as $\\beta' = {beta_n}$", 'Walk', f"${show(a2['P'])}$", a2['group_gates']],
+         ["$v'$ over $\\F_{31}$", 'Secondary, over $\\F_{31}$', f"$\\beta' = {beta_n}$", 'Field arithmetic', f"${a2['v']}$", a2['value_gates']],
+         ['$P$ on $E$', 'Secondary, over $\\F_{31}$', f'Bits, acting as $\\beta = {beta}$', 'Walk', f"${show(a1['P'])}$", a1['group_gates']]])
     assert a1['group_gates'] == 2 * (20 + 3) == 46
     frag['fold-decide'] = (
         f'The decider commits to the combined polynomials $p = {fv(a1["poly"], Q)}$ and $p\' = {fv(a2["poly"], P)}$, and gets ${show(a1["P"])}$ on $E$ and ${show(a2["P"])}$ on $E\'$. It evaluates them at $u = {u}$ and at $u\' = {u_n}$, and gets ${a1["v"]}$ in $\\F_{{43}}$ and ${a2["v"]}$ in $\\F_{{31}}$. All four numbers match the table, although neither circuit ever computed in the other\'s field.')
     frag['fold-compare'] = (
-        f'Each point now takes ${a1["group_gates"]}$ gates, two walks of $20$ and two additions of $3$, where the 4-bit double-and-add of [chapter 13](./curve-cycles.md#_6-a-fold-split-across-two-circuits) took $68$ gates for a shorter challenge. Each circuit also pays ${5}$ gates to show that the bits are bits and $3$ gates to lift them.')
+        f'Each point now takes ${a1["group_gates"]}$ gates, two walks of $20$ and two additions of $3$, where the 4-bit double-and-add of [Chapter 13](./curve-cycles.md#_6-a-fold-split-across-two-circuits) took $68$ gates for a shorter challenge. Each circuit also pays ${5}$ gates to show that the bits are bits and $3$ gates to lift them.')
     lift_w = Wires(Q)
     gates_lift = traced_lift(lift_w, bits)
     assert gates_lift == 3
@@ -657,7 +707,7 @@ def main():
     right_pt = smul(beta, a1['F'], P)
     assert wrong != right_pt
     frag['integer-fail'] = (
-        f'Suppose the circuit over $\\F_{{43}}$ used the integer ${beta_val}$ as $\\beta$ in its field arithmetic. The walk on $E$ does not act as ${beta_val}$. It takes the commitment $F = {show(a1["F"])}$ to ${beta} \\cdot F = {show(right_pt)}$, while ${beta_val} \\cdot F = {show(wrong)}$. The value and the point would then describe different polynomials, and the decider would reject.')
+        f'Suppose the primary circuit used the integer ${beta_val}$ as $\\beta$ in its field arithmetic. The walk on $E$ does not act as ${beta_val}$. It takes the commitment $F = {show(a1["F"])}$ to ${beta} \\cdot F = {show(right_pt)}$, while ${beta_val} \\cdot F = {show(wrong)}$. The value and the point would then describe different polynomials, and the decider would reject.')
 
     # ---- Section 11: the challenge stage ----
     stage = [alpha_n, u_n, beta_n]
@@ -672,8 +722,8 @@ def main():
     bad_count = sum(1 for b in range(P) if b != beta_n and mmsm([alpha_n, u_n, b], gens, Q) == cs)
     assert bad_count == 0
     frag['stage-bind'] = (
-        f'The stage holds $(\\alpha\', u\', \\beta\') = {fv(stage, P)}$ with no blinding, on the generators ${show(gens[0])}, {show(gens[1])}, {show(gens[2])}$ of $E\'$ from [chapter 13](./curve-cycles.md#_9-sharing-one-set-of-challenges), and its commitment is $C_s = {show(cs)}$. '
-        f'The circuit over $\\F_{{43}}$ holds the three transcript values as wires in its own field, breaks each into bits, and walks each generator by those bits. The walks give ${show(terms[0])}$, ${show(terms[1])}$ and ${show(terms[2])}$, which add to ${show(acc_)}$ in ${bind_gates}$ gates. '
+        f'The stage holds $(\\alpha\', u\', \\beta\') = {fv(stage, P)}$ with no blinding, on the generators ${show(gens[0])}, {show(gens[1])}, {show(gens[2])}$ of $E\'$ from [Chapter 13](./curve-cycles.md#_9-sharing-one-set-of-challenges), and its commitment is $C_s = {show(cs)}$. '
+        f'The primary circuit holds the three transcript values as wires in its own field, breaks each into bits, and walks each generator by those bits. The walks give ${show(terms[0])}$, ${show(terms[1])}$ and ${show(terms[2])}$, which add to ${show(acc_)}$ in ${bind_gates}$ gates. '
         f'That circuit never computed ${alpha_n}$, ${u_n}$ or ${beta_n}$, because it has no wires modulo 31, and it still confirmed a commitment to exactly those values. If the prover puts any of the ${P - 1}$ other values in the place of $\\beta\'$, the stage commits to a different point and the comparison fails.')
 
     # The lift check on the secondary side, and why it needs injectivity.
@@ -687,7 +737,7 @@ def main():
     cheat_P = cheat_fold(s1, [c0, c1], a1['F'], other_bits, cheat_w)
     assert cheat_P != a1['P']
     frag['bits-cheat'] = (
-        f'The string `{bstr(other_bits)}` also lifts to ${beta_n}$ in $\\F_{{31}}$, so a prover could load it into the circuit over $\\F_{{31}}$ and pass the comparison with $\\beta\'$. '
+        f'The string `{bstr(other_bits)}` also lifts to ${beta_n}$ in $\\F_{{31}}$, so a prover could load it into the secondary circuit and pass the comparison with $\\beta\'$. '
         f'In $\\F_{{43}}$ that string lifts to ${beta_other}$ and not ${beta}$, so the walk on $E$ now acts as ${beta_other}$ and produces $P = {show(cheat_P)}$ in place of ${show(a1["P"])}$. The false accumulator has a value computed with $\\beta = {beta}$ and a point computed with ${beta_other}$.')
     n_pairs_c = sum(1 for s in range(32) for t in range(s + 1, 32)
                     if lift(bits_of(s, 5), P) == lift(bits_of(t, 5), P)
@@ -699,14 +749,16 @@ def main():
     # A cheater whose error in v is beta - c, for the c it aims at.
     worst_c = max(im43, key=lambda v: len(im43[v]))
     frag['root-count'] = (
-        f'Take a cheater whose error in $v$ is the polynomial $\\beta - c$, as in [chapter 13](./curve-cycles.md#_9-sharing-one-set-of-challenges). It passes when the string lifts to $c$. With an injective lift, one string out of the 32 would pass. On the toy cycle the lift is not injective, and the cheater does best with $c = {worst_c}$, which ${len(im43[worst_c])}$ strings reach, for a chance of ${len(im43[worst_c])}$ in 32. So a collision in the lift directly raises a cheater\'s chance.')
+        f'Take a cheater whose error in $v$ is the polynomial $\\beta - c$, as in [Chapter 13](./curve-cycles.md#_9-sharing-one-set-of-challenges). It passes when the string lifts to $c$. With an injective lift, one string out of the 32 would pass. On the toy cycle the lift is not injective, and the cheater does best with $c = {worst_c}$, which ${len(im43[worst_c])}$ strings reach, for a chance of ${len(im43[worst_c])}$ in 32. So a collision in the lift directly raises a cheater\'s chance.')
 
     ledger = [126, 24573, 8191, 168 + 140, 26 + 18, 24573, 137, 8329, 92 + 104]
     assert sum(ledger) == 66477
     bits_left = 143 - math.log2(sum(ledger))
     assert 126.9 < bits_left < 127.0
     frag['ledger'] = (
-        f'The book [adds up the roots charged to each challenge](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/extensions/endoscalar.md?plain=1#L216-L233) for one fuse step, and gets ${sum(ledger):,}$ over all nine challenges. We recomputed that sum and the resulting $2^{{-{bits_left:.2f}}}$.')
+        f'For each of the nine challenges of one fuse step, the book [lists how many roots a false identity tested by that challenge can have](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/extensions/endoscalar.md?plain=1#L216-L233). The nine counts add up to ${sum(ledger):,}$, so the chance that some false identity passes is at most\n\n'
+        f'$$\\frac{{{sum(ledger):,}}}{{2^{{143}}}} = 2^{{{math.log2(sum(ledger)):.2f} - 143}} = 2^{{-{bits_left:.2f}}}.$$\n\n'
+        f'We recomputed both the sum and the exponent.')
 
     # A meet-in-the-middle search for a secret encoding.
     secret = 28
@@ -728,8 +780,8 @@ def main():
     assert all(lift(list(h), Q) == lift(sb, Q) for h in hits)
     half = 143 / 2
     frag['mitm'] = (
-        f'Suppose the secret string is `{bstr(sb)}`, and an attacker sees $T = {lift(sb, Q)} \\cdot G_0 = {show(target)}$. The attacker tabulates the 8 possible digit points, tries the 4 possible values of the head $2 \\cdot 3 \\cdot u$, and looks up $T$ minus each head in the table. That is 12 operations against 32 for trying every string, and the search finds the string. '
-        f'The saving grows with the width, because the expansion splits at any digit into a head and a tail that add up. At 143 bits the same idea takes roughly $2^{{{half}}}$ work.')
+        f'Suppose the secret string is `{bstr(sb)}`, and an attacker sees $Q = {lift(sb, Q)} \\cdot G_0 = {show(target)}$. The attacker tabulates the 8 possible digit points, tries the 4 possible values of the head $2 \\cdot 3 \\cdot u$, and looks up $Q$ minus each head in the table. That is 12 operations against 32 for trying every string, and the search finds the string. '
+        f'The same split works at any digit, so the saving grows with the width. At 143 bits the same idea takes roughly $2^{{{half}}}$ work.')
 
     # ---- Section 13: the fixed point of the walks ----
     def points(rx):
@@ -747,25 +799,40 @@ def main():
         native_pts = points(nested_fixed + sm_)
         nn, nm = steps(native_pts), steps(nested_pts)
         round_ += 1
-        conv_rows.append([round_, native_pts, nn, nested_pts, nm])
+        conv_rows.append([round_, native_pts, nn, nested_pts, nm, sn, sm_])
         if (nn, nm) == (sn, sm_):
             break
         sn, sm_ = nn, nm
     assert (sn, sm_) == (23, 26) and (native_pts, nested_pts) == (93, 105)
-    frag['fixed-point'] = rows(['Round', 'Points the native walk folds', 'Native steps', 'Points the nested walk folds', 'Nested steps'], conv_rows)
-    first = conv_rows[0]
-    base_total = first[2] + first[4]
-    frag['fixed-point-end'] = (
-        f'The iteration stops at ${sn}$ native steps and ${sm_}$ nested steps, the values that the [code pins](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/mod.rs#L80-L85). With no feedback the first round would have been enough, with ${base_total}$ steps in all, so the feedback multiplies the count by about ${(sn + sm_) / base_total:.2f}$.')
+    frag['fold-points'] = (
+        f'Its trouble is the price. In Ragu\'s code a fuse folds ${native_pts}$ points of Pallas and ${nested_pts}$ points of Vesta with one challenge, counts that Section 13 derives. A Horner fold of ${native_pts}$ points makes ${native_pts - 1}$ multiplications by the challenge, one for each point after the first, and the other fold makes ${nested_pts - 1}$. '
+        'A Ragu circuit holds only $2^{11}$ gates, and the double-and-add from the [recursive proofs chapter](./recursive-proofs.md#point-operations) spends about ten gates on every bit, so one multiplication by a challenge of 143 bits would fill most of a circuit.')
+    frag['code-fixed-setup'] = (
+        f'The trace polynomials on the other side are a fixed set plus one per step circuit, and at commit `3219e08` the fixed sets have [${native_fixed}$ polynomials on the primary side](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/mod.rs#L135-L137) and [${nested_fixed}$ on the secondary side](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/nested/mod.rs#L165-L168). A Horner fold makes one multiplication by the challenge for each point after the first, and a step circuit does four of these endoscalings, so a walk needs $(\\text{{points}} - 1)/4$ step circuits, rounded up.')
+    frag['code-fixed'] = (
+        rows(['Round', 'Primary step circuits going in', 'Secondary step circuits going in', 'Points on Pallas', 'Points on Vesta', 'Primary step circuits needed', 'Secondary step circuits needed'],
+             [[r_[0], r_[5], r_[6], r_[1], r_[3], r_[2], r_[4]] for r_ in conv_rows]))
+    frag['code-fixed-end'] = (
+        f'In round {round_} the step circuits needed equal the step circuits going in, so the counts have stopped changing after ${round_}$ rounds. '
+        f'The primary circuits fold ${native_pts}$ points of Pallas in ${sn}$ step circuits, and the secondary circuits fold ${nested_pts}$ points of Vesta in ${sm_}$. '
+        f'Each step circuit does $4$ endoscalings, and ${sn} \\cdot 4 = {sn * 4} = {native_pts} - 1$ and ${sm_} \\cdot 4 = {sm_ * 4} = {nested_pts} - 1$.')
+    # The iteration reproduces the code's pinned step counts, which the chapter on
+    # recursion in Ragu cites. This chapter states only the series below.
     fr = Fraction(1, 3) / Fraction(1, 4)
     assert fr == Fraction(4, 3)
     assert Fraction(1, 7) / Fraction(1, 8) == Fraction(8, 7)
     frag['book-series'] = (
-        f'For $M = N$ the sum is $M/3$ against a first round of $M/4$, which is a factor of ${float(fr):.2f}$. The book also gives $k = 8$, where the factor is ${float(Fraction(8, 7)):.2f}$.')
-    limit = Fraction(1, 4) / (1 - Fraction(2, 4)) / Fraction(1, 4)
-    assert limit == 2
+        f'With $k = 4$ each series sums to $1/(1 - 1/16) = 16/15$, so for $M = N$ the total is $\\tfrac{{16}}{{15}}\\big(\\tfrac{{M}}{{4}} + \\tfrac{{M}}{{16}}\\big) = \\tfrac{{M}}{{3}}$, against a first round of $M/4$. The feedback raises the count by a factor of ${float(fr):.2f}$.')
+    kk = 4
+    ratio = Fraction(2, kk) ** 2
+    ssum = 1 / (1 - ratio)
+    total = ssum * (Fraction(1, kk) + Fraction(2, kk * kk))
+    limit = total / Fraction(1, kk)
+    assert ratio == Fraction(1, 4) and ssum == Fraction(4, 3) and total == Fraction(1, 2) and limit == 2
     frag['code-series'] = (
-        f'Each step now adds 2 points to a walk that does 4 per step, so the ratio per round is $2/4$ and not $1/4$. For equal base counts the series sums to $(M/4) / (1 - 1/2) = M/2$, a factor of ${int(limit)}$, which agrees with the count above.')
+        f'With $k = {kk}$ the ratio is $(2/{kk})^2 = {ratio.numerator}/{ratio.denominator}$, and each series sums to $1/(1 - {ratio.numerator}/{ratio.denominator}) = {ssum.numerator}/{ssum.denominator}$. For $M = N$ the total is '
+        f'$\\tfrac{{{ssum.numerator}}}{{{ssum.denominator}}}\\big(\\tfrac{{M}}{{{kk}}} + \\tfrac{{2M}}{{{kk * kk}}}\\big) = \\tfrac{{{ssum.numerator}}}{{{ssum.denominator}}} \\cdot \\tfrac{{3M}}{{8}} = \\tfrac{{M}}{{{total.denominator}}}$, against the same first round of $M/{kk}$. '
+        f'The feedback now raises the count by a factor of ${int(limit)}$, where the book\'s model gave ${float(fr):.2f}$.')
 
     return frag
 

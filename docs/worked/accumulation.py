@@ -357,11 +357,14 @@ acc, acc_u = Ghat_m, u_m
 rows = [f'| 1 and 2 | ${x_m}$ | ${alpha}$ | ${show(Ghat_m)}$ | ${vec(u_m)}$ |']
 next_claim = 3
 seen_outputs = {Ghat1, Ghat2, Ghat_m}
+chain_accs = []
 for a_c, x_c, u_c, xm_c, alpha_c, tau_c, um_c in chain_inputs:
     y_c = poly_eval(a_c, x_c)
     start_c = add(msm(Curve, a_c, G), mul(y_c, U))
     rounds_c, ahat_c, bhat_c, Ghat_c = ipa_prove(Curve, a_c, x_c, u_c)
-    assert left_side(Curve, start_c, rounds_c, u_c) == right_side(Curve, ahat_c, Ghat_c, bhat_c)
+    lhs_c = left_side(Curve, start_c, rounds_c, u_c)
+    assert lhs_c == right_side(Curve, ahat_c, Ghat_c, bhat_c)
+    chain_accs.append(((acc, acc_u), (Ghat_c, u_c), lhs_c))
     assert decide(Curve, Ghat_c, u_c)
     nondegenerate(Ghat_c)
     mc = merge(Curve, [(acc, acc_u), (Ghat_c, u_c)], xm_c, alpha_c, tau_c, um_c)
@@ -379,14 +382,30 @@ frag['chain'] = '\n'.join([
     f'The decider computes one MSM for the last row, gets ${show(acc)}$, and accepts. That single check covers all four input claims.',
 ])
 
+# The placeholder claim for the first step: every challenge 1, point = sum of the generators.
+u_ph = [1] * len(u1)
+assert g_coeffs(u_ph) == [1, 1, 1, 1]
+ph_pt = msm(Curve, [1, 1, 1, 1], G)
+nondegenerate(ph_pt)
+m_ph = merge(Curve, [(ph_pt, u_ph), (Ghat1, u1)], x_m, alpha, tau, u_m)
+assert m_ph['accepted'] and decide(Curve, m_ph['g_hat'], u_m) and decide(Curve, ph_pt, u_ph)
+assert ph_pt == m['C']
+frag['placeholder'] = (
+    f'On the toy curve the placeholder claim is $({show(ph_pt)},\\ {vec(u_ph)})$. Its factors are $(1 + X^2)(1 + X)$, and the point is $G_0 + G_1 + G_2 + G_3 = {show(ph_pt)}$, which by chance equals the $C_M$ of Section 6. '
+    f'Merging it with claim 1, reusing the challenges of Section 6, gives $v_M = {m_ph["v"]}$ and $C_M = {show(m_ph["C"])}$, the final check passes, and the decider accepts the output claim $({show(m_ph["g_hat"])},\\ {vec(u_m)})$. '
+    f'The placeholder behaves like any other true claim.'
+)
+
 # Three claims at once, as a node with two children and its own new claim would have.
 three = [(Ghat1, u1), (Ghat2, u2), (Ghat_c, u_c)]
 m3 = merge(Curve, three, x_m, alpha, tau, u_m)
 assert m3['accepted'] and decide(Curve, m3['g_hat'], u_m)
 frag['three'] = (
-    f'Merging claims 1, 2 and 4 in one step with the same challenges gives $v_M = {m3["v"]}$ and $C_M = {show(m3["C"])}$. The final check passes, and the output point is ${show(m3["g_hat"])}$. '
-    f'The output point depends only on $\\v{{u}}_M$, so it matches the two-claim merge above, and the inputs affect the proof only through $C_M$, $v_M$, the cross terms and the final scalar.'
+    f'Merge claims 1, 2 and 4 in one step. In a real run the transcript would absorb all three claims, so the challenges would differ from those of Section 6, but we reuse them here so that the two runs can be compared. '
+    f'The merge gives $v_M = {m3["v"]}$ and $C_M = {show(m3["C"])}$, the final check passes, and the output point is ${show(m3["g_hat"])}$, the same as in the two-claim merge. '
+    f'The output point is the folded generator, which depends only on $\\v{{u}}_M$. The inputs enter through $C_M$, $v_M$, the cross terms and the final scalar, and all four of these change when a claim is added.'
 )
+assert m3['C'] != m['C'] and m3['v'] != m['v'] and m3['a_hat'] != m['a_hat'] and m3['rounds'] != m['rounds']
 assert m3['g_hat'] == Ghat_m
 
 # ------------------------------------------------------------------ costs of a step
@@ -402,6 +421,21 @@ frag['costs'] = '\n'.join([
 ])
 per_step_ver = 1 + 2 * k_real + 2
 assert per_step_ver == 29
+# The final verifier: the last proof carries acc_n, and its own IPA yields one more claim.
+(acc_prev, acc_prev_u), (last_pt, last_u), last_lhs = chain_accs[-1]
+ipa_split_cost = 2 * k_real + 2
+assert ipa_split_cost == 28
+final_merged = ipa_split_cost + 2 * n_real
+final_one = ipa_split_cost + per_step_ver + n_real
+assert last_lhs is not None
+frag['final'] = (
+    f'Suppose the chain stops after claim 4, and treat claim 4 as the last proof\'s own claim. The last proof carries the accumulator $({show(acc_prev)},\\ {vec(acc_prev_u)})$ in its statement, which covers claims 1 to 3. '
+    f'The final verifier runs the last proof\'s inner product argument up to the split. Its final check passes with the supplied point, and this yields claim 4, $({show(last_pt)},\\ {vec(last_u)})$. '
+    f'It then checks the prover\'s merge proof for these two claims, which is the third row of the table, and gets the claim $({show(acc)},\\ {vec(acc_u)})$. Finally it decides that one claim. '
+    f'For $n = 2^{{{k_real}}}$ this costs ${ipa_split_cost}$ scalar multiplications for the split, ${per_step_ver}$ for the merge and ${n_real:,}$ for the decider, or ${final_one:,}$ in all. '
+    f'Deciding the accumulator and the last claim separately needs no merge proof, but it still needs the ${ipa_split_cost}$ for the split and then two MSMs, or ${final_merged:,}$ scalar multiplications.'
+)
+
 frag['total'] = (
     f'Over the same hypothetical ${N_claims:,}$ claims, the group work that a verifier must do drops from ${N_claims * n_real:,}$ scalar multiplications to ${per_step_ver}$ per merge plus one decider MSM of ${n_real:,}$. '
     f'The accumulator stays at one point and ${acc_scalars}$ challenges, or ${acc_bytes}$ bytes at 32 bytes each, and each merge proof holds ${ipa_points}$ points and one scalar, or ${merge_proof_bytes}$ bytes.'
@@ -537,12 +571,6 @@ assert fixed_ok and tau_ok == [1]
 gap_true = (0 - poly_eval(coeffs1, x1)) % Q
 gap_hidden = (eps - poly_eval(hidden_poly, x1)) % Q
 assert gap_true == gap_hidden == (-bhat1) % Q
-# Honest folding with any stated value cannot use this point in chapter 07's final check,
-# because its G_0 term has no counterpart on the left side.
-rounds_h, a_h, b_h, _ = ipa_prove(Formal, a1, x1, u1)
-for y_any in range(Q):
-    start_h = Formal.add(msm(Formal, a1, Formal.G), Formal.mul(y_any, Formal.U))
-    assert left_side(Formal, start_h, rounds_h, u1) != right_side(Formal, a_h, hidden_pt_f, b_h)
 hidden_pt = add(add(Ghat1, mul(eps, G[0])), mul(eps, U))
 assert hidden_pt != late_pt
 nondegenerate(hidden_pt)

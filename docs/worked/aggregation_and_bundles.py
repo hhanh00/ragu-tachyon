@@ -7,7 +7,9 @@ roots of polynomials over F_43 as in pool-state.md. BLAKE2b digests use real
 BLAKE2b-256 with the real personalizations, over toy byte encodings. The proof is
 not modelled: a "proof" records the header it was made for, and verifying compares
 headers. SALT was chosen so that the stand-in hash has no accidental collisions
-among the values the chapter uses.
+among the values the chapter uses. The action and fee digests hash value
+commitments, so they take a second salt, DIGEST_SALT, chosen the same way for the
+value commitment generators V and R that proof-tree.md fixes.
 """
 import hashlib
 import itertools
@@ -16,13 +18,15 @@ import json
 from toy_curve import G, H, P, Q, U, add, curve_points, msm, mul, show
 
 SALT = 13726025
+DIGEST_SALT = 478
 frag = {}
 ZERO = None
 
 
 # ---- stand-in hash and small helpers ------------------------------------------
 def h(tag, *inputs):
-    data = f'{SALT}|{tag}|' + '|'.join(str(i) for i in inputs)
+    salt = DIGEST_SALT if tag in ('ActionDg', 'FeeDg') else SALT
+    data = f'{salt}|{tag}|' + '|'.join(str(i) for i in inputs)
     return int.from_bytes(hashlib.sha256(data.encode()).digest(), 'big') % Q
 
 
@@ -115,12 +119,12 @@ def commit(poly):
 
 
 # ---- value commitments ---------------------------------------------------------
-VV, RR = U, H   # the two shared points outside the commitment generators
+VV, RR = G[1], G[2]   # the shared value commitment pair from proof-tree.md
 SIG_G = (1, 2)   # the spend authorization generator from notes-and-nullifiers.md
 assert SIG_G in curve_points() and VV != RR and VV[0] != RR[0]
 frag['generators'] = (
-    f'We write $\\mathcal{{V}} = {show(VV)}$ and $\\mathcal{{R}} = {show(RR)}$ for the toy value commitment '
-    f'generators, and values and blinds are scalars in $\\F_{{{Q}}}$.'
+    f'We use the toy value commitment generators $\\mathcal{{V}} = {show(VV)}$ and $\\mathcal{{R}} = {show(RR)}$ '
+    f'that [chapter 23](./proof-tree.md#_6-spending) fixed, and values and blinds are scalars in $\\F_{{{Q}}}$.'
 )
 
 

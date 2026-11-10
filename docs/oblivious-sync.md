@@ -1,24 +1,24 @@
 # Oblivious Sync
 
-[Chapter 19](./notes-and-nullifiers.md) showed that a spend must prove one nullifier absent from each closed epoch since the note's creation, and [chapter 20](./pool-state.md) built the chain of anchors that those proofs refer to. This chapter opens the black box they left behind. It covers how an untrusted service can prove absence over a whole epoch without knowing which note the values belong to, how the wallet later ties that work to its note, and what the service learns along the way.
+[Chapter 20](./notes-and-nullifiers.md) showed that a spend must prove one nullifier absent from each closed epoch since the note's creation, and [chapter 21](./pool-state.md) built the chain of anchors that those proofs refer to. This chapter opens the black box they left behind. It covers how an untrusted service can prove absence over a whole epoch without knowing which note the values belong to, how the wallet later ties that work to its note, and what the service learns along the way.
 
 Two problems run through the chapter. Sections 2 to 7 show how the wallet can tie values that a stranger tested to its own nullifiers at the right epochs. Sections 8 to 13 deal with size, since an epoch's polynomial is far too large to open directly. Section 14 then takes stock of what the service sees.
 
 ::: warning Status of these designs
 Tachyon has not activated on mainnet, and this part of its design is still changing. Everything here describes the [Tachyon repository](https://github.com/tachyon-zcash/tachyon/tree/7e502548db33845dbaacdc0efe905d1a3c45e626) at commit `7e50254`, which pins Ragu at [`0725b52`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/Cargo.toml#L74-L76) rather than the `3219e08` of the Ragu chapters. The [ZIP for the syncing service](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/zips/oss.md?plain=1#L1-L11) is an empty outline, so no request format, service interface, or privacy policy is specified, and we found none in the crate.
 
-The crate does contain the proof steps, but it [builds Ragu with its `mock` feature](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/Cargo.toml#L74-L76) and calls its proof system the [mock Ragu application](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/mod.rs#L78), as [chapter 19](./notes-and-nullifiers.md#_13-where-these-derivations-run) recorded. These steps compute natively, and comments mark circuit work that remains, such as [boolean constraints on the sides](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L663-L664). So what we say a step enforces describes the design the steps declare, and we did not find real circuits enforcing it.
+The crate does contain the proof steps, but it [builds Ragu with its `mock` feature](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/Cargo.toml#L74-L76) and calls its proof system the [mock Ragu application](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/mod.rs#L78), as [chapter 20](./notes-and-nullifiers.md#_13-where-these-derivations-run) recorded. These steps compute natively, and comments mark circuit work that remains, such as [boolean constraints on the sides](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L663-L664). So what we say a step enforces describes the design the steps declare, and we did not find real circuits enforcing it.
 :::
 
 ## 1. The work a spend needs
 
-Take the running note of [chapter 19](./notes-and-nullifiers.md#_6-deriving-a-note-s-nullifiers), created in epoch 3 and spent with target epoch 7. Here is what its spend requires, with the same stand-in nullifiers:
+Take the running note of [chapter 20](./notes-and-nullifiers.md#_6-deriving-a-note-s-nullifiers), created in epoch 3 and spent with target epoch 7. Here is what its spend requires, with the same stand-in nullifiers:
 
 <!-- worked:job -->
 
 | Epoch $j$ | $\mathsf{nf}_j$ | What happens to it | Who can do the reading |
 | --- | --- | --- | --- |
-| 3 | 14090 | tested for absence from epoch 3 | the wallet or a service |
+| 3 | 14090 | tested for absence from epoch 3, in a bind of its own (Section 6) | the wallet or a service |
 | 4 | 2976 | tested for absence from epoch 4 | the wallet or a service |
 | 5 | 63093 | tested for absence from epoch 5 | the wallet or a service |
 | 6 | 59553 | tested for absence from epoch 6 | the wallet or a service |
@@ -27,7 +27,7 @@ Take the running note of [chapter 19](./notes-and-nullifiers.md#_6-deriving-a-no
 
 <!-- /worked:job -->
 
-Each row that says "tested" needs someone to read a whole epoch's tachygrams, which is exactly the work that wallets were supposed to stop doing. Handing that work to a service is safe only if the values it receives are useless later. [Evolving nullifiers](./scaling-zcash.md#_8-evolving-nullifiers) provide this, because the pair published at the spend is unrelated to the values tested for earlier epochs, assuming Poseidon behaves as a pseudorandom function. [Chapter 19](./notes-and-nullifiers.md#_7-why-the-wallet-derives-its-own-nullifiers) explained why the wallet sends explicit values and no key.
+Each row that says "tested" needs someone to read a whole epoch's tachygrams, which is exactly the work that wallets were supposed to stop doing. Handing that work to a service is safe only if the values it receives are useless later. [Evolving nullifiers](./scaling-zcash.md#_8-evolving-nullifiers) provide this, because the pair published at the spend is unrelated to the values tested for earlier epochs, assuming Poseidon behaves as a pseudorandom function. [Chapter 20](./notes-and-nullifiers.md#_7-why-the-wallet-derives-its-own-nullifiers) explained why the wallet sends explicit values and no key.
 
 We call this party the **sync service**, or the service. The book also says "delegate" and "oblivious syncing service (OSS)" for the same role.
 
@@ -35,7 +35,7 @@ We call this party the **sync service**, or the service. The book also says "del
 
 The service knows nothing about the note, so it cannot prove anything about the note. All it can prove is a statement about arbitrary field elements: "these values, at these epochs, do not appear in the pool." The code's name for such a proof is [`ArbitraryUnspent`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/pool.rs#L46-L75), and its doc comment says that the tested values remain arbitrary until the wallet attributes them to a derivation.
 
-The wallet holds the other half. As [chapter 19](./notes-and-nullifiers.md#_13-where-these-derivations-run) showed, it proves that a range of nullifiers really derives from the master key of a note with commitment $\mathsf{cm}$, which gives a `NoteNullifiers` proof. Neither proof says anything about the other, so a final wallet step has to connect them. The [proof tree page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L46-L52) calls that step `UnspentBind`, and it is the only place where the two meet:
+The wallet holds the other half. As [chapter 20](./notes-and-nullifiers.md#_13-where-these-derivations-run) showed, it proves that a range of nullifiers really derives from the master key of a note with commitment $\mathsf{cm}$, which gives a `NoteNullifiers` proof. Neither proof says anything about the other, so a final wallet step has to connect them. The [proof tree page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L46-L52) calls that step `UnspentBind`, and it is the only place where the two meet:
 
 ```mermaid
 flowchart TB
@@ -53,7 +53,11 @@ flowchart TB
     NU --> L["SpendableLift"]
 ```
 
-Both branches build their commitments step by step, because neither fits in one proof step. So the binding has to compare two values that were accumulated separately, by different parties, over different ranges. The wallet's range also needs to be at least as wide as the service's, since it covers epochs the service never saw. What we need is a commitment that grows one epoch at a time and that supports a proof that one committed collection sits inside another. The [deep dive](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L286-L308) calls this a "ranged nullifier commitment," and it rules out the vector commitment schemes it surveyed because they rely on RSA or bilinear groups.
+The service's output needs a name, because the rest of the chapter works with it. An `ArbitraryUnspent` header records three things. The first is a half-open range of epochs $[e_1, e_2)$. The second is the pair of anchors on [chapter 21's chain](./pool-state.md#_9-covering-a-whole-epoch) where that range starts and stops. The third is a commitment to a polynomial that the code calls `elapsed`, and that we write $\Delta$. This polynomial is a product with exactly one factor for each epoch in the range, and each factor is built from the value tested at that epoch. We call such a header a **segment**. For a segment over epochs 4 to 6, $\Delta$ has three factors, one built from the value tested at epoch 4, one from epoch 5, and one from epoch 6. Sections 4 and 5 choose the form of each factor, and Sections 12 and 13 show how the service builds a segment one epoch at a time and why it ends up with one factor per epoch.
+
+Both branches build their commitments step by step, because neither fits in one proof step. So the binding has to compare two values that were accumulated separately, by different parties, over different ranges. The wallet's range is wider than the service's, because it also covers epochs the service never saw, so the binding must test containment and not equality. What we need is a commitment that grows one epoch at a time and that supports a proof that one committed collection sits inside another.
+
+The [deep dive](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L286-L308) calls this a "ranged nullifier commitment," and it rules out the vector commitment schemes it surveyed because they rely on RSA or bilinear groups. Neither fits Tachyon. The Pasta curves have no pairing, which is the bilinear map those schemes need, and RSA groups need a modulus whose factors nobody knows, which brings back the trusted setup that Tachyon avoids, as [chapter 6](./polynomial-commitments.md#_11-comparison-with-kzg) explained for KZG.
 
 ::: warning Naming across the sources
 The [delegation section of the nullifier page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nullifiers.md?plain=1#L39-L76) writes $\Delta(X)$, $N(X)$, $C(X)$ and a range $e..e+d$ that includes both ends. The [deep dive](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L342-L379) writes $g_S(X)$, $g_R(X)$, $q(X)$. The [code](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/pool.rs#L493-L548) calls the same three `elapsed`, `nf_seq`, and `complement`, and its ranges are half-open. We use $\Delta$, $N$, $C$ with half-open ranges.
@@ -61,7 +65,7 @@ The [delegation section of the nullifier page](https://github.com/tachyon-zcash/
 
 ## 3. Testing containment with polynomials
 
-[Chapter 20](./pool-state.md#_4-combining-and-dividing-sets) already has a tool for containment, since a polynomial divides another exactly when its roots form a sub-multiset, and a late random challenge checks the division. So the first thing to try is to give the service's values as roots. The service commits to $\Delta(X) = \prod_i (X - \delta_i)$, the wallet commits to $N(X) = \prod_j (X - \mathsf{nf}_j)$, and the wallet shows $N = C \cdot \Delta$ for a witnessed quotient $C$.
+[Chapter 21](./pool-state.md#_4-combining-and-dividing-sets) already has a tool for containment, since a polynomial divides another exactly when its roots form a sub-multiset, and a late random challenge checks the division. So the first thing to try is to give the service's values as roots. The service commits to $\Delta(X) = \prod_i (X - \delta_i)$, the wallet commits to $N(X) = \prod_j (X - \mathsf{nf}_j)$, and the wallet shows $N = C \cdot \Delta$ for a witnessed quotient $C$.
 
 <!-- worked:toy-values -->
 
@@ -69,11 +73,11 @@ Our small examples use $\F_{43}$, so we reduce the nullifiers above modulo 43. T
 
 <!-- /worked:toy-values -->
 
-This proves that the tested values are the note's, but it says nothing about which value was tested against which epoch. A later proof looks for each nullifier only in the epoch with the same number, as [chapter 19](./notes-and-nullifiers.md#_10-why-a-spend-publishes-two-nullifiers) stressed, so that loss is fatal.
+This proves that the tested values are the note's, but it says nothing about which value was tested against which epoch. A later proof looks for each nullifier only in the epoch with the same number, as [chapter 20](./notes-and-nullifiers.md#_10-why-a-spend-publishes-two-nullifiers) stressed, so that loss is fatal.
 
 <!-- worked:root-attack -->
 
-Suppose an earlier spend of this note had target 3 and was accepted during epoch 4, so epoch 4 contains $\mathsf{nf}_3 = 29$ and $\mathsf{nf}_4 = 9$. Say epoch 4 publishes {29, 9, 17} and epoch 5 publishes {33, 6, 38}. A second spend must fail, and the honest test does fail, since $f_4(9) = 0$. The cheater swaps the two values and tests 12 against epoch 4 and 9 against epoch 5. Both tests pass, with $f_4(12) = 40$ and $f_5(9) = 24$. The tested multiset is still {9, 12}, and its polynomial $(X - 9)(X - 12) = X^{2} + 22X + 22$ did not change, so it divides the wallet's polynomial just as the honest one does.
+Suppose an earlier spend of this note had target 3 and was accepted during epoch 4, so epoch 4 contains $\mathsf{nf}_3 = 29$ and $\mathsf{nf}_4 = 9$. Say epoch 4 publishes {29, 9, 17} and epoch 5 publishes {33, 6, 38}. Write $e_4(X)$ and $e_5(X)$ for their [epoch polynomials](./pool-state.md#_4-combining-and-dividing-sets), whose roots are exactly the published values, so a value is absent from an epoch when that epoch's polynomial is nonzero there. A second spend must fail, and the honest test does fail, since $e_4(9) = 0$. The cheater swaps the two values and tests 12 against epoch 4 and 9 against epoch 5. Both tests pass, with $e_4(12) = 40$ and $e_5(9) = 24$. The tested multiset is still {9, 12}, and its polynomial $(X - 9)(X - 12) = X^{2} + 22X + 22$ did not change, so it divides the wallet's polynomial just as the honest one does.
 
 <!-- /worked:root-attack -->
 
@@ -133,18 +137,20 @@ We can test this on the toy field. Epochs 3 to 6 and all 43 values give 172 pair
 
 <!-- /worked:unique -->
 
-The non-cube requirement has a concrete purpose, because a factor that splits can divide a product without being one of its members.
+The non-cube requirement has a concrete purpose, because a factor that splits can divide a product without being one of its members. If $c$ is a cube, then $(m + aX)^3 = c$ has a solution, and multiplying it by a cube root of unity gives another. $\F_{43}$ contains all three cube roots of unity, so every factor splits into three linear pieces. $N$ then becomes a product of linear factors, and roots borrowed from different members can regroup into a factor that belongs to none of them.
 
 <!-- worked:cube-fail -->
 
-Here is the failure on the toy field, for the four pairs above and every candidate $(i, m)$ with $i$ from 0 to 29. With $c = 2$, which is a cube, $N(X)$ has the 11 distinct roots 5, 11, 12, 18, 28, 30, 32, 33, 39, 40, 42, and 11 false pairs have all of their three roots among them. The pair $(0,\ 35)$ is one, whose roots are 28, 40, 42, and its factor divides $N$ although it is no member of $N$. With $c = 3$, $N(X)$ has no roots in the field at all, and no false pair divides it except for the scaled copies of Section 5, which are the same polynomial.
+Here is the failure on the toy field. Take the four pairs above and rebuild their product $N(X)$ twice, once with the cube $c = 2$ and once with our non-cube $c = 3$. Then try every candidate pair $(i, m)$ with $i$ from 0 to 15, which are the 16 epochs of one derivation batch in the code, a batch that Section 7 introduces, and all 43 values of $m$. With $c = 2$, $N(X)$ has the 11 distinct roots 5, 11, 12, 18, 28, 30, 32, 33, 39, 40, 42, and 9 false pairs have all of their three roots among them. The pair $(0,\ 35)$ is one, whose roots are 28, 40, 42, and its factor divides $N$ although it is no member of $N$.
+
+With $c = 3$, $N(X)$ has no roots in the field at all, and the only other pairs whose factors divide it turn out to give exactly the same polynomial as a member, for a reason that Section 5 explains.
 
 <!-- /worked:cube-fail -->
 
-The sources do not discuss why they chose a cube over a square of the linear term, so we leave that question open.
-
 ::: warning Reconstructed from code at commit 7e50254, not confirmed by the authors
-The [deep dive's sketch](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L389-L410) states that $Y^3 - c$ is irreducible and stays so under affine substitution, and that collisions need a cube root of unity. The rescaling attack on linear factors, the coefficient comparison above, and the attack with a cube for $c$ are our own explanation of why the form takes this shape.
+The [deep dive's sketch](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L389-L410) states that $Y^3 - c$ is irreducible and stays so under affine substitution, and that collisions need a cube root of unity. The rescaling attack on linear factors, the coefficient comparison above, the attack with a cube for $c$, and the comparison with a square below are our own explanation of why the form takes this shape.
+
+A square might seem to do as well, and it is cheaper. Run the same comparison on $(m + aX)^2 - c$ with $c$ a non-square. The $Y$ term gives $2rs = 0$, so $s = 0$, the constant term again forces $u = 1$, and the $Y^2$ term gives $r^2 = 1$. So the only collision is $r = -1$, which pairs $(a, m)$ with $(-a, -m)$, and keeping $a$ below $p/2$ already rules that out. By this argument the square works too. The sources do not say why they chose the cube, so we leave that question open.
 :::
 
 ## 5. When two pairs share a factor
@@ -165,11 +171,9 @@ As an ordinary integer, the left side is positive, and it is less than $3 \cdot 
 
 <!-- worked:omega-bound -->
 
-On the toy field the bound is $\lfloor\sqrt{43/3}\rfloor = 3$, which is small, and the collision above has $1 + 6 + 6^2 = 43$, exactly the field size. For the Pallas base field the bound is about $2^{126}$, while the code has only $2^{20}$ epochs. Our window of epochs 3 to 6 lies above the toy bound, so we checked it directly, and Section 4 found no collision among those epochs.
+On the toy field the bound is $\lfloor\sqrt{43/3}\rfloor = 3$, which is small, and the collision above has $1 + 6 + 6^2 = 43$, exactly the field size. For the Pallas base field the bound is about $2^{126}$, while the code has only $2^{20}$ epochs. Our batch of epochs 3 to 6 lies above the toy bound, so we checked it directly, and Section 4 found no collision among those epochs.
 
 <!-- /worked:omega-bound -->
-
-The [deep dive](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L405-L410) makes the same point more loosely, and adds that a real circuit does not range-check $i$ directly. It relies on the increments as ranges are built and on an out-of-range epoch leading to invalid anchors.
 
 ::: warning Reconstructed from code at commit 7e50254, not confirmed by the authors
 The code states the bound without a derivation. The three-line argument above is ours.
@@ -177,68 +181,78 @@ The code states the bound without a derivation. The three-line argument above is
 
 ## 6. A full run on the toy curve
 
-We can now run the whole binding. A wallet derives the range of epochs 3 to 6. Say it delegates epochs 4 and 5 to a service, keeping epoch 3 because that is the creation epoch, and epoch 6 because it has not reached the service yet. Real windows are larger, and Section 7 uses the true size. Over a delegated range, the [delegation section](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nullifiers.md?plain=1#L43-L74) defines
+We can now run the whole binding. A wallet derives its nullifiers for epochs 3 to 6, and it asks the service for a segment over epochs 4 to 6, so the service tests the three values for those epochs. Real batches are larger, and Section 7 uses the true size.
 
-$$\Delta(X) = \prod_{i \in \text{delegated}} F_{i,\delta_i}(X), \qquad N(X) = \prod_{j \in \text{derived}} F_{j,\mathsf{nf}_j}(X), \qquad C(X) = \prod_{j \notin \text{delegated}} F_{j,\mathsf{nf}_j}(X),$$
+Epoch 3 is the note's creation epoch, and this bind does not cover it. A separate segment and a separate bind handle that epoch, as [chapter 23](./proof-tree.md#qrspendableinit) shows. We still include epoch 3 in the wallet's range here, because it shows what the complement $C$ below is for. It holds the factors of derived epochs that this particular segment does not test, and the bind certifies nothing about them. A spend is complete only when every epoch from creation up to the target has a factor in some segment that the wallet has bound to its note.
 
-and the claim is $N(X) = C(X) \cdot \Delta(X)$. The honest service tests the values it was given, so $\delta_i = \mathsf{nf}_i$:
+Over a delegated range, the [delegation section](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nullifiers.md?plain=1#L43-L74) defines
+
+$$\Delta(X) = \prod_{i \in \text{delegated}} F_{i,\delta_i}(X), \qquad N(X) = \prod_{j \in \text{derived}} F_{j,\mathsf{nf}_j}(X), \qquad C(X) = \prod_{\substack{j \in \text{derived} \\ j \notin \text{delegated}}} F_{j,\mathsf{nf}_j}(X),$$
+
+and the claim is $N(X) = C(X) \cdot \Delta(X)$. Here $\delta_i$ is the value tested at epoch $i$, and the honest service tests the values it was given, so $\delta_i = \mathsf{nf}_i$:
 
 <!-- worked:run-polys -->
 
 | Polynomial | Epochs | Built by | Coefficients, highest degree first |
 | --- | --- | --- | --- |
-| $\Delta(X)$ | 4, 5 | the service | $39X^{6} + 6X^{5} + 14X^{4} + 14X^{3} + 37X^{2} + 38X + 18$ |
+| $\Delta(X)$ | 4, 5, 6 | the service | $4X^{9} + 9X^{8} + 36X^{7} + 30X^{6} + 10X^{5} + 39X^{4} + 20X^{3} + 30X^{2} + 19X + 17$ |
 | $N(X)$ | 3, 4, 5, 6 | the wallet | $41X^{12} + 38X^{11} + 31X^{10} + 34X^{9} + 9X^{8} + 38X^{7} + 32X^{6} + 20X^{5} + 40X^{4} + 27X^{3} + 3X^{2} + 3X + 42$ |
-| $C(X)$ | 3, 6 | the wallet | $22X^{6} + 2X^{5} + 40X^{4} + 28X^{3} + 14X^{2} + 4X + 31$ |
+| $C(X)$ | 3 | the wallet | $21X^{3} + 16X^{2} + 30X + 5$ |
 
 <!-- /worked:run-polys -->
+
+We built $\Delta$ here in one go so that the identity is easy to see. In practice the service builds it one factor per epoch, through steps that Sections 12 and 13 describe. [Chapter 23](./proof-tree.md#unspentbind) runs those steps end to end, through `UnspentBind`, on the running note.
 
 A header has room only for short values, so each party's header holds a commitment. `UnspentBind` first checks that its witnessed $\Delta$ and $N$ [match the commitments](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/pool.rs#L529-L538) on the two input headers.
 
 <!-- worked:run-commit -->
 
-Each polynomial commits on the toy curve as in [chapter 6](./polynomial-commitments.md), with the extra generators of [chapter 20](./pool-state.md#_4-combining-and-dividing-sets) and more of the same kind, since $N$ needs 13: $\mathsf{Com}(\Delta) = (4,\,25)$, $\mathsf{Com}(C) = (28,\,10)$, and $\mathsf{Com}(N) = (22,\,24)$. A stand-in hash of those three points gives the challenge $z = 6$.
+Each polynomial commits on the toy curve as in [chapter 6](./polynomial-commitments.md), with the extra generators of [chapter 21](./pool-state.md#_4-combining-and-dividing-sets) and more of the same kind, since $N$ needs 13: $\mathsf{Com}(\Delta) = (18,\,10)$, $\mathsf{Com}(C) = (28,\,10)$, and $\mathsf{Com}(N) = (22,\,24)$. A stand-in hash of those three points gives the challenge $z = 29$.
 
 <!-- /worked:run-commit -->
 
-The step then [checks the product at the challenge](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/pool.rs#L540-L548). The shared helper [`enforce_poly_product`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/relations/enforce.rs#L62-L84) absorbs all three commitments into the challenge, compares the evaluations, and records one opening claim per polynomial, which it leaves for the proof system to verify.
+The step then [checks the product at the challenge](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/pool.rs#L540-L548). The challenge absorbs all three commitments, and the proof system later verifies one opening per polynomial.
 
 <!-- worked:run-check -->
 
-At $z = 6$ the service's side evaluates factor by factor as $\Delta(6) = F_{4,9}(6) \cdot F_{5,12}(6) = 19 \cdot 36 = 39$. The wallet also has $C(6) = 18$ and $N(6) = 14$, and the identity holds, since $39 \cdot 18 = 14$ in $\F_{43}$.
+At $z = 29$ the service's side evaluates factor by factor as $\Delta(29) = F_{4,9}(29) \cdot F_{5,12}(29) \cdot F_{6,41}(29) = 13 \cdot 32 \cdot 5 = 16$. The wallet also has $C(29) = 8$ and $N(29) = 42$, and the identity holds, since $16 \cdot 8 = 42$ in $\F_{43}$.
 
 <!-- /worked:run-check -->
 
 The output is a `NoteUnspent` header. It keeps the segment's anchors and epochs, and it carries the wallet's $\mathsf{cm}$, so the anonymous claim now belongs to one note.
 
-A dishonest service gains nothing, because its proof is about whatever it tested, and [the wallet's check leaves a diverging proof useless](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nullifiers.md?plain=1#L76). It can refuse to serve, and it cannot fool the wallet. A cheating wallet is the more serious case, and the argument there runs through the order of events, as in [chapter 3](./statements-and-challenges.md#_5-testing-polynomials-at-a-random-point). The commitments are fixed before $z$ exists, so a false claim is a fixed nonzero polynomial $N - \Delta' C$, and the challenge has to land on one of its roots. Here is every kind of attempt, with the honest $C$ committed:
+A dishonest service gains nothing, because its proof is about whatever it tested, and [the wallet's check leaves a diverging proof useless](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nullifiers.md?plain=1#L76). It can refuse to serve, and it cannot fool the wallet.
+
+A cheating wallet is the more serious case. A wallet that wants to spend a note twice needs an absence proof for a nullifier that is already published, and nothing forces it to use an honest service. The service's steps run on public data, so the wallet can run them itself on any values it likes. It therefore controls the segment it brings to the bind, and it also chooses $C$. Write $\Delta'$ for the `elapsed` polynomial of that segment, which is $\Delta$ when the wallet is honest. The wallet cannot choose $N$, though. $N$ comes from its own `NoteNullifiers` proof, which derives every factor from the note's master key, so $N$ is fixed by the note. The argument against this wallet runs through the order of events, as in [chapter 3](./statements-and-challenges.md#_5-testing-polynomials-at-a-random-point). The commitments to $\Delta'$, $C$ and $N$ are fixed before $z$ exists. If $N \neq \Delta' C$, the difference $N - \Delta' C$ is a fixed nonzero polynomial, and the check passes only when the challenge lands on one of its roots.
+
+The table tries each kind of false segment. The middle column asks whether any $C$ at all, chosen freely, would make the identity hold exactly. The last column fixes the honest $C$ and counts the challenges at which the check passes anyway.
 
 <!-- worked:run-cheat -->
 
-| The service's polynomial uses | Cases where a quotient exists | Challenges that pass, of 43 |
+| The segment's polynomial $\Delta'$ uses | Cases where any $C$ makes $N = \Delta' C$ | Challenges that pass with the honest $C$, of 43 |
 | --- | --- | --- |
 | A wrong value at epoch 5, for each of the 42 wrong values | 0 | 2 in every case |
 | The swap of Section 3, with 12 at epoch 4 and 9 at epoch 5 | 0 | 3 |
 | Epoch 4 tested twice, standing in for epoch 5 | 0 | 3 |
-| A genuine nullifier of epoch 7, which the window does not hold | 0 | 3 |
+| A genuine nullifier of epoch 7, which the batch does not hold, in place of epoch 5 | 0 | 3 |
 
 <!-- /worked:run-cheat -->
 
 <!-- worked:run-cheat-note -->
 
-The difference $N - \Delta' C$ has degree at most 12, so no attempt can pass more than 12 challenges, and the worst one here passes 3. A wrong value passes so few because $N - \Delta' C$ factors as $C$ and $F_{4,9}$, which have no roots in the field, times a difference of two cubes, which has degree 2. The proportion looks large only because the field has 43 elements.
+The difference $N - \Delta' C$ has degree at most 12, so no attempt can pass more than 12 challenges, and the worst one here passes 3. A wrong value passes so few because $N - \Delta' C$ factors as $C$, $F_{4,9}$ and $F_{6,41}$, which have no roots in the field, times $F_{5,12} - F_{5,m}$. The constants $c$ cancel in that difference, which leaves $A^3 - B^3$ with $A = 12 + 6X$ and $B = m + 6X$. Because $\F_{43}$ contains the cube root of unity $\omega$, this factors as $(A - B)(A - \omega B)(A - \omega^2 B)$. The first factor $A - B = 12 - m$ is a nonzero constant, and each of the other two is linear in $X$ with one root. So the difference has at most two roots, and the count of 2 in every case shows that the two roots never coincide here. The proportion looks large only because the field has 43 elements.
 
 <!-- /worked:run-cheat-note -->
 
-The third row of that table needs one more fact. The wallet's $N$ has each epoch once, because [`NullifierFuse`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/delegation.rs#L253-L273) requires contiguous ranges, which keeps it squarefree. A repeated factor in $\Delta$ therefore cannot divide it.
+The third row of that table needs one more fact. The wallet's $N$ has each epoch once, because [`NullifierFuse`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/delegation.rs#L253-L273) requires contiguous ranges, which keeps it squarefree. A repeated factor in $\Delta'$ therefore cannot divide it.
 
 ## 7. The real window size
 
-The code's derivation unit is wider than our toy range. [`NF_DERIVATION_WIDTH`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/nullifier/mod.rs#L9-L10) is 16, so [`NullifierDerive`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/delegation.rs#L152-L251) produces a group-aligned window of 16 epochs from 4 sponges, and `NullifierFuse` joins adjacent windows by multiplying their polynomials. Our note needs epoch 3 covered, so its first window starts at epoch 0. The factors for epochs 0 to 2, and for epochs the window [runs ahead of the evidence](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/pool.rs#L477-L480), go into the complement, which stays with the wallet.
+The code's derivation unit is wider than our toy range. [`NF_DERIVATION_WIDTH`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/nullifier/mod.rs#L9-L10) is 16, so [`NullifierDerive`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/delegation.rs#L152-L251) always produces a batch of 16 epochs that starts at a multiple of 16. The code calls this unit a window, but it is unrelated to the two-epoch consensus window, so like [chapter 20](./notes-and-nullifiers.md#_7-why-the-wallet-derives-its-own-nullifiers) and [chapter 23](./proof-tree.md#nullifierderive) we say batch. It gets those 16 nullifiers from 4 sponge calls of 4 outputs each, as [chapter 20](./notes-and-nullifiers.md#_6-deriving-a-note-s-nullifiers) described. `NullifierFuse` joins adjacent batches by multiplying their polynomials. Our note needs epoch 3 covered, so its first batch runs from epoch 0 to epoch 15. That batch includes epochs 0 to 2, which come before the note existed, and epochs 7 to 15, which come after the target. Nobody tests those epochs. The code [lets the batch run past the end of the tested segment](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/pool.rs#L477-L480), and the factors for both groups go into the complement, which stays with the wallet. Epoch 3 lands there too, for the reason given in Section 6.
 
 <!-- worked:window16-field -->
 
-The stand-in range of chapter 19 is the prime 65,537, and it cannot host this encoding. Since $65{,}536$ is not divisible by 3, cubing permutes that field and every element is a cube. So this section works modulo the next prime with the right shape, 65,539, which is 1 modulo 3 and whose smallest non-cube is $c = 2$. The nullifier values carry over unchanged.
+The stand-in range of chapter 20 is the prime 65,537, and it cannot host this encoding. Since $65{,}536$ is not divisible by 3, cubing permutes that field and every element is a cube. So this section works modulo the next prime with the right shape, 65,539, which is 1 modulo 3 and whose smallest non-cube is $c = 2$. The nullifier values carry over unchanged.
 
 <!-- /worked:window16-field -->
 
@@ -254,39 +268,39 @@ The stand-in range of chapter 19 is the prime 65,537, and it cannot host this en
 
 <!-- worked:window16-check -->
 
-The identity holds: $27584 \cdot 52043 \equiv 53395 \pmod{65{,}539}$. If the service instead tests 63094 at epoch 5, one more than the genuine 63093, then trying all 65,539 challenges finds 2 that pass, against the degree bound of 48. The window is well inside the injectivity bound here, which is $\lfloor\sqrt{65{,}539/3}\rfloor = 147$.
+The identity holds: $27584 \cdot 52043 \equiv 53395 \pmod{65{,}539}$. If the service instead tests 63094 at epoch 5, one more than the genuine 63093, then trying all 65,539 challenges finds 2 that pass, against the degree bound of 48. The batch is well inside the injectivity bound here, which is $\lfloor\sqrt{65{,}539/3}\rfloor = 147$.
 
 <!-- /worked:window16-check -->
 
-Notice what `UnspentBind` does not compare. The [proof tree page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L318-L325) says it compares no bounds between the segment and the derivation. It does not need to, because each factor carries its own epoch. An epoch outside the derivation has no factor to divide out, so coverage follows from the identity.
+Notice what `UnspentBind` does not compare. The [proof tree page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L318-L325) says it compares no bounds between the segment and the derivation. It does not need to, because each factor carries its own epoch, and a segment holds exactly one factor for each epoch in its range, as Section 2 described. If the segment covered an epoch outside the derivation, its factor for that epoch would have to divide $N$, and $N$ has no factor with that epoch to match it. So the identity can hold only when the segment's range lies inside the derivation's range, and coverage follows from the identity.
+
+[Chapter 23](./proof-tree.md#unspentbind) runs this same 16-epoch bind with the real steps, and its numbers continue the table above.
 
 ::: warning Book and code: the steps around the bind
-**Deep dive:** [`UnspentSeed`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L2337-L2339) creates an empty range, [`UnspentBind`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L2358-L2363) requires $[s_L, s_R) \subseteq [r_L, r_R)$, [`UnspentMerge`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L2398-L2420) joins results, and the creation epoch goes through [`NoteUnspentInit` and `SpendableReinit`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L2368-L2370).
+**Deep dive:** [`UnspentBind`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L2358-L2363) requires $[s_L, s_R) \subseteq [r_L, r_R)$, and the creation epoch goes through [separate steps of its own](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L2368-L2370), with other step names around them.
 
-**Proof tree page and code at `7e50254`:** [`QrUnspentInit` is the only seed](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L182), so no empty segment exists. The join is [`UnspentFuse`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/pool.rs#L271-L333). `UnspentBind` [compares no bounds](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/pool.rs#L505-L548) beyond a defensive check that the segment is not empty. The creation epoch uses an ordinary segment bound by `UnspentBind`, which [`QrSpendableInit`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/spendable.rs#L108-L188) then consumes.
+**Proof tree page and code at `7e50254`:** `UnspentBind` [compares no bounds](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/pool.rs#L505-L548) beyond a defensive check that the segment is not empty. The creation epoch uses an ordinary bound segment, as Section 6 described.
 
 This site follows the code.
 :::
 
 ## 8. Why one opening per epoch needs buckets
 
-With the binding in place, we turn to what the service proves. A nullifier is absent from an epoch exactly when the [epoch polynomial](./pool-state.md#_4-combining-and-dividing-sets) $e(X)$ is nonzero there. Anyone can show that $e$ is the product of the stamp polynomials absorbed into the anchor chain, and the work is paid once and reused for every query. The obstacle is the degree of $e$, because opening a commitment with Ragu's [linear-time verifier](./inner-product-argument.md) costs time in proportion to it.
+With the binding in place, we turn to what the service proves. From here on the toy numbers come from chapter 21's epoch 0 in $\F_{43}$, whose tachygrams Section 9 lists, and no longer from the running note.
+
+A nullifier is absent from an epoch exactly when the [epoch polynomial](./pool-state.md#_4-combining-and-dividing-sets) $e(X)$ is nonzero there, so the direct approach opens $e$ at the value. The obstacle is the degree of $e$, because opening a commitment with Ragu's [linear-time verifier](./inner-product-argument.md) costs time in proportion to it.
 
 <!-- worked:scale -->
 
-Take 100 two-input, two-output transactions per second as a hypothetical load, with 8 tachygrams each. An epoch of the code's 4,096 blocks lasts 307,200 seconds at 75 seconds per block, so it holds 245,760,000 tachygrams, and $e(X)$ has that degree.
+Take chapter 1's hypothetical load of 100 two-input, two-output transactions per second, with 9 tachygrams each. An epoch of the code's 4,096 blocks lasts 307,200 seconds at 75 seconds per block, so it holds 276,480,000 tachygrams, and $e(X)$ has that degree.
 
 <!-- /worked:scale -->
 
-The deep dive [estimates](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L878-L887) more than 16 minutes of verification at its own higher figure, and so it drops this approach.
+The deep dive [estimates](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L878-L887) more than 16 minutes of verification at its own higher figure, and so it drops this approach. A box in Section 11 reconciles the deep dive's counts with ours.
 
-<!-- worked:scale-book -->
+The fix is to split the epoch into buckets small enough to open, so that a query touches one. This only works if a value can find its own bucket without any list of the epoch's contents, and if nobody can leave a tachygram out of the bucket where it belongs. So the partition has to be a public rule computed from the value alone, and it has to be cheap to prove that a whole bucket obeys the rule. One candidate rule would hash each member and use the hash to pick its bucket, but proving that a bucket obeys it would cost one hash per member inside a proof. The deep dive does not make this comparison, so the cost is our own count. Tachyon [instead classifies values by quadratic residuosity](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L893-L916). That rule is cheaper to prove, because one polynomial identity attests many members at once, as Section 10 shows.
 
-The deep dive's figure of more than 480,000,000 tachygrams uses a two-week epoch, and it matches 483,840,000, which is 4 tachygrams per transaction. Two per action would give 967,680,000. Its later scale estimate does use 8 per transaction. Neither figure uses the code's epoch length.
-
-<!-- /worked:scale-book -->
-
-The fix is to split the epoch into buckets small enough to open, so that a query touches one. This only works if a value can find its own bucket without any list of the epoch's contents, and if nobody can leave a tachygram out of the bucket where it belongs. So the partition has to be a public rule computed from the value alone, and it has to be cheap to prove that a whole bucket obeys the rule. A rule based on hashing each member would cost one hash per member inside a proof, by our count, since the deep dive says only that its own choice is cheap to prove. Tachyon [instead classifies values by quadratic residuosity](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L893-L916), because a polynomial identity can attest many members at once, as Section 10 shows.
+We write $n$ for the non-residue used in this rule, since the sources use $c$ here as well as for the cube constant, which would be confusing.
 
 <!-- worked:squares -->
 
@@ -294,13 +308,11 @@ In $\F_{43}$ the nonzero squares are 1, 4, 6, 9, 10, 11, 13, 14, 15, 16, 17, 21,
 
 <!-- /worked:squares -->
 
-We write $n$ for this non-residue, since the sources use $c$ here as well as for the cube constant, which would be confusing.
-
 ## 9. Classifying a value
 
 One split of the field gives two classes, and we need many. A **discriminant** $R$ is an offset that gives a different split, because $x$ is classified by whether $x + R$ is a square. [The rule](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L935-L946) sets the bit $b = 1$ when $x + R$ is a square or zero, which we call the residue side, and $b = 0$ otherwise. A run of discriminants then gives each value a string of bits, its **QR profile**. Tachyon [uses consecutive offsets](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/primitives/qr.rs#L15-L41), $R_j = R_0 + j$, from a first discriminant $R_0$ that a builder picks.
 
-Here is chapter 20's [epoch 0](./pool-state.md#_4-combining-and-dividing-sets), with its stamps A, B, and C. The small-field search for a readable example chose the $R_0$ below.
+Here is chapter 21's [epoch 0](./pool-state.md#_4-combining-and-dividing-sets), with its stamps A, B, and C. The small-field search for a readable example chose the $R_0$ below.
 
 <!-- worked:classify -->
 
@@ -332,7 +344,7 @@ The rule files this value on the residue side, so a step that claims the non-res
 
 ## 10. Proving a split
 
-A builder holds a set of tachygrams with a committed polynomial, and it wants to split them into a non-residue side and a residue side. The product $q_0(X)\,q_1(X) = f(X)$ shows that the two sides partition the set, and that check works as in Section 6. What remains is to show that each member sits on the side it claims, without one check per member.
+A builder holds a set of tachygrams whose polynomial $f(X)$ is committed, and it wants to split them into a non-residue side with polynomial $q_0(X)$ and a residue side with polynomial $q_1(X)$. The product $q_0(X)\,q_1(X) = f(X)$ shows that the two sides partition the set, and that check works as in Section 6. What remains is to show that each member sits on the side it claims, without one check per member.
 
 Suppose every root $x_i$ of a polynomial $s(X)$ has a root $y_i$ with $y_i^2 = \kappa(x_i + R)$. Interpolate a polynomial $u(X)$ through the points $(x_i, y_i)$. Then $u(X)^2 - \kappa(X + R)$ vanishes at every $x_i$, because at $x_i$ it equals $y_i^2 - \kappa(x_i + R) = 0$. Consensus [forbids repeats within two epochs](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L258-L260), so $s$ is squarefree. A polynomial that vanishes at every root of a squarefree $s$ is divisible by $s$, so a quotient $h$ exists with
 
@@ -340,7 +352,7 @@ $$u(X)^2 - \kappa(X + R) = s(X)\,h(X).$$
 
 The reverse also holds, and that is what gives the identity force. If this identity holds for some $u$ and $h$, then evaluating at any root $x$ of $s$ gives $u(x)^2 = \kappa(x + R)$, so $u(x)$ is a root of the kind that only $x$'s true side allows. One identity, checked at one random point, therefore covers all the members at once.
 
-The code [splits this into two steps](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L347-L529). [`QrIntakeSplit`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L356-L412) checks the product, and it opens the non-residue side at $-R$ to show that it is nonzero there, which handles the exceptional value. [`QrSideDescend`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L443-L529) then extracts one side as a child, and it runs the identity above on the *other* side, the sibling. The reasoning is that the sibling's attestation is what protects the child. If every root of the sibling truly belongs to the sibling's class, then every member of the child's class must be in the child.
+The code [splits this into two steps](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L347-L529). [`QrIntakeSplit`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L356-L412) checks the product, and it opens the non-residue side at $-R$ to show that it is nonzero there, which handles the exceptional value. [`QrSideDescend`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L443-L529) then extracts one side as a child, and it runs the identity above on the *other* side, the sibling. Attesting the sibling protects the child through two facts in turn. The product check says that every member of $f$ is a root of exactly one side. The sibling's identity says that every root of the sibling has the sibling's class. So a member of the child's class cannot be in the sibling, and it must therefore be in the child.
 
 <!-- worked:split-run -->
 
@@ -375,9 +387,23 @@ The challenge in `QrSideDescend` also [absorbs $R$](https://github.com/tachyon-z
 
 ## 11. Routing an epoch into buckets
 
-Splitting one big polynomial in one step is impossible, since no step can hold it, so the partition has to grow out of small pieces. Each stamp or short run of stamps starts as a [**root intake**](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L218), a bounded set of tachygrams at depth zero with a range of anchors. A round of routing [splits each intake and merges neighbours](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L1047-L1071), and two intakes may merge only if they have the same profile, their anchor ranges meet, and the union fits the capacity. The merge is a [polynomial product](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L254-L345), as in chapter 20.
+Splitting one big polynomial in one step is impossible, since no step can hold it, so the partition has to grow out of small pieces. Each stamp or short run of stamps starts as a [**root intake**](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L218), a bounded set of tachygrams at depth zero with a range of anchors. Routing then proceeds in rounds, each of which [splits intakes and merges neighbours](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L1047-L1071). An intake can hold at most a fixed number of tachygrams, its **capacity**, because its polynomial has to fit in one step. Our toy network uses a capacity of 4, and round $j$ does three things.
 
-Here is the network for our epoch.
+1. **Split.** Every intake that is not yet final splits at $R_j$ into a side-0 child and a side-1 child, by the steps of Section 10. Each child's profile is its parent's profile with one more bit.
+2. **Merge.** Two intakes merge when they have the same profile, their anchor ranges meet, and the union fits the capacity. We merge from left to right, in anchor order. The merge is a [polynomial product](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L254-L345), as in chapter 21.
+3. **Finish.** An intake whose anchor range spans the whole epoch holds every tachygram of its profile, so it stops descending. It becomes a final bucket, ready for sealing, and it leaves the later rounds.
+
+The [proof tree page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L228) splits only intakes over capacity. With a capacity as small as ours, no two root intakes would ever fit together under that rule, so our toy network splits every intake that is not final. This choice is ours, made so that a nine-value epoch shows more than one round.
+
+The classification table of Section 9 gives each value's side, so we can follow the first round by hand.
+
+<!-- worked:routing-walk -->
+
+Round 1 uses $R_0 = 26$. The classification table puts stamp A's values 22, 24 on side 0 and 40 on side 1, so the split step turns intake A into a `0` intake holding 22, 24 and a `1` intake holding 40. Stamp B gives `0`: 20 and `1`: 23, 41, and stamp C gives `0`: 13, 19 and `1`: 21. The merge step then works through each profile from left to right. Among the `0` intakes, A and B meet and hold 3 values together, so they merge. Adding C would make 5, which is over the capacity of 4, so C stays apart. The three `1` intakes hold 4 values in all, so they merge into one intake covering A, B and C.
+
+<!-- /worked:routing-walk -->
+
+Here is the whole network for our epoch, with the round 1 row matching the walk above.
 
 <!-- worked:routing -->
 
@@ -391,17 +417,19 @@ Here is the network for our epoch.
 
 <!-- worked:routing-result -->
 
-With a capacity of 4 per intake the network ends with 3 buckets: `1` holding 40, 23, 41, 21, `00` holding 24, 19, `01` holding 22, 20, 13. Multiplying the three bucket polynomials gives back the epoch polynomial $e_0(X)$ of chapter 20, and no bucket has degree above 4, where $e_0$ has degree 9.
+With a capacity of 4 per intake the network ends with 3 buckets: `1` holding 40, 23, 41, 21, `00` holding 24, 19, `01` holding 22, 20, 13. Multiplying the three bucket polynomials gives back the epoch polynomial $e_0(X)$ of chapter 21, and no bucket has degree above 4, where $e_0$ has degree 9.
+
+The buckets have different depths. After round 1 the `1` intake spans all three stamps, so step 3 makes it final, and it does not appear in the round 2 row. Profile `0` still had two intakes after round 1, neither spanning the epoch, so only that branch went through another round. In round 2 both `0` intakes split at $R_1$, the two `00` pieces merge, the two `01` pieces merge, and each result spans the epoch, which ends the network.
 
 <!-- /worked:routing-result -->
 
-The buckets have different depths. Profile `1` was complete after one round, because one intake covering all three stamps held all of it. Profile `0` still had two intakes after round 1, so only that branch went through another round. The deep dive calls this a [jagged frontier](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L1089-L1130), and the crate has a [test with ragged depths](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/tests/integration/qr.rs#L2652). The final profiles form a prefix partition, so every value matches exactly one of them.
+The deep dive calls this a [jagged frontier](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L1089-L1130). The final profiles form a prefix partition, which means that no final profile is a prefix of another and every bit string starts with one of them. So every value matches exactly one final bucket.
 
-Each final bucket also has to cover the whole epoch, or a tachygram of that profile could be missing. [`QrBucketSeal`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L572-L649) certifies this by computing the boundary digest into the next epoch, which [chapter 20](./pool-state.md#_9-covering-a-whole-epoch) explained. A bucket sealed before the final anchor lands on a value outside the accepted chain. The step [checks that the intake begins on a boundary digest](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L625-L629), from an `anchor_final_prev` that it takes as a free witness, and consensus closes that gap later, as [chapter 20](./pool-state.md#_10-moving-a-proof-along-the-chain) explained.
+A sealed bucket must cover every stamp of the epoch, or a tachygram of that profile could be missing from it. The "Finish" rule above claims this, and [`QrBucketSeal`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L572-L649) is the step that proves it. It uses the boundary digests of chapter 21, which mark where one epoch ends and the next begins. The step checks that the intake's anchor range [starts on a boundary digest into its epoch](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L625-L629), and it computes the boundary digest from the range's last anchor into the next epoch. [Chapter 21](./pool-state.md#_9-covering-a-whole-epoch) ran both attacks that these two checks stop, a walk that stops early and a walk that starts late, on this same epoch, so we do not repeat them here. The step cannot check the previous epoch's final anchor on its own, and [chapter 21](./pool-state.md#_10-moving-a-proof-along-the-chain) explains how consensus pins it later.
 
 <!-- worked:seal -->
 
-For our epoch, the step takes $\mathsf{anchor\_final\_prev} = 0$ for epoch zero and checks the start against $H_\mathsf{ep}(0,\ 0) = 29$. The last intake ended on the final anchor 26, so the step computes $H_\mathsf{ep}(26,\ 1) = 40$. The bucket covers the half-open range from 29 to 40, using the stand-in values of chapter 20.
+For our epoch, the step takes $\mathsf{anchor\_final\_prev} = 0$ for epoch zero and checks the start against $H_\mathsf{ep}(0,\ 0) = 29$. The last intake ended on the final anchor 26, so the step computes $H_\mathsf{ep}(26,\ 1) = 40$. The bucket covers the half-open range from 29 to 40, using the stand-in values of chapter 21.
 
 <!-- /worked:seal -->
 
@@ -411,9 +439,19 @@ The depth stays modest at real scale.
 
 <!-- worked:depth-budget -->
 
-The deep dive sizes this for 50,000 such transactions per second over two weeks, which is 483,840,000,000 tachygrams. At 8,000 tachygrams per bucket that is 60,480,000 buckets, and $\log_2$ of that is 25.8, so the honest depth stays below 26, inside the 32 positions the header allows.
+The deep dive [sizes this](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L1172-L1177) for 50,000 two-input, two-output transactions per second over a two-week epoch, at 8 tachygrams per transaction, which gives 483,840,000,000 tachygrams. At 8,000 tachygrams per bucket that is 60,480,000 buckets. A tree of profiles with that many leaves needs depth at least 26, because $2^{25} = 33{,}554{,}432$ is fewer than the bucket count and $2^{26} = 67{,}108{,}864$ is not. A balanced network reaches exactly that depth, well inside the 32 positions the header allows.
 
 <!-- /worked:depth-budget -->
+
+::: warning Book and code: tachygram counts
+<!-- worked:counts-box -->
+
+**Deep dive:** its figure of more than 480,000,000 tachygrams per epoch matches 483,840,000, which is 100 transactions per second over two weeks at 4 tachygrams per transaction, one per input and output. Its depth estimate uses 8 per transaction, two for each of the 4 actions.
+
+**This site:** we follow chapter 1 and count 9, which adds the fee change note, and we use the code's epoch of 4,096 blocks. At 9 per transaction the deep dive's sizing gives 68,040,000 buckets and a depth of at least 27, which also fits in 32 positions.
+
+<!-- /worked:counts-box -->
+:::
 
 The 8,000 comes from the deep dive, and we found no such constant in the crate, where capacity is [a parameter of the test fixtures](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/tests/integration/fixtures.rs#L847-L875).
 
@@ -427,68 +465,9 @@ Across all 43 choices of $R_0$, the fullest of the four depth-2 classes holds on
 
 So each builder [samples $R_0$ privately](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/primitives/qr.rs#L15-L28) and keeps it unpublished until the epoch closes. A biased network hurts only its builder, and a wallet may use any valid network.
 
-## 12. Testing a value against its bucket
+### The evidence tree
 
-The last step of the service's work is [`QrUnspentInit`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L704-L841), which takes a sealed bucket and a value and proves the value absent. First it opens the bucket's polynomial at the value and requires a nonzero result.
-
-<!-- worked:open-absent -->
-
-Test the value 4, which chapter 20 found absent from this epoch. Its shifted values are $4 + 26 = 30$ and $4 + 27 = 31$, and these give it the sides 0, 1. So its bucket is `01`, whose polynomial is $q(X) = X^{3} + 31X^{2} + 40X + 42$, and $q(4) = 31$ is nonzero. One opening of a polynomial of degree 3 has replaced an opening of degree 9.
-
-<!-- /worked:open-absent -->
-
-It must also show that this bucket is the right one, because any other bucket would open nonzero too.
-
-<!-- worked:open-present -->
-
-Now test 41, which stamp B published. Its sides lead to bucket `1`, where $q(41) = 0$, so the nonzero check fails and no proof exists. This is why the step must force the profile to match. Opened against the other buckets, 41 gives 30 in `00` and 35 in `01`, both nonzero, so without the profile check a cheater could prove absence of a value that was published.
-
-<!-- /worked:open-present -->
-
-To force the match, the step witnesses the value's side and root at [every one of 32 positions](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L656-L702). With $s_j = x + R_0 + j$, it checks
-
-$$r_j^2 = \big(n - (n - 1)\,b_j\big)\,s_j, \qquad b_j = 0 \implies s_j \neq 0.$$
-
-The factor in the first equation equals $1$ when $b_j = 1$ and $n$ when $b_j = 0$, so this is the root check of Section 9. Since $n$ is a non-residue, only the value's true side has a root. The step runs all 32 positions because a [circuit's shape cannot depend on secret values](./arithmetization.md#_1-what-arithmetization-produces), and buckets differ in depth.
-
-The bucket's depth $d$ selects how many sides to compare, through a mask $m_j$ of 32 bits. The [proof tree page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L252-L254) gives the checks:
-
-$$\sum_j m_j = d, \qquad 2\sum_j j\, m_j = d(d-1), \qquad a_{j+1} = a_j + m_j(a_j + b_j), \qquad a_{32} = \mathsf{bits}.$$
-
-The first two force the mask to be the first $d$ positions, since among bit vectors with $d$ ones only the leading positions reach the smallest possible index sum, which is $0 + 1 + \cdots + (d-1)$. Where a mask bit is set, the third line becomes $a_{j+1} = 2a_j + b_j$, which appends one bit, so $a$ builds the integer $\mathsf{bits}$ out of the value's own sides.
-
-<!-- worked:mask -->
-
-For depth 2 there are 496 ways to set two mask bits among 32 positions. The index sum must equal $d(d-1)/2 = 1$, and only the prefix $\{0, 1\}$ does. For the value 4, the first four sides are 0, 1, 0, 0, and the fold under the mask runs through $a = 0, 1, 1, 1$. It ends at 1, the integer that encodes `01`. The sides past the depth are computed and ignored.
-
-<!-- /worked:mask -->
-
-The output is a one-epoch segment. It tests a value against a bucket, so its `elapsed` polynomial holds the single factor $F_{\text{epoch},\,x}$, which is what Section 6 multiplied up. The step must also tie that factor to the value $x$ it opened, and the check has a trap.
-
-<!-- worked:twin -->
-
-Take the one-factor sequence for value 12 at epoch 5, and let the challenge be $z = 6$. If $z$ did not depend on the value, a cheater could set $m' = \omega(m + 6z) - 6z = 37$, using $\omega = 6$. The inner terms differ by the factor $\omega$, so their cubes agree, and $F_{5,37}(6) = F_{5,12}(6) = 36$. A sequence naming 12 would then pass for a test of 37, so the proof could test one value and record another.
-
-<!-- /worked:twin -->
-
-So the challenge [absorbs the point $[x]G_0$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L804-L812) as well as the sequence commitment, and $z$ then depends on the value. The crate has [a test for exactly this twin](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/tests/integration/qr.rs#L2594).
-
-## 13. Composing segments and keeping evidence
-
-A segment for one epoch has to grow to cover many. [`UnspentLift`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/pool.rs#L335-L463) appends the next epoch's bucket in one step, and [`UnspentFuse`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/pool.rs#L271-L333) joins two segments on a shared boundary. Both check that the anchors and epochs meet, and that the new `elapsed` is the [product of the old polynomials](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L183-L191). Each producer adds exactly one factor per epoch and labels it with its own epoch, so a segment over $[e_1, e_2)$ holds one factor for each epoch in that range. This is the property that lets `UnspentBind` skip comparing bounds. Here is a segment over chapter 20's epochs 0 and 1, and epoch 1 published nothing. Its bucket is empty, so any value passes the opening.
-
-<!-- worked:segment -->
-
-| Step | Value tested | Epochs covered | Anchors covered | `elapsed` |
-| --- | --- | --- | --- | --- |
-| `QrUnspentInit` on bucket `01` of epoch 0 | 4 | $[0, 1)$ | $[29, 40)$ | $X^{3} + 12X^{2} + 5X + 18$ |
-| `UnspentLift` on the empty bucket of epoch 1 | 33 | $[0, 2)$ | $[29, 18)$ | $8X^{6} + 19X^{5} + 17X^{4} + 22X^{3} + 27X^{2} + 23X + 6$ |
-
-<!-- /worked:segment -->
-
-The segment stops at the entry anchor of the first epoch it does not cover, so the following epoch's nullifier is someone else's to test. When the lineage [lifts over the segment](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/spendable.rs#L190-L250), it comes to rest on that anchor. In the running note's case this leaves epoch 7, which consensus scans directly, and that is the handover promised in [chapter 19](./notes-and-nullifiers.md#_10-why-a-spend-publishes-two-nullifiers). The creation epoch works like any other, except that [`QrSpendableInit`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/spendable.rs#L108-L188) also opens that epoch's bucket at $\mathsf{cm}$ and requires zero. That check needs no profile, since a root of any bucket is a tachygram the epoch published. The deep dive has [the wallet handle the creation epoch directly](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L1255-L1261), which fits the rule that the service never sees $\mathsf{cm}$.
-
-The routing network produces one proof per final bucket, and a builder would rather not store them all. So it [folds them into a tree](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L265-L303), a Poseidon Merkle tree whose node has four children. Two proofs at a time go in through [`EvidenceTreeLeafPair`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/evidence.rs#L123), and a builder short of four leaves [repeats one](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L272). Each leaf digests the bucket's header, namely its [epoch, both anchors, $R_0$, depth, bits, and commitment](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/digest/poseidon.rs#L239-L262). With our three buckets, the last repeats:
+Sealing leaves one proof per final bucket, and a builder would rather not store them all, nor make every wallet track which proof holds which bucket. So it [folds them into a Merkle tree](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L265-L303) built with Poseidon, whose nodes have four children, and keeps one proof for the root. Each leaf digests the bucket's header, namely its [epoch, both anchors, $R_0$, depth, bits, and commitment](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/digest/poseidon.rs#L239-L262). A builder short of four leaves [repeats one](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L272), so with our three buckets the last one repeats:
 
 <!-- worked:tree -->
 
@@ -503,19 +482,49 @@ The routing network produces one proof per final bucket, and a builder would rat
 
 <!-- worked:tree-root -->
 
-The node over these four slots hashes to the root 33444, and this one value stands for all the buckets. To serve a query for bucket `01`, a builder reveals the four children, the verifier rehashes them to 33444, and it then checks the bucket's fields against slot 2's digest.
+The node over these four slots hashes to the root 33444, and this one value stands for all the buckets. To serve a query for bucket `01`, a proof step takes the four children as witnesses, rehashes them to 33444, and then checks the bucket's fields against slot 2's digest.
 
 <!-- /worked:tree-root -->
 
-A query walks down with [`EvidenceTreeDescend`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/evidence.rs#L411), and [`EvidenceTreeOpen`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/evidence.rs#L499) replays the bucket as an ordinary `QrBucket`, which the steps above accept unchanged.
+In the code, [`EvidenceTreeDescend`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/evidence.rs#L393-L411) does this rehashing, walking four levels of the path per step, and once the walk reaches the leaf, [`EvidenceTreeOpen`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/evidence.rs#L477-L499) re-emits the leaf's bucket as a `QrBucket` header, the same header that `QrBucketSeal` emits. That header is what the absence test of the next section consumes, so the data flows from sealing, through the tree, to the test. Reconstructed from code at commit `7e50254`, not confirmed by the authors. [Chapter 23](./proof-tree.md#_13-the-whole-tree) lists the steps that build the tree.
 
-<!-- worked:tree-depth -->
+## 12. Testing a value against its bucket
 
-A quaternary tree with depth 13 has $4^{13} = 2^{26}$ leaves, which is the deep dive's intended maximum, so an opening costs at most 13 node hashes and one leaf digest.
+[`QrUnspentInit`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L704-L841) takes the bucket header that the tree opening produced, together with a value, and proves the value absent from that bucket's epoch. First it opens the bucket's polynomial at the value and requires a nonzero result.
 
-<!-- /worked:tree-depth -->
+<!-- worked:open-absent -->
 
-The leaf must bind the profile, for the reason in Section 12.
+Test the value 4, which chapter 21 found absent from this epoch. Its shifted values are $4 + 26 = 30$ and $4 + 27 = 31$, and these give it the sides 0, 1. So its bucket is `01`, whose polynomial is $q(X) = X^{3} + 31X^{2} + 40X + 42$, and $q(4) = 31$ is nonzero. One opening of a polynomial of degree 3 has replaced an opening of degree 9.
+
+<!-- /worked:open-absent -->
+
+It must also show that this bucket is the right one, because any other bucket would open nonzero too.
+
+<!-- worked:open-present -->
+
+Now test 41, which stamp B published. Its sides lead to bucket `1`, where $q(41) = 0$, so the nonzero check fails and no proof exists. This is why the step must force the profile to match. Opened against the other buckets, 41 gives 30 in `00` and 35 in `01`, both nonzero, so without the profile check a cheater could prove absence of a value that was published.
+
+<!-- /worked:open-present -->
+
+To force the match, the step witnesses the value's side and root at [every one of 32 positions](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L656-L702). Write $w_j = x + R_0 + j$ for the shifted value at position $j$, $b_j$ for the witnessed side, and $y_j$ for the witnessed root, as in the "Root" column of Section 9. The step checks
+
+$$y_j^2 = \big(n - (n - 1)\,b_j\big)\,w_j, \qquad b_j = 0 \implies w_j \neq 0.$$
+
+The factor in the first equation equals $1$ when $b_j = 1$ and $n$ when $b_j = 0$, so this is the root check of Section 9. Since $n$ is a non-residue, only the value's true side has a root. The step runs all 32 positions because a [circuit's shape cannot depend on secret values](./arithmetization.md#_1-what-arithmetization-produces), and buckets differ in depth.
+
+The bucket's depth $d$ selects how many sides to compare, through a mask $\mu_j$ of 32 bits, and an accumulator $t_j$ folds the selected sides into an integer. The [proof tree page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L252-L254) gives the checks:
+
+$$\sum_j \mu_j = d, \qquad 2\sum_j j\, \mu_j = d(d-1), \qquad t_{j+1} = t_j + \mu_j(t_j + b_j), \qquad t_{32} = \mathsf{bits}.$$
+
+The step also requires each $\mu_j$ and each $b_j$ to be a bit, 0 or 1, because the arguments below hold only for bits. The code still marks the constraint on the sides $b_j$ as remaining work, as the status note at the top recorded. With bits, the first two checks force the mask to be the first $d$ positions, since among bit vectors with $d$ ones only the leading positions reach the smallest possible index sum, which is $0 + 1 + \cdots + (d-1)$. Where a mask bit is set, the third line becomes $t_{j+1} = 2t_j + b_j$, which appends one bit, so $t$ builds the integer $\mathsf{bits}$ out of the value's own sides.
+
+<!-- worked:mask -->
+
+For depth 2 there are 496 ways to set two mask bits among 32 positions. The index sum must equal $d(d-1)/2 = 1$, and only the prefix $\{0, 1\}$ does. For the value 4, the first four sides are 0, 1, 0, 0, and the fold starts from $t_0 = 0$. Under the mask it gives $t_1, \ldots, t_4 = 0, 1, 1, 1$, because the first two steps append a side and the last two leave $t$ unchanged. It ends at 1, the integer that encodes `01`. The sides past the depth are computed and ignored.
+
+<!-- /worked:mask -->
+
+The profile check compares the value's sides with the depth and bits in the bucket header, and that header came out of the evidence tree. So the check is only as good as the label in the leaf, which is why the leaf digests the profile.
 
 <!-- worked:tree-cheat -->
 
@@ -523,15 +532,48 @@ Suppose the leaf did not bind the profile, and a builder wanted to prove the pub
 
 <!-- /worked:tree-cheat -->
 
-A tree [claims nothing about which buckets it holds](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L302-L304). A builder that omits a bucket can fail to answer a query, and it cannot answer wrongly, since each bucket carries its own whole-epoch claim. All of this evidence is [built from public data](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L44), so anyone can check or replace a builder, and the [table of roles](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L113-L134) marks these steps as possible for a wallet.
+The output is a one-epoch segment. It tests a value against a bucket, so its `elapsed` polynomial holds the single factor $F_{\text{epoch},\,x}$, which is what Section 6 multiplied up. The step must also tie that factor to the value $x$ it opened. It does so at one point. It evaluates the committed `elapsed` at a challenge $z$ and [requires the result to equal](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L813-L821) $(x + az)^3 - c$, computed from the opened $x$ with $a$ one more than the bucket's epoch. A check at one point accepts any other value $x'$ whose factor happens to agree with $x$'s factor at $z$, and a cheater who could choose $x'$ after seeing $z$ would always find one.
 
-::: warning Book and code: the evidence tree's domain
-**Deep dive:** a node [needs no domain constant](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L1203-L1204), and leaves bind "sentinel endpoints."
+<!-- worked:twin -->
 
-**Proof tree page and code at `7e50254`:** nodes hash under [`Tachyon-EvidNode` and leaves under `Tachyon-QrBucket`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/digest/poseidon.rs#L230-L231), so that [no path can present a node as a bucket](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L288). A [test rejects that attempt](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/tests/integration/evidence.rs#L615). The endpoints are entry anchors.
+Take the one-factor `elapsed` polynomial for the value $m = 12$ at epoch 5, so $a = 6$, and let the challenge be $z = 5$. Suppose $z$ did not depend on the value. A cheater could pick the cube root of unity $\omega = 36$ and set
 
-This site follows the code.
-:::
+$$m' = \omega(m + az) - az = 36(12 + 6 \cdot 5) - 6 \cdot 5 = 36 \cdot 42 - 30 = 20.$$
+
+Then $m' + az = \omega(m + az)$, the two inner terms differ by the factor $\omega$, and their cubes agree, so $F_{5,20}(5) = F_{5,12}(5) = 39$. The step would open the bucket at 20, while `elapsed` records the factor for 12. That direction is the harmful one, because the bucket can report 20 absent while the segment vouches for 12, which might be a published nullifier.
+
+<!-- /worked:twin -->
+
+So the challenge [absorbs the point $[x]G_0$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L804-L812) as well as the `elapsed` commitment, and $z$ then depends on the value. The crate has [a test for exactly this twin](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/tests/integration/qr.rs#L2594).
+
+## 13. Composing segments and keeping evidence
+
+This section has three parts. The first shows how one-epoch segments grow into longer ones, the second says where a finished segment hands over to the next party, and the third says what a builder's stored evidence does and does not promise.
+
+### Lifting and fusing segments
+
+A segment for one epoch has to grow to cover many. [`UnspentLift`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/pool.rs#L335-L463) appends the next epoch in one step, testing a value against that epoch's bucket, and [`UnspentFuse`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/pool.rs#L271-L333) joins two segments on a shared boundary. Both check that the anchors and epochs meet, and that the new `elapsed` is the [product of the old polynomials](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L183-L191). `QrUnspentInit` and `UnspentLift` each add exactly one factor, labelled with the epoch they test, and `UnspentFuse` only multiplies segments whose ranges meet without overlapping. So a segment over $[e_1, e_2)$ holds one factor for each epoch in that range, which is the property that Section 2 announced and Section 7 relied on.
+
+Here is a segment over chapter 21's epochs 0 and 1. Epoch 1 published nothing, so its bucket is empty and any value passes the opening. The value tested at epoch 1 is therefore an arbitrary stand-in for whatever value a wallet would ask about there.
+
+<!-- worked:segment -->
+
+| Step | Value tested | Epochs covered | Anchors covered | `elapsed` |
+| --- | --- | --- | --- | --- |
+| `QrUnspentInit` on bucket `01` of epoch 0 | 4 | $[0, 1)$ | $[29, 40)$ | $X^{3} + 12X^{2} + 5X + 18$ |
+| `UnspentLift` on the empty bucket of epoch 1 | 33 | $[0, 2)$ | $[29, 18)$ | $8X^{6} + 19X^{5} + 17X^{4} + 22X^{3} + 27X^{2} + 23X + 6$ |
+
+<!-- /worked:segment -->
+
+The anchor range in the second row ends on a smaller number than it starts on. That is not an error. Anchors are hash values, so a range of anchors runs in chain order, and its endpoints need not increase as numbers.
+
+### Where a segment ends
+
+The segment stops at the entry anchor of the first epoch it does not cover, so the following epoch's nullifier is someone else's to test. For the running note, the segment over epochs 4 to 6 stops at the entry anchor of epoch 7, which consensus scans directly, and that is the handover promised in [chapter 20](./notes-and-nullifiers.md#_10-why-a-spend-publishes-two-nullifiers). The creation epoch's segment ends the same way, on the entry anchor of epoch 4, where the segment for epochs 4 to 6 picks up. On the wallet's side, each bound segment extends the note's **lineage**, and [chapter 23](./proof-tree.md#_5-starting-and-lifting-a-lineage) defines that term and shows how the lineage moves across a segment.
+
+### Keeping the evidence
+
+A builder keeps the one proof for its tree's root and answers queries from it. The tree [claims nothing about which buckets it holds](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L302-L304). A builder that omits a bucket can fail to answer a query, and it cannot answer wrongly, since each bucket carries its own whole-epoch claim. All of this evidence is [built from public data](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L44), so anyone, including a wallet, can check or replace a builder.
 
 ## 14. What the service learns
 
@@ -550,7 +592,7 @@ The service can compare its list with everything published, so the wallet must n
 
 <!-- worked:service-scan -->
 
-Alice's spend sits in the bundle of [chapter 19](./notes-and-nullifiers.md#_11-tachygrams-and-output-padding), which publishes 13229, 24937, 30698, 31831, 40944, 46656, 55113, 55356, 61177. A service holding the list 2976, 63093, 59553 for epochs 4 to 6 compares that list with the bundle and finds no match. If Alice had also delegated epoch 7, the service would hold 55113 and would see it published, which would tie her request to this bundle.
+Alice's spend sits in the bundle of [chapter 20](./notes-and-nullifiers.md#_11-tachygrams-and-output-padding), which publishes 13229, 24937, 30698, 31831, 40944, 46656, 55113, 55356, 61177. A service holding the list 2976, 63093, 59553 for epochs 4 to 6 compares that list with the bundle and finds no match. If Alice had also delegated epoch 7, the service would hold 55113 and would see it published, which would tie her request to this bundle.
 
 <!-- /worked:service-scan -->
 
@@ -569,8 +611,6 @@ The table covers what the service's inputs reveal. What a proof itself reveals i
 
 **Deep dive and code at `7e50254`:** the service receives [values and a range with no note-binding evidence](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L259-L262). [`QrUnspentInit`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L763-L773) takes the value as a free witness and consumes no proof from the wallet. A [doc comment](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/master.rs#L26-L27) still says that a delegate receives "proven value windows," which this step does not take.
 
-The [proof tree page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L403) also lists an `ArbitraryUnspent` segment among proofs that stay inside a wallet and need no rerandomization, while its own [roles section](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L108) has the service build it. Those two statements fit only if the wallet runs the steps itself, so we treat rerandomization of a service's segment as unsettled.
-
 This site follows the code on what the service receives.
 :::
 
@@ -585,8 +625,8 @@ Each row assumes that proofs cannot be forged, which rests on the proof system o
 | Test a twin that matches only at $z$ | The challenge absorbs the value (Section 12) | Fiat–Shamir |
 | Skip an epoch or test one twice | One factor per epoch, and a squarefree $N$ (Sections 6 and 13) | The same as the first row |
 | Hide a tachygram from its bucket | The sibling's identity has no solution (Section 10) | Schwartz–Zippel, and $n$ is a non-residue |
-| Open the wrong bucket | The profile check, and the profile in the leaf (Sections 12 and 13) | Poseidon collision resistance for the leaf |
-| Stop an epoch's evidence early | The boundary digest misses the chain ([chapter 20](./pool-state.md#_9-covering-a-whole-epoch)) | Poseidon collision resistance |
+| Open the wrong bucket | The profile check, and the profile in the leaf (Sections 11 and 12) | Poseidon collision resistance for the leaf |
+| Stop an epoch's evidence early | The boundary digest misses the chain ([chapter 21](./pool-state.md#_9-covering-a-whole-epoch)) | Poseidon collision resistance |
 | Pick a harmful $R_0$ | It affects balance only, and wallets may use another network (Section 11) | At least one honest network exists |
 | Link a request to a spend | The published pair lies outside the list (Section 14) | Poseidon as a pseudorandom function, and a wallet that follows the rule |
 
@@ -597,10 +637,10 @@ This chapter took the following steps:
 1. A spend needs one absence proof per closed epoch, and the wallet can hand the reading to a service by sending explicit values.
 2. The service proves a statement about arbitrary values, and the wallet proves its derivation. `UnspentBind` joins the two branches through a divisibility check.
 3. Plain roots lose the epoch and linear factors can be rescaled, so each pair $(i, m)$ becomes the irreducible cubic $(m + (i+1)X)^3 - c$ with $c$ a non-cube, which makes a product determine its pairs.
-4. The check $N = C \cdot \Delta$ runs at a challenge fixed after all three commitments, and $C$ holds the factors that the service never tested.
+4. The check $N = C \cdot \Delta$ runs at a challenge fixed after all three commitments, and $C$ holds the factors that this bind does not certify, such as the creation epoch, which gets a bind of its own.
 5. An epoch's polynomial is too large to open, so builders route its tachygrams into buckets by a profile of quadratic-residue bits that any value can compute for itself.
 6. A polynomial identity attests all of one side's members at once, and each descent attests the sibling, so a child cannot lack a member of its own class.
-7. Sealing makes each bucket cover the whole epoch, and an opening at a value with a matching profile proves absence for that epoch. Segments then compose across epochs, and an evidence tree lets a builder retain one proof.
+7. Sealing makes each bucket cover the whole epoch, an evidence tree lets a builder keep one proof for all of an epoch's buckets, and an opening at a value with a matching profile proves absence for that epoch. Segments then compose across epochs.
 8. The service sees values, epochs, and timing. It learns no field of the note as long as those values are never published, although a range and its timing can still hint at the note's age, and the policies that would hide such patterns are unspecified at this commit.
 
 All of this describes one commit of a proposal that has not activated, whose service ZIP is empty, and whose steps still run against a mock of Ragu. We have now seen most of the proof steps one at a time, with several chapters in between. The [next chapter](./proof-tree.md) puts them in lifecycle order as PCD steps, from deriving nullifiers through bootstrapping, maintaining, and spending, and says who runs each.

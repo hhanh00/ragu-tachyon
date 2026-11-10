@@ -62,7 +62,24 @@ The first two pieces add up to $C_d$. The plain sums are $\v{d}_{lo} + \v{d}_{hi
 
 <!-- /worked:naive -->
 
-The cross terms depend on $\v{a}$, so the verifier cannot compute them. The prover has to send them. That creates a new problem, because a prover who sends two points and then folds in a fixed, known way could pick those points to make any claim look consistent. Section 6 turns this into an explicit attack. The fix is to weight the halves with a random challenge that the verifier picks after the prover has sent the cross terms, so that the prover cannot tailor them to the weights.
+The cross terms depend on $\v{a}$, so the verifier cannot compute them, and the prover has to send them. The statement of Section 1 also carries the claimed value $\dot{\v{a}}{\v{b}}$ as a multiple of $U$. If $\v{b}$ is split and summed in the same way, that inner product splits into the same four pieces, $\dot{\v{a}_{lo}}{\v{b}_{lo}} + \dot{\v{a}_{hi}}{\v{b}_{hi}}$ plus the cross pieces $\dot{\v{a}_{hi}}{\v{b}_{lo}}$ and $\dot{\v{a}_{lo}}{\v{b}_{hi}}$. So the prover sends two points that each pair one cross piece of the commitment with the matching cross piece of the value:
+
+$$
+\begin{aligned}
+L &= \dot{\v{a}_{hi}}{\v{G}_{lo}} + \dot{\v{a}_{hi}}{\v{b}_{lo}} \cdot U, \\
+R &= \dot{\v{a}_{lo}}{\v{G}_{hi}} + \dot{\v{a}_{lo}}{\v{b}_{hi}} \cdot U.
+\end{aligned}
+$$
+
+With the plain sums, the shortened statement is then $P + L + R$, and Section 4 confirms these definitions through a full expansion. This creates a new problem, because the verifier cannot check how the prover built $L$ and $R$, and in particular the prover is free to choose their $U$ parts. If the way the halves are combined is fixed and known in advance, the prover can use this freedom to hide a false value:
+
+<!-- worked:fixed-weight -->
+
+Suppose the halves were added with weight 1, as in the plain sums above, so that the verifier updates the statement point to $P + L + R$ with $L$ and $R$ as just defined. For the running example, a prover who claims $y = 38$ instead of $37$ starts from $C + 38 \cdot U = (1,\,29)$, which carries one extra $U$. It sends the honest $L = (22,\,7)$ and, in place of the honest $R = (30,\,8)$, the point $R - U = (22,\,24)$. The extra $U$ in the statement and the missing $U$ in $R$ cancel, so the verifier ends up with the same point it would hold for the true claim $y = 37$, and the prover can continue honestly from there.
+
+<!-- /worked:fixed-weight -->
+
+The prover could make this correction because it knew the weight on $R$ before it sent $R$. The fix is to weight the halves with a random challenge that the verifier picks after the prover has sent the cross terms, so that the prover cannot tailor them to the weights. Section 6 shows how much this limits a cheater.
 
 ## 3. Choosing the weights
 
@@ -78,7 +95,7 @@ Take the weight $3$, whose inverse modulo 43 is $29$. Scaling both high halves b
 
 <!-- /worked:weights -->
 
-The scale of each half is also free, as long as the product over a matching pair of halves stays 1. Bulletproofs and the Ragu Book spread the challenge $u$ over both halves, which gives weights $u, u^{-1}$ on the scalars and $u^{-1}, u$ on the generators. This symmetric form puts $u^{\pm 2}$ on the cross terms, and it leads to the tidy formula in Section 8. Ragu's code uses the one-sided form from the display above, with the lower halves unweighted, and Section 9 shows that the two forms differ only by a rescaling.
+The scale of each half is also free, as long as the product over a matching pair of halves stays 1. Like Bulletproofs and the Ragu Book, this chapter spreads a challenge $u$ over both halves, with weights $u, u^{-1}$ on the scalars and $u^{-1}, u$ on the generators. We use this symmetric form because the book uses it and because the polynomial $g(X)$ of Section 8, which later chapters rely on, comes from it. Section 9 returns to the one-sided form, which is what Ragu's code runs.
 
 ## 4. One round of folding
 
@@ -253,8 +270,8 @@ The whole proof is $L_1 = (22,\,7)$, $R_1 = (30,\,8)$, $L_2 = (28,\,21)$, $R_2 =
 
 <!-- /worked:proof-contents -->
 
-::: warning The book and the code label these values differently
-The Ragu Book [indexes rounds downward](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/bulletproofs.md?plain=1#L20), from $j = k$ to $j = 1$, so its $u_1$ is the last challenge and its $\v{G}^{(0)}$ is the final vector. It [calls the final generator](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/bulletproofs.md?plain=1#L43) $G_0$. The [code](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/verifier.rs#L124-L136) counts rounds upward from $u_0$, uses $G_0$ for the first public generator, and calls the final one $G'_0$. This site counts rounds upward from $j = 1$ and writes $\hat{G}$ for the final generator, because $G_0$ already names the point $(1,\,2)$ in every toy example.
+::: tip Round labels
+This site counts rounds upward from $j = 1$ and writes $\hat{G}$ for the final generator. The Ragu Book and the code label rounds differently, and Section 8 lines up the labellings.
 :::
 
 ## 6. Why cheating fails
@@ -275,7 +292,15 @@ Assume for now that the prover builds every point from the public generators and
 
 $$\text{gap}(X) = t - \dot{\v{c}}{\v{b}}.$$
 
-The statement is true exactly when $\text{gap}(P) = 0$, since that says the coefficient of $U$ equals the inner product of the coefficients of $\v{G}$ with $\v{b}$. The gap is linear in the point, which means $\text{gap}(X + r \cdot Y) = \text{gap}(X) + r\,\text{gap}(Y)$. It also has simple values on the generators, namely $\text{gap}(G_i) = -b_i$ and $\text{gap}(U) = 1$.
+The relation of Section 1 holds exactly when $\text{gap}(P) = 0$, since that says the coefficient of $U$ equals the inner product of the coefficients of $\v{G}$ with $\v{b}$. For the two statements of the running example:
+
+<!-- worked:gap-values -->
+
+The honest statement point $C + 37 \cdot U$ has coefficients $\v{a} = (7, 2, 5, 3)$ on $\v{G}$ and $37$ on $U$, so its gap is $37 - \dot{\v{a}}{\v{b}} = 37 - 37 = 0$. The false statement point $C + 38 \cdot U$ has the same coefficients on $\v{G}$ and $38$ on $U$, so its gap is $38 - 37 = 1$.
+
+<!-- /worked:gap-values -->
+
+The gap is linear in the point, which means $\text{gap}(X + r \cdot Y) = \text{gap}(X) + r\,\text{gap}(Y)$. It also has simple values on the generators, namely $\text{gap}(G_i) = -b_i$ and $\text{gap}(U) = 1$.
 
 Now look at the right side of the final check. For a folded generator, linearity gives
 
@@ -297,11 +322,37 @@ $$e + w^{-1}\,\text{gap}(L) + w\,\text{gap}(R) = 0.$$
 
 Multiplying by $w$ gives the polynomial equation $\text{gap}(R)\,w^2 + e\,w + \text{gap}(L) = 0$. Its middle coefficient is $e \neq 0$, so the polynomial is not zero, whatever the prover chose. By the [root count from Statements and Challenges](./statements-and-challenges.md#_4-counting-the-roots-of-a-polynomial) it has at most 2 roots $w$, and each root has at most 2 square roots $u$. At most 4 challenges in a round can therefore clear a nonzero gap, and the same bound holds for every vector length.
 
-We can test this on a two-entry vector. Comparing coefficients of each generator gives three equations in the final scalar, and we can check them directly for every strategy in a family:
+The gap argument can look abstract, so we now check it against the final check itself in the smallest case, a vector of length $n = 2$ with one round. The generators are $G_0$ and $G_1$, and the prover may build $P$, $L$ and $R$ from any coefficients it likes:
+
+$$
+\begin{aligned}
+P &= p_0 \cdot G_0 + p_1 \cdot G_1 + p_U \cdot U, \\
+L &= l_0 \cdot G_0 + l_1 \cdot G_1 + l_U \cdot U, \\
+R &= r_0 \cdot G_0 + r_1 \cdot G_1 + r_U \cdot U.
+\end{aligned}
+$$
+
+After one round with challenge $u$, the folded generator is $\hat{G} = u^{-1} \cdot G_0 + u \cdot G_1$ and the folded entry of $\v{b}$ is $\hat{b} = u^{-1}b_0 + u\,b_1$. The final check $P + u^{-2} \cdot L + u^{2} \cdot R = \hat{a} \cdot (\hat{G} + \hat{b} \cdot U)$ then compares two combinations of $G_0$, $G_1$ and $U$. With no known relation among the generators, the two sides are equal only if the coefficients match one generator at a time:
+
+$$
+\begin{aligned}
+G_0:&\quad p_0 + u^{-2} l_0 + u^{2} r_0 = \hat{a}\,u^{-1}, \\
+G_1:&\quad p_1 + u^{-2} l_1 + u^{2} r_1 = \hat{a}\,u, \\
+U:&\quad p_U + u^{-2} l_U + u^{2} r_U = \hat{a}\,(u^{-1}b_0 + u\,b_1).
+\end{aligned}
+$$
+
+The prover sends $\hat{a}$ after it sees $u$, so it can pick $\hat{a}$ to satisfy one equation. To see what remains, multiply the $G_0$ equation by $b_0$, the $G_1$ equation by $b_1$, and add them. The right side becomes $\hat{a}(u^{-1}b_0 + u\,b_1)$, which is the right side of the $U$ equation. Subtracting the sum from the $U$ equation removes $\hat{a}$ completely:
+
+$$(p_U - p_0 b_0 - p_1 b_1) + u^{-2}(l_U - l_0 b_0 - l_1 b_1) + u^{2}(r_U - r_0 b_0 - r_1 b_1) = 0.$$
+
+The three brackets are $\text{gap}(P)$, $\text{gap}(L)$ and $\text{gap}(R)$, so this is the equation $e + w^{-1}\,\text{gap}(L) + w\,\text{gap}(R) = 0$ from above, with $w = u^2$. Whatever $\hat{a}$ the prover sends, a passing challenge must solve it. The $G_0$ and $G_1$ equations must also give the same $\hat{a}$, which can only remove more challenges, so the gap equation is a necessary condition for passing. Here is a numeric case:
 
 <!-- worked:two-entry -->
 
-Take $\v{a} = (7, 2)$, $\v{b} = (1, 9)$, and the false value $y = 26$, so the true inner product is $25$ and the statement has gap $1$. Keep the honest $\v{G}$ coefficients in $L$ and $R$, and try all $1849$ choices of their $U$ coefficients. For each choice, test all 42 nonzero challenges against the equations for $G_0$, $G_1$ and $U$ with the final scalar free. The largest number of passing challenges is $4$, and the honest $U$ coefficients pass none. A further $5,625$ strategies with altered $\v{G}$ coefficients, taken from a grid of values, reach at most $2$, and in every passing case the gap equation holds.
+Take $\v{a} = (7, 2)$ and $\v{b} = (1, 9)$, whose true inner product is $25$, and the false claim $y = 26$. The statement point is $P = 7 \cdot G_0 + 2 \cdot G_1 + 26 \cdot U$, with gap $26 - 25 = 1$. The honest cross terms have $\v{G}$ parts $L = 2 \cdot G_0 + \ldots$ and $R = 7 \cdot G_1 + \ldots$, from $\v{a}_{hi} = (2)$ and $\v{a}_{lo} = (7)$. With these $\v{G}$ parts the first two equations both give $\hat{a} = 7u + 2u^{-1}$, so they never conflict, and only the gap equation decides. The honest $U$ parts are $l_U = 2$ and $r_U = 20$, which give $\text{gap}(L) = \text{gap}(R) = 0$, and the gap equation becomes $1 = 0$, so no challenge passes.
+
+A cheater can choose other $U$ parts. With $l_U = 1$ and $r_U = 4$, the gaps are $\text{gap}(L) = 1 - 2 = 42$ and $\text{gap}(R) = 4 - 20 = 27$ modulo 43, and the quadratic is $27w^2 + w + 42 = 0$. Its roots are $w = 10$ and $w = 25$. Both are squares modulo 43, and their square roots are $u \in \{5, 15, 28, 38\}$. Running the check for all 42 nonzero challenges confirms that exactly these 4 pass. Trying all $1,849$ choices of the two $U$ parts in the same way, no choice passes more than $4$ of the 42 challenges.
 
 <!-- /worked:two-entry -->
 
@@ -315,7 +366,7 @@ For $n = 2^{13}$ over a Pasta scalar field, which has about $2^{254}$ elements, 
 
 ### Why the challenge must come after the cross terms
 
-The count above relies on $L$ and $R$ being fixed before $u$. If the prover sees the challenge first, it can solve the equation for the point it still has to send:
+The count above relies on $L$ and $R$ being fixed before $u$. If the prover sees the challenge first, it can solve the equation for the point it still has to send. This is the attack of Section 2, with the known weight $u_1^{2}$ in place of the fixed weight 1:
 
 <!-- worked:early-u -->
 
@@ -345,11 +396,15 @@ The gap only makes sense if each point has one expression in the generators. On 
 
 <!-- worked:forge-logs -->
 
-Keep the false statement $y = 38$ and the honest $L_j, R_j$. With challenges $(15, 10)$ the folded point is $(7,\,6)$, and the right side of the check is a multiple of $\hat{G} + \hat{b} \cdot U = (30,\,23)$. Every point on the toy curve is a known multiple of $G_0$, so the prover can divide logs: $\hat{a} = 16 / 35 = 41$. Then $41 \cdot (30,\,23) = (7,\,6)$ and the verifier accepts the false value. This is the attack the discrete log relation assumption rules out on a real curve.
+Keep the false statement $y = 38$ and the honest $L_j, R_j$. With challenges $(15, 10)$ the folded point is $(7,\,6)$, and the right side of the check is a multiple of $\hat{G} + \hat{b} \cdot U = (30,\,23)$. Every point on the toy curve is a known multiple of $G_0$, and counting finds $(7,\,6) = 16 \cdot G_0$ and $(30,\,23) = 35 \cdot G_0$. The prover divides these logs to get $\hat{a} = 16 / 35 = 41$. Then $41 \cdot (30,\,23) = (7,\,6)$ and the verifier accepts the false value. This is the attack the discrete log relation assumption rules out on a real curve.
 
 <!-- /worked:forge-logs -->
 
 The argument above therefore rests on the following assumptions. The discrete log relation assumption from the [previous chapter](./polynomial-commitments.md#_4-why-a-prover-cannot-change-the-vector) holds for $\v{G}$ together with $U$. The prover builds its points from the generators with coefficients it knows. The challenges are uniform and come after the points they weight, which in a non-interactive proof means treating the transcript hash as a random oracle. This section gives the reasoning informally and is not a security proof.
+
+Two limits of this argument matter later. The first is a real weakness of the protocol of Sections 1 to 5, which accepts some false evaluations. The argument shows only that $P$ has the form $\dot{\v{a}}{\v{G}} + \dot{\v{a}}{\v{b}} \cdot U$ for some $\v{a}$. [Section 9 of the previous chapter](./polynomial-commitments.md#a-commitment-with-a-hidden-multiple-of-u) showed that the textbook statement $P = C + y \cdot U$ has a gap when the commitment $C$ itself contains a multiple of $U$, and the halving argument inherits that gap unchanged. An honest commitment never contains one, since it is built from $\v{G}$ alone. A cheating prover can add $\delta \cdot U$ to its commitment and claim a value $\delta$ below the true one. Then $P$ has gap zero, because the hidden $\delta \cdot U$ makes up the difference, and the protocol accepts every time even though the polynomial behind the $\v{G}$ part of $C$ does not take the value $y$. So the relation proved here matches the evaluation claim only when $C$ has no $U$ component. [Section 10](#scaling-u-by-a-challenge) runs this attack with numbers and shows how the code closes the hole.
+
+The second limit concerns what "sound" means. The argument shows that a false statement fails. Recursion needs the stronger property that the [PCD introduction](./pcd-intro.md#_7-why-a-false-header-has-no-valid-proof) called [knowledge soundness](./statements-and-challenges.md#_2-completeness-and-soundness), which says that a prover who passes actually knows a suitable $\v{a}$. This chapter assumes that property and does not argue it.
 
 ## 7. The verifier's linear cost
 
@@ -387,7 +442,7 @@ With $(u_1, u_2) = (15, 10)$, the multi-scalar multiplication $\dot{\v{s}}{\v{G}
 
 <!-- /worked:s-table -->
 
-Computing $\hat{G}$ this way is one **multi-scalar multiplication** (MSM) with $n$ terms. An MSM of that size is cheaper than folding, but its cost still grows linearly with $n$, and no shortcut is available, because the generators are independent points with no structure to exploit.
+Computing $\hat{G}$ this way is one **multi-scalar multiplication** (MSM) with $n$ terms. An MSM of that size is cheaper than folding, because a single MSM can share work across its terms, but its cost still grows linearly with $n$, and no shortcut is available, because the generators are independent points with no structure to exploit.
 
 ## 8. The polynomial g(X)
 
@@ -403,7 +458,7 @@ In the run of Section 5, $\v{b}^{(1)} = (34, 5)$. The predicted factor is $u_1^{
 
 <!-- /worked:b-scaled -->
 
-Round $j$ acts on a vector of length $2^{k-j+1}$, so its factor uses the exponent $2^{k-j}$. Multiplying the factors of all $k$ rounds gives the final entry. Replacing $x$ with a variable defines the polynomial
+Round $j$ acts on a vector of length $2^{k-j+1}$, so its factor uses the exponent $2^{k-j}$. Each round multiplies the first entry by its factor, and that entry starts as $b_0 = x^0 = 1$, so the final entry is the product of the factors of all $k$ rounds. Replacing $x$ with a variable defines the polynomial
 
 $$g(X) = \prod_{j=1}^{k} \left(u_j^{-1} + u_j X^{2^{k-j}}\right),$$
 
@@ -423,7 +478,7 @@ The script behind this chapter repeats the comparison for $k = 3$ with eight gen
 
 <!-- /worked:order-check -->
 
-The book's [listing of $\v{s}$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/bulletproofs.md?plain=1#L43-L55) matches this after relabelling rounds. With rounds numbered downward, its $u_j$ is our $u_{k+1-j}$, and its second entry has a positive exponent on $u_1$, its last challenge, which is our $s_1$.
+Comparing with the Ragu Book needs one relabelling. The book [indexes rounds downward](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/bulletproofs.md?plain=1#L20), from $j = k$ to $j = 1$, so its $u_1$ is the last challenge, its $\v{G}^{(0)}$ is the final vector, and it [calls the final generator](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/bulletproofs.md?plain=1#L43) $G_0$. This site writes $\hat{G}$ instead, because $G_0$ already names the first public generator. The book's $u_j$ is therefore our $u_{k+1-j}$, and its exponent $2^{k-j}$ becomes $2^{j-1}$, so in the book's labels $g(X) = \prod_j (u_j^{-1} + u_j X^{2^{j-1}})$. The book's [listing of $\v{s}$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/bulletproofs.md?plain=1#L43-L55) matches ours after this relabelling. For $k = 2$ the book's second entry is $u_1 u_2^{-1}$ in its labels. Its $u_1$ is our $u_2$ and its $u_2$ is our $u_1$, so in our labels that entry is $u_1^{-1}u_2$, which is the $s_1$ of the table above.
 
 This also gives a compact statement of the verifier's costs. The expression $\hat{G} = \dot{\v{s}}{\v{G}}$ says that $\hat{G}$ is the Pedersen commitment to $g$, whose coefficient vector is $\v{s}$:
 
@@ -445,10 +500,10 @@ Everything in this table except the two rows involving all of $\v{s}$ is logarit
 The remaining sections compare the form above with Ragu's implementation, which the code describes as [adapted from `halo2`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/mod.rs#L1-L16). The differences fall into two groups. This section covers how the code folds, and the next covers what statement it folds.
 
 ::: warning Reconstructed from code at commit 3219e08, not confirmed by the authors
-The Ragu Book and the code differ here, and everything we say about the code in Sections 9 to 11 is our reading of it. The [book](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/bulletproofs.md?plain=1#L24-L31) uses the symmetric weights $u, u^{-1}$ of Section 4. The [prover code](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/prover.rs#L132-L141) uses the one-sided weights below. This site teaches the symmetric form because the book uses it and because the $g(X)$ of later chapters comes from it. Where the question is what Ragu actually runs, the site follows the code.
+The Ragu Book and the code differ here, and everything we say about the code in Sections 9 to 12 is our reading of it. The [book](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/bulletproofs.md?plain=1#L24-L31) uses the symmetric weights $u, u^{-1}$ of Section 4. The [prover code](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/prover.rs#L132-L141) uses the one-sided weights below. This site teaches the symmetric form because the book uses it and because the $g(X)$ of later chapters comes from it. Where the question is what Ragu actually runs, the site follows the code.
 :::
 
-The code leaves the lower halves unweighted. To avoid mixing up the two conventions, we write $w$ for the challenge in this form, although the code calls it $u_j$:
+Section 3 showed that only the product of the two weights on a matching pair of halves is fixed, at 1, so the scale of each half is a free choice. The book spends this freedom on the symmetric split. The code instead uses the one-sided form from the display in Section 3, with the lower halves unweighted. To avoid mixing up the two conventions, we write $w$ for the challenge in this form, although the code calls it $u_j$:
 
 $$
 \begin{aligned}
@@ -512,11 +567,11 @@ The code's challenges are not literally squares, since a hash outputs $w_j$ dire
 
 ## 10. The code's opening statement
 
-The book opens $P = C + y \cdot U$ directly. The code makes three changes to the statement before it starts folding, and each change answers a specific need. Throughout, $C$ is the polynomial commitment and $v$ is the claimed value, which is the $y$ of the earlier sections.
+The book opens $P = C + y \cdot U$ directly. The code makes three changes to the statement before it starts folding. Throughout, $C$ is the polynomial commitment and $v$ is the claimed value, which is the $y$ of the earlier sections.
 
 ### Moving the value into the constant coefficient
 
-The polynomial $p(X) - v$ has a root at $x$ exactly when $p(x) = v$. Its coefficient vector differs from $\v{a}$ only in the constant entry, and its commitment is $C - v \cdot G_0$, where $G_0$ here is the first public generator. The verifier can compute this point itself. The claim then has the form "this commitment has inner product zero with $\v{b}$", which removes the need for any $U$ term in the starting point, since $0 \cdot U = \mathcal{O}$.
+The polynomial $p(X) - v$ has a root at $x$ exactly when $p(x) = v$. Its coefficient vector differs from $\v{a}$ only in the constant entry, and its commitment is $C - v \cdot G_0$, where $G_0$ here is the first public generator. The verifier can compute this point itself. The claim then has the form "this commitment has inner product zero with $\v{b}$", so the starting point needs no $U$ term, since $0 \cdot U = \mathcal{O}$. The two forms are equivalent, because the verifier can move between $C$ and $C - v \cdot G_0$ on its own. The code follows halo2 here, and the zero form has one practical advantage. Any other polynomial with a root at $x$ can be added to the claim without changing the claimed value, which stays zero. The mask of the next subsection is such a polynomial.
 
 ### Adding a mask
 
@@ -528,15 +583,15 @@ Start from the random vector $(11, 4, 19, 6)$, whose polynomial takes the value 
 
 <!-- /worked:mask -->
 
-The notation $\v{s}_{\text{mask}}$ keeps this vector apart from the weight vector $\v{s}$ of Section 7. The code uses the letter $s$ for both, as `s_poly` and `compute_s`. Adding $\xi \cdot S$, for a challenge $\xi$ sampled after $S$, gives the statement that the code folds:
+The notation $\v{s}_{\text{mask}}$ keeps this vector apart from the weight vector $\v{s}$ of Section 7. The code uses the letter $s$ for both, as `s_poly` and `compute_s`. Adding $\xi \cdot S$, for a challenge $\xi$ sampled after $S$, gives the statement that the code folds. We write a tilde on its starting point and vector, because a prime already means a folded value in this chapter:
 
-$$P' = C - v \cdot G_0 + \xi \cdot S, \qquad \v{a}' = \v{a} + \xi\,\v{s}_{\text{mask}} - (v, 0, \ldots, 0).$$
+$$\tilde{P} = C - v \cdot G_0 + \xi \cdot S, \qquad \tilde{\v{a}} = \v{a} + \xi\,\v{s}_{\text{mask}} - (v, 0, \ldots, 0).$$
 
-The inner product of $\v{a}'$ with $\v{b}$ is $p(x) + \xi \cdot 0 - v$, which is zero exactly when the claim is true.
+The inner product of $\tilde{\v{a}}$ with $\v{b}$ is $p(x) + \xi \cdot 0 - v$, which is zero exactly when the claim is true.
 
 <!-- worked:p-prime -->
 
-With $\xi = 6$, the combined vector is $\v{a} + 6\v{s}_{\text{mask}} = (3, 26, 33, 39)$. It still evaluates to $37$ at $x = 9$, because the mask contributes zero there. Subtracting $v = 37$ from the constant coefficient gives $\v{a}' = (9, 26, 33, 39)$, and direct evaluation gives $\dot{\v{a}'}{\v{b}} = 0$. The verifier computes $P' = C - 37 \cdot G_0 + 6 \cdot S = (23,\,24)$, and committing to $\v{a}'$ directly gives $(23,\,24)$.
+With $\xi = 6$, the combined vector is $\v{a} + 6\v{s}_{\text{mask}} = (3, 26, 33, 39)$. It still evaluates to $37$ at $x = 9$, because the mask contributes zero there. Subtracting $v = 37$ from the constant coefficient gives $\tilde{\v{a}} = (9, 26, 33, 39)$, and direct evaluation gives $\dot{\tilde{\v{a}}}{\v{b}} = 0$. The verifier computes $\tilde{P} = C - 37 \cdot G_0 + 6 \cdot S = (23,\,24)$, and committing to $\tilde{\v{a}}$ directly gives $(23,\,24)$.
 
 <!-- /worked:p-prime -->
 
@@ -548,37 +603,41 @@ Suppose the prover claims the false value $v = 38$ and commits to the unadjusted
 
 <!-- /worked:xi-count -->
 
-The mask changes the value the prover reveals at the end:
-
-<!-- worked:mask-effect -->
-
-Rerunning the same challenges with no mask gives the final scalar $7$, which is a fixed linear combination of the coefficients once the challenges are public. With the mask it is $4$, and it also depends on the random entries of $\v{s}_{\text{mask}}$.
-
-<!-- /worked:mask-effect -->
-
-The [module documentation](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/mod.rs#L1-L16) says the mask is retained for the folded coefficients, and also that the IPA at this commit has no Pedersen blinding, so neither the commitment nor the $L_j, R_j$ carry a blinding term. The mask is therefore not a claim that the argument is zero knowledge. This matches the [status recorded in chapter 02](./pcd-intro.md#proof-size-and-hiding-in-ragu), where the Ragu Book and code do not yet establish zero knowledge. The same documentation records a limitation of unblinded round commitments. A valid opening can produce an identity $L_j$ or $R_j$, for example $R$ with two coefficients at $x = 0$, and the transcript rejects identity points.
+Section 11 shows the mask's effect on the final scalar in a full run. The [module documentation](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/mod.rs#L1-L16) says the mask is retained for the folded coefficients, and also that the IPA at this commit has no Pedersen blinding, so neither the commitment nor the $L_j, R_j$ carry a blinding term. The mask is therefore not a claim that the argument is zero knowledge. This matches the [status recorded in the PCD introduction](./pcd-intro.md#proof-size-and-hiding-in-ragu), where the Ragu Book and code do not yet establish zero knowledge.
 
 ### Scaling U by a challenge
 
-The statement in Section 1 uses a fixed $U$, and that leaves a weakness the earlier sections did not need to address. A prover could send a commitment with a hidden $U$ component, $C^* = \dot{\v{a}}{\v{G}} + \delta \cdot U$. This point is not a commitment to any polynomial under $\v{G}$ alone, but it can still be opened, because the extra $\delta$ makes up the difference between the true evaluation and a false claim.
+Section 6 ended by noting that a commitment with a hidden $U$ component, $C^* = \dot{\v{a}}{\v{G}} + \delta \cdot U$, can be opened to a false value when $U$ has a fixed weight, because the extra $\delta$ makes up the difference between the true evaluation and the claim.
 
-The code handles this by sampling a challenge $z$ after $C$, $v$ and $S$ are in the transcript, and using $z \cdot U$ as the generator for inner products in every round. With $\v{a}'$ formed from the claimed $v$, the final check now requires $\delta = z\,\dot{\v{a}'}{\v{b}}$. The prover chose $\delta$ and $v$ before it saw $z$, so this can hold for only one value of $z$ when $\delta \neq 0$.
+The code handles this by sampling a challenge $z$ after $C$, $v$ and $S$ are in the transcript, and using $z \cdot U$ as the generator for inner products in every round. To see why this helps, follow the hidden term through the statement. Let $\tilde{\v{a}}$ be formed from the $\v{G}$ part of $C^*$, the mask and the claimed $v$, as in the previous subsection. The $\v{G}$ parts of $C^*$, $v \cdot G_0$ and $\xi \cdot S$ combine exactly as in the $\tilde{P}$ example, and the hidden term passes through unchanged:
+
+$$\tilde{P} = C^* - v \cdot G_0 + \xi \cdot S = \dot{\tilde{\v{a}}}{\v{G}} + \delta \cdot U.$$
+
+Running the argument with generator $z \cdot U$ in place of $U$ proves, by the gap argument of Section 6 with $U$ replaced by $z \cdot U$, that $\tilde{P}$ has the form
+
+$$\tilde{P} = \dot{\tilde{\v{a}}}{\v{G}} + z\,\dot{\tilde{\v{a}}}{\v{b}} \cdot U.$$
+
+With no known relation among $\v{G}$ and $U$, the two expressions for $\tilde{P}$ must have the same coefficient on $U$, which gives
+
+$$\delta = z\,\dot{\tilde{\v{a}}}{\v{b}}.$$
+
+There are two cases. If the claim is true, then $\dot{\tilde{\v{a}}}{\v{b}} = 0$, so the check forces $\delta = 0$, and a hidden $U$ term cannot help. If the claim is false, then $\dot{\tilde{\v{a}}}{\v{b}} \neq 0$, and only the single value $z = \delta / \dot{\tilde{\v{a}}}{\v{b}}$ passes. The prover chose $\delta$ and $v$ before it saw $z$, so it hits that value only by luck.
 
 <!-- worked:z-count -->
 
-The prover sends $C^* = C + 6 \cdot U = (14,\,22)$ and claims $v = 37 - 6 = 31$. The vector behind the $\v{G}$ part of $C^*$ still evaluates to $37$, so the claim is false for that vector. After subtracting $v$, the inner product is $6$, and the spare $6 \cdot U$ in $C^*$ supplies the matching $U$ term as long as $U$ carries weight 1. Running the argument for all 42 nonzero values of $z$ gives acceptance at $z = 1$ only, which is the case where the scaling does nothing. A fixed, unscaled $U$ would therefore accept this claim every time, and a random $z$ accepts it with probability $1/42$.
+The prover sends $C^* = C + 6 \cdot U = (14,\,22)$ and claims $v = 37 - 6 = 31$. The vector behind the $\v{G}$ part of $C^*$ still evaluates to $37$, so the claim is false for that vector. After subtracting $v$, the inner product is $\dot{\tilde{\v{a}}}{\v{b}} = 6$, and the spare $6 \cdot U$ in $C^*$ supplies the matching $U$ term as long as $U$ carries weight 1. The formula above predicts that only $z = \delta / \dot{\tilde{\v{a}}}{\v{b}} = 6/6 = 1$ passes. Running the argument for all 42 nonzero values of $z$ confirms acceptance at $z = 1$ only, which is the case where the scaling does nothing. A fixed, unscaled $U$ would therefore accept this claim every time, and a random $z$ accepts it with probability $1/42$.
 
 <!-- /worked:z-count -->
 
-The code's [comment on $z$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/prover.rs#L61-L63) gives this purpose in one line, saying that it ensures the prover did not interfere with the $U$ term in its commitments. The [Halo 2 background page](https://zcash.github.io/halo2/background/pc-ipa.html) reaches the same goal in a different way, by having the verifier select a random group element $U$ before the argument begins. Ragu fixes $U$ in its [public parameters](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/mod.rs#L71-L79) and randomizes its weight instead. The book's description of the relation does not mention this step.
+The code's [comment on $z$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/prover.rs#L61-L63) gives this purpose in one line, saying that it ensures the prover did not interfere with the $U$ term in its commitments. The [Halo 2 background page](https://zcash.github.io/halo2/background/pc-ipa.html) reaches the same goal in a different way, by having the verifier select a random group element $U$ before the argument begins. Ragu fixes $U$ in its [public parameters](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/mod.rs#L71-L79) and randomizes its weight instead. The book's description of the relation does not mention this step. The [accumulation chapter](./accumulation.md#the-weight-on-u) uses the same idea, with a challenge $\tau$ in place of $z$.
 
 ## 11. A complete run of the code's form
 
-We can now run the code's protocol on the same claim. The challenges are again chosen by hand. The [verifier](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/verifier.rs#L83-L90) starts from $P'$, the [prover](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/prover.rs#L108-L115) computes each $L_j, R_j$ with weight $z$ on $U$, and the check the [verifier comment](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/verifier.rs#L124-L136) states is
+We can now run the code's protocol on the same claim. The challenges are again chosen by hand. The [verifier](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/verifier.rs#L83-L90) starts from $\tilde{P}$, the [prover](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/prover.rs#L108-L115) computes each $L_j, R_j$ with weight $z$ on $U$, and the check the [verifier comment](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/verifier.rs#L124-L136) states is
 
-$$P' + \sum_{j=1}^{k} \left(w_j^{-1} \cdot L_j + w_j \cdot R_j\right) = c \cdot \hat{G} + (c\,\hat{b}\,z) \cdot U,$$
+$$\tilde{P} + \sum_{j=1}^{k} \left(w_j^{-1} \cdot L_j + w_j \cdot R_j\right) = c \cdot \hat{G} + (c\,\hat{b}\,z) \cdot U,$$
 
-where $c$ is the code's name for the final scalar, and $\hat{G}$ and $\hat{b}$ are built with the one-sided weights.
+where $c$ is the code's name for the final scalar, and $\hat{G}$ and $\hat{b}$ are built with the one-sided weights. The code's labels differ from both the book's and ours. It counts rounds upward from $u_0$ rather than $u_1$, uses $G_0$ for the first public generator as this site does, and calls the final generator $G'_0$.
 
 <!-- worked:code-run -->
 
@@ -586,26 +645,34 @@ where $c$ is the code's name for the final scalar, and $\hat{G}$ and $\hat{b}$ a
 | --- | --- | --- |
 | Transcript already holds $C$, $x$, $v$ | Both | $(27,\,30)$, $9$, $37$ |
 | Send mask commitment | Prover | $S = (6,\,23)$ |
-| Challenges | Verifier | $\xi = 6$, $z = 11$ |
-| Compute $P'$ | Both | $(23,\,24)$ |
-| Send round 1 cross terms | Prover | $L_1 = (5,\,2)$, $R_1 = (24,\,1)$ |
-| Challenge | Verifier | $w_1 = 19$ |
-| Fold $\v{a}'$ and $\v{b}$ | Prover | $(13, 19)$ and $(35, 14)$ |
-| Fold $\v{G}$ | Prover | $((20,\,6),\ (14,\,9))$ |
-| Send round 2 cross terms | Prover | $L_2 = (24,\,30)$, $R_2 = (8,\,9)$ |
+| Challenges | Verifier | $\xi = 6$, $z = 13$ |
+| Compute $\tilde{P}$ | Both | $(23,\,24)$ |
+| Send round 1 cross terms | Prover | $L_1 = (27,\,1)$, $R_1 = (11,\,30)$ |
+| Challenge | Verifier | $w_1 = 14$ |
+| Fold the coefficient vector and $\v{b}$ | Prover | $(39, 38)$ and $(17, 24)$ |
+| Fold $\v{G}$ | Prover | $((5,\,2),\ (25,\,2))$ |
+| Send round 2 cross terms | Prover | $L_2 = (30,\,23)$, $R_2 = (8,\,22)$ |
 | Challenge | Verifier | $w_2 = 17$ |
-| Fold $\v{a}'$ and $\v{b}$ | Prover | $(4)$ and $(15)$ |
-| Fold $\v{G}$ | Prover | $((16,\,10))$ |
-| Send final scalar | Prover | $c = 4$ |
-| Compute $\hat{b}$ with `compute_b` | Verifier | $15$ |
-| Compute $\v{s}$ with `compute_s` | Verifier | $(1, 17, 19, 22)$ |
-| Compute $\hat{G} = \dot{\v{s}}{\v{G}}$ | Verifier | $(16,\,10)$ |
-| Left side $P' + \sum_j (w_j^{-1} \cdot L_j + w_j \cdot R_j)$ | Verifier | $(22,\,7)$ |
-| Right side $c \cdot \hat{G} + (c \hat{b} z) \cdot U$ | Verifier | $(22,\,7)$ |
+| Fold the coefficient vector and $\v{b}$ | Prover | $(21)$ and $(38)$ |
+| Fold $\v{G}$ | Prover | $((7,\,6))$ |
+| Send final scalar | Prover | $c = 21$ |
+| Compute $\hat{b}$ with `compute_b` | Verifier | $38$ |
+| Compute $\v{s}$ with `compute_s` | Verifier | $(1, 17, 14, 23)$ |
+| Compute $\hat{G} = \dot{\v{s}}{\v{G}}$ | Verifier | $(7,\,6)$ |
+| Left side $\tilde{P} + \sum_j (w_j^{-1} \cdot L_j + w_j \cdot R_j)$ | Verifier | $(24,\,30)$ |
+| Right side $c \cdot \hat{G} + (c \hat{b} z) \cdot U$ | Verifier | $(24,\,30)$ |
 
 <!-- /worked:code-run -->
 
-The verifier skips the round-by-round fold of $\v{G}$ and $\v{b}$. It computes both at the end from the challenges, as Sections 7 and 8 describe. In the [compression verifier](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/batch/verifier.rs#L32-L34), which is where this IPA is checked at this commit, the call chain is `verify_proof`, then `use_challenges`, then `eval`, so the full linear MSM runs. The [`Guard` type](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/verifier.rs#L35-L61) also offers `use_g`, which accepts a claimed $\hat{G}$ and returns the challenges alongside it as an `Accumulator`. No code under `crates/ragu_pcd/src` outside the IPA module calls it at this commit.
+The verifier skips the round-by-round fold of $\v{G}$ and $\v{b}$. It computes both at the end from the challenges, as Sections 7 and 8 describe. At this commit the [compression verifier](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/batch/verifier.rs#L32-L34) computes the full linear MSM for $\hat{G}$, and the [accumulation chapter](./accumulation.md#_11-accumulation-in-ragu) covers the code's option to defer it.
+
+The same run also shows what the mask of Section 10 does to the value the prover reveals at the end:
+
+<!-- worked:mask-effect -->
+
+Take the run above, with $\xi = 6$, $z = 13$ and $(w_1, w_2) = (14, 17)$, and repeat it with the mask set to zero. The final scalar becomes $33$ in place of $21$. Without the mask, the scalar is a fixed linear combination of $\v{a}$ whose weights anyone can compute from the public challenges. With the mask, it also depends on the random entries of $\v{s}_{\text{mask}}$, which the verifier never sees.
+
+<!-- /worked:mask-effect -->
 
 ## 12. Comparing the two forms
 
@@ -614,17 +681,16 @@ The next table gathers the differences in one place. Both columns prove that a c
 | Item | Ragu Book | Code at `3219e08` |
 | --- | --- | --- |
 | Value generator | $Q$, fixed | $z \cdot U$, with $U$ fixed and $z$ a challenge |
-| Starting point | $P = C + y \cdot Q$ | $P' = C - v \cdot G_0 + \xi \cdot S$ |
+| Starting point | $P = C + y \cdot Q$ | $\tilde{P} = C - v \cdot G_0 + \xi \cdot S$ |
 | Starting inner product | $y$ | $0$ |
 | Mask | Not described | $\v{s}_{\text{mask}}$ with a root at $x$ |
 | Weights on $\v{a}$ | $u, u^{-1}$ | $1, w^{-1}$ |
 | Weights on $\v{b}$ and $\v{G}$ | $u^{-1}, u$ | $1, w$ |
-| Update | $P + u^{-2} \cdot L + u^{2} \cdot R$ | $P' + w^{-1} \cdot L + w \cdot R$ |
-| Final weights | The vector $\v{s}$, which is the coefficients of $\prod_j (u_j^{-1} + u_j X^{2^{k-j}})$ with the book's labels reversed | The coefficients of $\prod_j (1 + w_j X^{2^{k-j}})$ |
-| Final generator | $G_0$ | $G'_0$ |
+| Update | $P + u^{-2} \cdot L + u^{2} \cdot R$ | $P + w^{-1} \cdot L + w \cdot R$ |
+| Final weights | The vector $\v{s}$ of Section 8, the coefficients of $\prod_j (u_j^{-1} + u_j X^{2^{j-1}})$ in the book's round labels | The coefficients of $\prod_j (1 + w_j X^{2^{k-j}})$ |
 | Proof contents | $L_j, R_j$, final $\v{a}$ entry | $S$, $L_j, R_j$, final scalar $c$ |
 
-The Halo 2 background page uses a third labelling, in which $L_j$ pairs the lower half of $\v{a}$ with the upper half of $\v{G}$. Its $L$ is therefore this chapter's $R$, so a reader comparing the sources should check the pairing and not only the letter. Later chapters on this site use the symmetric $g(X)$ of Section 8, and they point out the code's form where it matters.
+The Halo 2 background page uses yet another labelling, in which $L_j$ pairs the lower half of $\v{a}$ with the upper half of $\v{G}$. Its $L$ is therefore this chapter's $R$, so a reader comparing the sources should check the pairing and not only the letter. Later chapters on this site use the symmetric $g(X)$ of Section 8, and they point out the code's form where it matters.
 
 ## 13. Where this chapter leaves us
 
@@ -633,7 +699,7 @@ This chapter took the following steps:
 1. Folding a vector in half creates two cross terms, and weights that are inverses of each other keep the original commitment intact.
 2. One round sends $L$ and $R$, receives $u$, and turns $P$ into $P + u^{-2} \cdot L + u^{2} \cdot R$, which is a claim of the same shape at half the length.
 3. After $k = \log_2 n$ rounds the prover sends one scalar, so the proof has $2k$ points and one scalar.
-4. A false claim has a nonzero gap, and each round lets at most 4 challenges clear it, provided the generators have no known relation and each challenge follows its cross terms.
+4. A false claim has a nonzero gap, and each round lets at most 4 challenges clear it, provided the generators have no known relation and each challenge follows its cross terms. This proves the relation of Section 1, which matches the evaluation claim only when $C$ has no hidden $U$ component.
 5. The verifier's remaining cost is $\hat{G} = \dot{\v{s}}{\v{G}}$, an MSM of size $n$, while $\hat{b} = g(x)$ takes only $k$ factors because of the product form of $g$.
 6. Ragu's code uses one-sided weights, moves the value into the constant coefficient, adds a mask, and scales $U$ by a challenge, and it proves the same evaluation claim.
 

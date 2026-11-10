@@ -57,6 +57,7 @@ export default {
           { text: 'Endoscalars', link: '/endoscalars.html' },
           { text: 'Staging', link: '/staging.html' },
           { text: 'Recursion in Ragu', link: '/ragu-recursion.html' },
+          { text: 'Compression in Ragu', link: '/compression.html' },
         ],
       },
       {
@@ -99,6 +100,7 @@ export default {
       { text: 'Endoscalars', link: '/endoscalars.html' },
       { text: 'Staging', link: '/staging.html' },
       { text: 'Recursion in Ragu', link: '/ragu-recursion.html' },
+      { text: 'Compression in Ragu', link: '/compression.html' },
       { text: 'Notes, Nullifiers, and Tachygrams', link: '/notes-and-nullifiers.html' },
       { text: 'Pool State and Anchors', link: '/pool-state.html' },
       { text: 'Oblivious Sync', link: '/oblivious-sync.html' },

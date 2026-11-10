@@ -103,8 +103,14 @@ assert w == [1, 35, 3, 9, 27]
 row_a, row_b, row_c = ([dot(row, w) for row in M] for M in (A, B, C))
 assert all(row_a[i] * row_b[i] % Q == row_c[i] for i in range(3))
 frag['r1cs-start'] = (f'$$A = {matrix(A)},\\quad B = {matrix(B)},\\quad C = {matrix(C)},$$\n\n'
-                      f'with $\\v{{w}} = {vec(w)}$. The three rows give $A\\v{{w}} = {vec(row_a)}$, $B\\v{{w}} = {vec(row_b)}$ and '
-                      f'$C\\v{{w}} = {vec(row_c)}$, and multiplying the first two entrywise gives the third.')
+                      f'with $\\v{{w}} = {vec(w)}$ holding the constant 1, the public output, $x$, $w_1$ and $w_2$.')
+
+# Without a degree bound, one polynomial can vanish at every nonzero point.
+x_full = [Q - 1] + [0] * (Q - 2) + [1]
+assert len(x_full) - 1 == Q - 1 and all(peval(x_full, a) == 0 for a in range(1, Q)) and peval(x_full, 0) != 0
+frag['no-bound'] = (f'On $\\F_{{43}}$, the polynomial $X^{{{Q - 1}}} - 1$ has degree {Q - 1}. By Fermat\'s little theorem $a^{{{Q - 1}}} = 1$ for every nonzero $a$, '
+                    f'so this polynomial is zero at all {Q - 1} nonzero points of the field. If a cheater\'s error could take this form, a check at a random nonzero point would never see it. '
+                    f'With a degree bound of 7, which is the bound in the toy run of Section 14, the same error polynomial is not allowed, and any nonzero polynomial the prover can send is zero at no more than 7 of the {Q} points.')
 
 
 # ---------------------------------------------------------------- interpolation over a domain
@@ -181,7 +187,7 @@ frag['combine'] = (
     f'A(X) &= {show(Ax)},\\\\\nB(X) &= {show(Bx)},\\\\\nC(X) &= {show(Cx)}.\n\\end{{aligned}}$$\n\n'
     + table(['$\\rho_i$', '$A(\\rho_i)$', '$B(\\rho_i)$', '$C(\\rho_i)$', '$A(\\rho_i)B(\\rho_i) - C(\\rho_i)$'],
             [[r, peval(Ax, r), peval(Bx, r), peval(Cx, r), (peval(Ax, r) * peval(Bx, r) - peval(Cx, r)) % Q] for r in D])
-    + f'\n\nThe columns for $A$, $B$ and $C$ reproduce $A\\v{{w}}$, $B\\v{{w}}$ and $C\\v{{w}}$ from Section 2.')
+    + f'\n\nRead down, the columns for $A$, $B$ and $C$ are the vectors $A\\v{{w}} = {vec(row_a)}$, $B\\v{{w}} = {vec(row_b)}$ and $C\\v{{w}} = {vec(row_c)}$, and the last column shows that every row of the R1CS holds.')
 
 Px = psub(pmul(Ax, Bx), Cx)
 assert len(Px) - 1 == 4 and all(peval(Px, r) == 0 for r in D)
@@ -250,6 +256,14 @@ frag['guess-h'] = (
           [[c, counts[c]] for c in sorted(counts)])
     + f'\n\nThe table covers all $43^2 = {Q * Q}$ candidate polynomials $h$ of degree at most 1, each tried at the {len(off_domain)} values of $\\tau$ outside the domain. '
       f'No candidate passes at more than {max(counts)} of them, which is {max(counts)}/{len(off_domain)}. Averaged over all candidates, a random guess passes at a rate of 1 in 43.')
+
+deg_diff = 2 * (len(D) - 1)
+zero_in_d = [r for r in D if peval(Pb, r) == 0]
+assert deg_diff - len(zero_in_d) == max(counts)
+frag['guess-h-bound'] = (f'Here $P\'$ has degree {len(Pb) - 1} and $hV$ has degree at most {len(Vx) - 1 + 1}, so $P\' - hV$ has degree at most {deg_diff} and at most {deg_diff} roots. '
+                         f'Some of those roots are always spent inside the domain. Since $P\'({zero_in_d[0]}) = P\'({zero_in_d[1]}) = 0$ and every multiple of $V$ is also zero at {zero_in_d[0]} and {zero_in_d[1]}, '
+                         f'the difference has the {len(zero_in_d)} roots {zero_in_d[0]} and {zero_in_d[1]} inside $D$, whatever $h$ the prover chooses. '
+                         f'That leaves at most ${deg_diff} - {len(zero_in_d)} = {deg_diff - len(zero_in_d)}$ roots among the points outside the domain, which is the maximum in the table.')
 
 t_known = 11
 needed = peval(Pb, t_known) * inv(peval(Vx, t_known)) % Q
@@ -349,6 +363,31 @@ frag['right-factor'] = table(
 for at in (2, 9, 30):
     assert peval(dil, at) == peval(r_vec, at * z % Q)
 
+# One coefficient of each row of the right-factor table, derived by hand.
+t_raw = -(z ** (2 * n - 1) + z ** (2 * n))
+assert t_raw % Q == t_vec[N - 1] and dil[1] == r_vec[1] * z % Q
+u_col0 = [rows_u[j][0] for j in range(N)]
+u_terms = [(j, u_col0[j]) for j in range(N) if u_col0[j]]
+assert [j for j, _ in u_terms] == [0, 2, 3] and [c for _, c in u_terms] == [1, -1, 1]
+u_raw = sum(c * y ** j for j, c in u_terms)
+assert u_raw % Q == s_vec[2 * n]
+
+
+def signed_terms(terms, base):
+    out = ''
+    for k, (j, c) in enumerate(terms):
+        sign = ('' if c > 0 else '-') if k == 0 else (' + ' if c > 0 else ' - ')
+        out += f'{sign}{base}^{j}'
+    return out
+
+
+frag['coefficient-sources'] = (
+    f'For $r({z}X)$, the coefficient of $X^1$ is $r_1 \\cdot {z} = {r_vec[1]} \\cdot {z} = {r_vec[1] * z} = {dil[1]}$ modulo 43. '
+    f'For $t(X, {z})$, the coefficient of $X^7$ belongs to $i = 0$, the partner of $c_0$, and equals $-({z}^{2 * n - 1} + {z}^{2 * n}) = {t_raw} = {t_vec[N - 1]}$ modulo 43. '
+    f'For $s(X, {y})$, the wire $a_0$ sits at $X^{2 * n - 1}$ in $r$, so its partner is $X^{2 * n}$, and the coefficient of $X^{2 * n}$ collects $u_{{j,0}} {y}^j$ from every constraint $j$ that uses $a_0$. '
+    f'Constraints {u_terms[0][0]}, {u_terms[1][0]} and {u_terms[2][0]} use it with coefficients ${u_terms[0][1]}$, ${u_terms[1][1]}$ and ${u_terms[2][1]}$, which gives '
+    f'${signed_terms(u_terms, y).replace(f"{y}^0", "1")} = {u_raw} = {s_vec[2 * n]}$ modulo 43.')
+
 target = k_at(y)
 product = full_product(r_vec, f_vec)
 assert product[N - 1] == target == 13 and len(product) == 15
@@ -414,8 +453,8 @@ lucky_r = trace(*witness(4))
 lucky = sum(1 for at_z in range(Q) for at_y in range(Q)
             if sum(lucky_r[i] * right_factor(lucky_r, at_z, at_y)[N - 1 - i] for i in range(N)) % Q == k_at(at_y))
 assert lucky == 43
-frag['lucky'] = f'For the false witness with $x = 4$, counting all pairs finds {lucky} of the {Q * Q} that do so.'
-frag['toy-one'] = (f'Our toy circuit has no `ONE` wire. Its $r(0) = c_0$ is the wire value {r_vec[0]} and its $k(0)$ is {k_at(0)}, so the run in Section 14 leaves this check out.')
+frag['lucky'] = f'For the false witness with secret input 4, counting all pairs finds {lucky} of the {Q * Q} that do so.'
+frag['toy-one'] = (f'Our toy circuit has no `ONE` wire. Its $r(0) = c_0$ is the wire value {r_vec[0]} and its $k(0)$ is {k_at(0)}, so the run in Section 14 has no check on the constant term of $r$.')
 r_bad = trace(*witness(4))
 f_bad = right_factor(r_bad, z, y)
 T_bad = full_product(r_bad, f_bad)
@@ -428,7 +467,7 @@ assert c1_naive[0] == target
 naive_passes = [a for a in range(1, Q) if peval(r_bad, a) * peval(f_bad, a) % Q == split_side(c1_naive, c2_true, a)]
 assert naive_passes == []
 frag['cheat-naive'] = (
-    f'Take the false witness with $x = 4$ from Section 7, so $r\'(X) = {show(r_bad)}$, at the same $z = {z}$ and $y = {y}$. '
+    f'Take the false witness with secret input 4 from Section 7, so $r\'(X) = {show(r_bad)}$, at the same $z = {z}$ and $y = {y}$. '
     f'The coefficient of $X^7$ in $r\'(X)f\'(X)$ is {T_bad[N - 1]}, while $k({y}) = {target}$, so the honest split would fail the target check. '
     f'The prover can change the constant term of $c_1$ to {target} and leave everything else alone, which fixes the target check. '
     f'The two sides of the split check then differ by ${delta}X^7$, and the verifier rejects at all {Q - 1} nonzero values of $x$.')
@@ -440,8 +479,11 @@ for roots in itertools.combinations(range(1, Q), 15):
         D_poly = pmul(D_poly, [-root, 1])
     if D_poly[N - 1] != 0:
         break
-assert D_poly[N - 1] != 0 and len(D_poly) == 16
-D_poly = pscale(delta * inv(D_poly[N - 1]), D_poly)
+assert D_poly[N - 1] != 0 and len(D_poly) == 16 and roots == tuple(range(1, 16))
+roots_mid = D_poly[N - 1]
+lam = delta * inv(roots_mid) % Q
+assert roots_mid * lam % Q == delta
+D_poly = pscale(lam, D_poly)
 assert D_poly[N - 1] == delta
 T_padded = T_bad + [0]
 faked = [(T_padded[i] - D_poly[i]) % Q for i in range(16)]
@@ -452,7 +494,8 @@ best_passes = [a for a in range(1, Q) if peval(r_bad, a) * peval(f_bad, a) % Q =
 assert best_passes == list(roots) and len(best_passes) == 15
 frag['cheat-best'] = (
     f'The prover can do better by spreading the difference over many powers of $X$. Let $\\Delta(X)$ be a polynomial of degree 15 whose coefficient of $X^7$ is {delta}, which is the amount the true coefficient must change by. '
-    f'Writing $\\Delta$ as a multiple of $(X-1)(X-2)\\cdots(X-{roots[-1]})$ gives it the 15 roots $1, \\ldots, {roots[-1]}$. The prover then splits $r\'(X)f\'(X) - \\Delta(X)$ instead of the true product, '
+    f'The product $(X-1)(X-2)\\cdots(X-{roots[-1]})$ has the 15 roots $1, \\ldots, {roots[-1]}$, and its coefficient of $X^7$ is {roots_mid}, which is nonzero modulo 43. '
+    f'So the prover sets $\\Delta(X) = \\lambda (X-1)(X-2)\\cdots(X-{roots[-1]})$ with $\\lambda = {delta} / {roots_mid} = {lam}$, which keeps the 15 roots and makes the coefficient of $X^7$ equal to ${roots_mid} \\cdot {lam} = {delta}$ modulo 43. The prover then splits $r\'(X)f\'(X) - \\Delta(X)$ instead of the true product, '
     f'and the new $c_1$ has $c_1(0) = {c1_best[0]}$, as the target check requires. The split check now compares $r\'(x)f\'(x)$ with $r\'(x)f\'(x) - \\Delta(x)$, so it passes exactly where $\\Delta(x) = 0$. '
     f'Testing every nonzero $x$ finds {len(best_passes)} passing values out of {Q - 1}, which is the most a polynomial of degree 15 allows. For $n = 2^{{11}}$ on a field of about $2^{{255}}$ elements, the same limit of $8n - 1$ roots gives a probability below $2^{{-240}}$.')
 

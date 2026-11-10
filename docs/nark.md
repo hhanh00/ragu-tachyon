@@ -1,6 +1,6 @@
 # The Complete Proof
 
-The last five chapters each built one part of a proof. This chapter puts them together and runs the result on the statement $x^3 + x + 5 = 35$ with $x = 3$, with every commitment computed on the toy curve and every check carried out.
+The earlier chapters each built one part of a proof. This chapter puts them together and runs the result on the statement $x^3 + x + 5 = 35$ with $x = 3$, with every commitment computed on the toy curve and every check carried out.
 
 The result is called a **NARK**, a non-interactive argument of knowledge. The name leaves out the S of SNARK because this proof is not succinct, and we look closely at where its size and its verification cost come from. Those costs are what the rest of the site works to remove, so the chapter ends with an exact list of the verifier steps that remain linear.
 
@@ -19,7 +19,16 @@ The earlier chapters supply these parts:
 
 Assembling them raises three questions that no single chapter answered. The first is the order of the messages, since each challenge has to come after the data it tests. The second is how the verifier knows that the commitments it holds describe the right polynomials. The third is how much of each polynomial the verifier needs to see. The Ragu Book's [NARK](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L212-L246) answers the third question by sending several whole polynomials in the clear. We follow that construction first, and Section 17 shows the shorter proof that the same parts can produce.
 
-::: warning Reconstructed from code at commit 3219e08, not confirmed by the authors
+Because its verifier reads whole vectors, the book's NARK could skip several of its steps. The book gives it the shape of the verifier that recursion will need, in which the vectors are gone and only commitments and evaluation claims travel from one step to the next. A verifier that holds the vectors could check several things directly, so a few steps of this chapter's protocol duplicate checks it can already make:
+
+- The left factor of the revdot product gets its own commitment $\bar{A}$, although in a standalone proof it equals the trace commitment $\bar{R}$ (Section 5).
+- The prover sends the wiring commitment $S$ and the wiring vector $\v{s}$, although the verifier can compute $\v{s}$ from the circuit (Sections 5 and 6).
+- A test at a random point ties the right factor to the trace, although the verifier could compare coefficients (Section 7).
+- The values sent for that test become evaluation claims, which are batched and checked against commitments, although the verifier could evaluate the vectors it holds (Section 8).
+
+We keep these steps because they are exactly the steps that survive when recursion removes the vectors, and the later chapters reuse this run. The sections below refer back to this list rather than justifying each step again.
+
+::: warning Reconstructed from the Ragu Book and code at commit 3219e08, not confirmed by the authors
 This chapter's protocol comes from the book. We found no standalone NARK in the code at this commit, and the word appears in the crates only as part of "SNARK". The closest code is [`verify_uncompressed`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/verify.rs#L1-L8), which holds a proof's polynomials and checks them directly, as the NARK does. It covers a much larger object, the proof of a recursive step, and its documentation calls it a test oracle and sends production verification through compression. Section 18 compares them.
 :::
 
@@ -44,7 +53,7 @@ The circuit is the one from the arithmetization chapter, with $n = 2$ gates, so 
 
 <!-- /worked:vectors -->
 
-A commitment to 8 coefficients needs 8 generators, and the toy curve's public parameters have only four. We add four more points at unused $x$-coordinates, so that the generators are $G_0, \ldots, G_7$ together with the existing $H$ and $U$:
+A commitment to 8 coefficients needs 8 generators. We reuse the eight that the [polynomial commitments chapter](./polynomial-commitments.md#_10-replacing-the-oracles) introduced, the original $G_0, \ldots, G_3$ and the four points it added at unused $x$-coordinates, together with the existing $H$ and $U$. The added points are:
 
 <!-- worked:generators -->
 
@@ -109,7 +118,7 @@ The challenges turn the bivariate polynomials into univariate ones, so the prove
 
 $$S = \dot{\v{s}}{\v{G}}, \qquad \bar{B} = \dot{\v{b}}{\v{G}} + \gamma_b \cdot H, \qquad c = k(y).$$
 
-It also sends $\bar{A}$, the commitment to the left factor. In a standalone NARK the left factor is the trace, so $a(X) = r(X)$ and $\bar{A} = \bar{R}$. This looks redundant, and the book [says so in a footnote](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L248-L251). The two names exist because [during recursion they differ](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L279-L283). There, $\bar{R}$ holds one step's trace, and $\bar{A}$ holds an aggregate of many revdot claims.
+It also sends $\bar{A}$, the commitment to the left factor. In a standalone NARK the left factor is the trace, so $a(X) = r(X)$ and $\bar{A} = \bar{R}$, which is the first duplicated step listed in Section 1. The book [notes this in a footnote](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L248-L251). The two names exist because [during recursion they differ](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L279-L283). There, $\bar{R}$ holds one step's trace, and $\bar{A}$ holds an aggregate of many revdot claims.
 
 <!-- worked:commit-second -->
 
@@ -117,13 +126,13 @@ With the vectors from Section 2, the prover computes $S = (7,\,6)$ with no blind
 
 <!-- /worked:commit-second -->
 
-The verifier could compute $S$ alone, so sending it may look pointless as well. The reason is that the next stages make claims about commitments, and $S$ has to be a commitment for those claims to include it. Later chapters reach a verifier that no longer sees the polynomials and holds only commitments, and these objects prepare for that.
+The verifier could compute $S$ alone, as Section 1 noted. The prover sends it anyway because the claims of Section 8 are claims about commitments, and $S$ has to be a commitment for those claims to include the wiring polynomial.
 
 ## 6. Checking the wiring and the revdot product directly
 
-The prover now sends the three vectors $\v{s}$, $\v{a}$ and $\v{b}$, along with the blinding factors $\gamma_a$ and $\gamma_b$. This is the step that makes the proof long. In return, the verifier's checks need no cryptographic argument, since it can recompute everything it was told:
+The prover now sends the three vectors $\v{s}$, $\v{a}$ and $\v{b}$, along with the blinding factors $\gamma_a$ and $\gamma_b$. This is the step that makes the proof long. In return, the verifier's checks need no evaluation argument, since it can recompute everything it was told. The recomputations rest only on the binding of the commitments, which Section 14 shows is what an attacker must break:
 
-- It computes $\v{s}$ from the circuit and $y$, and compares. The book calls this the **wiring consistency** protocol.
+- It computes $\v{s}$ from the circuit and $y$, and compares. The book calls this the **wiring consistency** protocol. Comparing the sent $\v{s}$ with the verifier's own $\v{s}$ and with $S$ shows that $S$ belongs to the right circuit.
 - It checks that $\bar{A} = \bar{R}$, because in this standalone protocol the [book defines](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L219-L220) $\bar{A}$ to be $\bar{R}$. The book's verifier steps do not list this comparison, so we state it. Without it, a prover could pick a new $\v{a}$ after seeing $z$ and $y$, and the early commitment $\bar{R}$ would constrain nothing.
 - It recomputes $S$, $\bar{A}$ and $\bar{B}$ from the vectors, which shows that the vectors are the ones the prover committed to.
 - It computes $\revdot{\v{a}}{\v{b}}$ and compares it with $c$. The book calls this the **revdot product** protocol.
@@ -161,11 +170,11 @@ The verifier sends $x = 9$, so $xz = 9 \cdot 5 = 2$ modulo 43. The prover sends 
 
 The dilation works as it did in the encoding chapter, with the value of $a(zX)$ at $x$ coming from the same polynomial at the point $xz$. No separate commitment to the dilated trace exists, so a prover cannot substitute a different trace in the right factor.
 
-The verifier already holds $\v{a}$, $\v{b}$ and $\v{s}$, so it could compare them coefficient by coefficient, and a standalone NARK has no need for a random evaluation here. The book [keeps the evaluation form](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L285-L289) because it is what survives in recursion, where the vectors are gone and only commitments and evaluation claims travel forward.
+The verifier already holds $\v{a}$, $\v{b}$ and $\v{s}$, so this test is another of the duplicated steps from Section 1. The book [keeps the evaluation form](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L285-L289) for the reason given there.
 
 ## 8. Batching the evaluation claims
 
-The three values just sent, and the value $c$, are claims about committed polynomials. Taken with the recomputations in Section 6 they are redundant here, but we check them through the machinery that recursion will rely on, since the accumulation chapters work on claims of exactly this form. The list has four claims, each about its own polynomial:
+The three values just sent, and the value $c$, are claims about committed polynomials. Section 1 listed them among the duplicated steps, and we check them through the machinery that recursion will rely on, since the accumulation chapters work on claims of exactly this form. The list has four claims, each about its own polynomial:
 
 <!-- worked:claims -->
 
@@ -178,7 +187,9 @@ The three values just sent, and the value $c$, are claims about committed polyno
 
 <!-- /worked:claims -->
 
-The book's list has two further claims, about $a(0)$ and $k(0)$, which tie down a constant wire our toy circuit does not have. Section 14 adds that wire and shows the six-claim form that [Batched Openings](./batched-openings.md#_1-why-a-proof-makes-many-claims) previewed.
+Claim 3 deserves a note, because it is the only place where $c$ meets the statement. Section 6 compared $\revdot{\v{a}}{\v{b}}$ with $c$, and that comparison says nothing about the public value until something ties $c$ to $k(Y)$. Claim 3 says that $K$ opens to $c$ at $y$, so it states $c = k(y)$, and together with the comparison of $K$ against the statement in Section 4 it connects the revdot check to the instance.
+
+The book's list has two further claims, about $a(0)$ and $k(0)$, which tie down a constant wire our toy circuit does not have. Section 15 adds that wire and shows the six-claim form that [Batched Openings](./batched-openings.md#_1-why-a-proof-makes-many-claims) previewed.
 
 Now we apply that chapter's reduction, using its weights, in which the first claim takes the highest power of $\alpha$ and $f$ takes the highest power of $\beta$. The quotients above come from synthetic division, which ignores the claimed value. The verifier sends $\alpha$ and the prover commits to the combined quotient:
 
@@ -250,7 +261,7 @@ We built an [inner product argument](./inner-product-argument.md) for this exact
 
 <!-- worked:reveal-tradeoff -->
 
-For $4n = 2^{13}$, the witness part is $1,048,832$ bytes with $\v{p}$ revealed. Replacing the reveal with an argument of $26$ points and one scalar brings it to $787,520$ bytes, because the vectors $\v{s}$, $\v{a}$ and $\v{b}$ remain.
+For $4n = 2^{13}$, the part of the proof whose size grows with the circuit, which Section 12 calls the witness part, is $1,048,832$ bytes with $\v{p}$ revealed. Replacing the reveal with an argument of $26$ points and one scalar brings it to $787,520$ bytes, because the vectors $\v{s}$, $\v{a}$ and $\v{b}$ remain.
 
 <!-- /worked:reveal-tradeoff -->
 
@@ -366,7 +377,11 @@ Collecting the prover's messages, the book [divides the proof](https://github.co
 
 <!-- /worked:proof-parts -->
 
-The challenges do not appear, because the verifier replays them from the transcript. The sizes are very different:
+The challenges do not appear, because the verifier replays them from the transcript. The point $u$ is a challenge too, but it appears in the instance because $(\bar{P}, u, v)$ is one evaluation claim, and a later verifier that receives the claim needs all three parts of it.
+
+This division can look odd, because $\bar{F}$ is a single point and the values at $u$ are four scalars, yet both sit in the witness, while $\bar{P}$, which is computed from $\bar{F}$, sits in the instance. The book places them there and describes them only as the prover's messages from the batching step, without giving a reason. Our reading is that the instance carries the reduced claim $(\bar{P}, u, v)$ directly, so a later verifier that takes the claim as given needs nothing else from the batching step. The point $\bar{F}$ and the values at $u$ are the inputs from which $\bar{P}$ and $v$ were derived, and only a check that derives them again reads those inputs, so they travel with the vectors that the same postponed check reads.
+
+The sizes of the two parts are very different:
 
 <!-- worked:proof-size -->
 
@@ -376,9 +391,7 @@ Take $4n = 2^{13}$ with 32-byte values, the size the [Ragu Book's analysis](http
 
 The division is not only a way of counting. The [split accumulation chapter](./split-accumulation.md) builds a verifier that reads the instance and leaves the witness to a later check.
 
-::: warning The book's lists differ slightly
-The book's [step 9](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L242-L246) sends "the aggregated blinding factors", but its [witness list](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L263) has no such entry. That list also writes $F$ with no bar, while the [PCS aggregation chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/pcs.md?plain=1#L45-L58) writes $\bar{F}$ with a blinding factor. This site includes $\gamma$ in the witness and blinds $F$, as [chapter 08](./batched-openings.md#_11-blinding-factors) did. If $F$ were unblinded, the verifier could compute $\gamma$ from $\gamma_a$ and $\gamma_b$, which may be the intended reading.
-:::
+The book's [witness list](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L263) has no entry for the combined blinding factor $\gamma$ and writes $F$ with no bar, so this site follows the [PCS aggregation chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/pcs.md?plain=1#L45-L58) and [chapter 08](./batched-openings.md#_11-blinding-factors) in blinding $F$ and listing $\gamma$.
 
 ## 13. Hiding commitments and what the proof reveals
 
@@ -400,62 +413,9 @@ In our run the proof contains $\v{a} = (9, 27, 9, 3, 3, 3, 0, 0)$. The layout fr
 
 So this NARK hides nothing. The book [says this openly](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L291-L297), and it describes the omission as intentional, since Ragu intends to prevent leakage through rerandomization and not by making this NARK zero knowledge. It also says that a fold-level randomizer is still needed for that. This agrees with the [status recorded in chapter 02](./pcd-intro.md#proof-size-and-hiding-in-ragu), where neither the book nor the code yet establishes zero knowledge. The blinding factors in the book's protocol therefore do not provide privacy in this standalone form.
 
-::: warning The Ragu Book and the code differ here
-The book's NARK uses the blinding factors above. At commit `3219e08`, as [chapter 06 recorded](./polynomial-commitments.md#_6-hiding-the-vector), the IPA module omits Pedersen blinding. The [compression module](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/mod.rs#L45-L46) also states that a compressed proof is not hiding, because its openings are evaluations of the witness polynomials. The value in the wire $a_0$ that Section 14 introduces does not supply hiding either, and the [book's local wiring chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/local/wiring.md?plain=1#L85-L89) says this directly. Its purpose is to keep combinations of commitments away from the identity point. Our toy run follows the book, so that the reader can see where blinding factors go.
-:::
+The code at commit `3219e08` does not hide either, which we reconstructed from the code and the authors have not confirmed. Its IPA omits Pedersen blinding, as [chapter 06 recorded](./polynomial-commitments.md#_6-hiding-the-vector), and its [compression module](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/mod.rs#L45-L46) states that a compressed proof is not hiding. Our toy run follows the book, so that the reader can see where blinding factors go.
 
-## 14. The constant wire
-
-So far the toy circuit has moved its constant 5 into the instance. A real circuit needs constants inside its constraints, and the arithmetization chapter [mentioned](./arithmetization.md#_13-the-arithmetization-in-ragu) how Ragu provides them, with a wire that holds the value 1. This wire is what the book's two extra claims are about, so we now add it, which requires one more gate. Our $n$ becomes 3, and the polynomials have 12 coefficients, so this section uses four further generators, $G_8$ to $G_{11}$, which the script lists.
-
-::: warning The Ragu Book and the code differ here
-[Chapter 05 recorded](./polynomial-encoding.md#_17-the-encoding-in-ragu) that the NARK chapter checks $r(0) = 1$, while the code and the local wiring chapter have $c_0 = 0$ and $d_0 = 1$, which gives $r(0) = 0$. This site follows the code, as chapter 05 did, so our claim about $a(0)$ has the value 0. [Chapter 08's preview](./batched-openings.md#_1-why-a-proof-makes-many-claims) quoted the book's form with the value 1. We found no opening of $r$ at 0 in `verify_uncompressed`, and the [local wiring chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/local/wiring.md?plain=1#L82-L84) explains that the gate equations already force $c_0 = 0$ once $d_0 = 1$, so we keep the claim here only to match the shape of the book's list.
-:::
-
-The system gate takes position 0, and the other two gates move up by one:
-
-<!-- worked:one-trace -->
-
-Gate 0 holds $a_0 = 11$, $b_0 = 0$, $c_0 = 0$ and $d_0 = 1$, and gates 1 and 2 are the two gates from the arithmetization chapter. The first constraint says $d_0 = k_0$, and the second becomes $c_2 + a_1 + 5 d_0 = k_1$, so the constant 5 is now a multiple of the wire. The instance is $k(Y) = 1 + 35Y$, and the trace is $\v{r} = (0, 9, 27, 9, 3, 11, 0, 3, 3, 0, 0, 1)$. Its constant coefficient is $r(0) = c_0 = 0$, and its top coefficient is $d_0 = 1$. Checking all 1849 challenge pairs confirms that the consolidated equation holds at every one.
-
-<!-- /worked:one-trace -->
-
-The wire $d_0$ sits at the top of the trace, position $4n - 1$, and its partner in the revdot product is position 0, so the constraint $d_0 = k_0$ puts the coefficient 1 on $X^0$ in $s(X, Y)$ with $Y^0$. This gives the identity $s(X, 0) = 1$, which the book [states as well](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/local/wiring.md?plain=1#L78-L80) and which the script confirms.
-
-The claims list now has the six entries of chapter 08's preview, on four polynomials, so one value per polynomial still suffices at $u$. Here $\alpha = 11$ again, and the weights run from $\alpha^5$ down to 1:
-
-<!-- worked:one-claims -->
-
-| Claim $i$ | Polynomial | Point | Value | Weight |
-| --- | --- | --- | --- | --- |
-| 0 | $\bar{A}$ | 0 | 0 | 16 |
-| 1 | $\bar{A}$ | 2 | 14 | 21 |
-| 2 | $\bar{B}$ | 9 | 22 | 41 |
-| 3 | $S$ | 9 | 39 | 35 |
-| 4 | $K$ | 0 | 1 | 11 |
-| 5 | $K$ | 7 | 31 | 1 |
-
-<!-- /worked:one-claims -->
-
-<!-- worked:one-result -->
-
-With the same challenges as before, the prover sends $\bar{F} = (22,\,24)$ and four values at $u$, namely $16,\ 4,\ 15,\ 37$. The verifier derives $\bar{P} = (6,\,23)$ and $v = 20$, the revealed $\v{p}$ matches both, and the proof is accepted.
-
-<!-- /worked:one-result -->
-
-The claim $k(0) = 1$ does real work. The wire $d_0$ is only constrained to equal $k_0$, so without a check on $k_0$, a prover can give the constant a different value and change the meaning of every constraint that uses it:
-
-<!-- worked:one-attack -->
-
-Take $x = 4$, which is false for the real statement, since $4^3 + 4 + 5 = 30$ modulo 43. A cheater sets $d_0 = 2$ and commits to $k'(Y) = 2 + 35Y$. Then $c_2 + a_1 + 5 d_0 = 21 + 4 + 10 = 35$, so every gate and constraint holds, and the consolidated equation holds at all 1849 challenge pairs. If the two constant claims are dropped from the list, the verifier accepts this proof. With the claims in the list, the false claim $k'(0) = 1$ remains. Keeping the other challenges fixed, the verifier rejects for 42 of the 43 values of $\beta$, and it accepts only at $\beta = 0$, which removes $f$ from $p$.
-
-<!-- /worked:one-attack -->
-
-A verifier that computes $k(y)$ from the public data with $k_0 = 1$, as the code does, rejects the same proof, because the cheater's $c = k'(y)$ differs from that value at every $y$.
-
-From here on we return to the two-gate circuit.
-
-## 15. Why cheating fails
+## 14. Why cheating fails
 
 The argument relies on the following assumptions, and it is informal. Nobody knows a relation among the generators, which is the [discrete log relation assumption](./polynomial-commitments.md#_4-why-a-prover-cannot-change-the-vector). Each challenge is uniform and comes after the messages it tests, which for a non-interactive proof means treating the transcript hash as a [random oracle](./statements-and-challenges.md#the-assumption). The verifier has also tied $K$ to the statement, as in Section 4.
 
@@ -503,7 +463,7 @@ Every count above assumes the message order. The order is what stops a prover fr
 
 <!-- worked:cheat-early -->
 
-Suppose the prover knows $z = 5$ and $y = 7$ before it sends $\bar{R}$. Starting from the false trace, it changes entry 0 by $25$ to get $\v{r}'' = (41, 21, 16, 4, 4, 4, 0, 0)$, a value found by solving the one quadratic equation. This vector is not a valid trace, because its gates do not hold. It still satisfies the consolidated equation at this one pair, and the verifier accepts the whole proof. The same vector, committed honestly before the challenges, passes the revdot check at only 44 of the 1849 pairs.
+Suppose the prover knows $z = 5$ and $y = 7$ before it sends $\bar{R}$. Starting from the false trace, it changes only entry 0 by an unknown amount $\delta$. In the revdot product, entry 0 of $\v{r}$ multiplies entry 7 of $\v{b}$, and entry 7 of $\v{r}$ multiplies entry 0 of $\v{b}$. Since $r'_7 = 0$, the second product stays 0, and $b_7 = r'_7 z^7 + s_7 + t_7 = 36 + 24 = 17$ modulo 43 does not depend on $\delta$. So the revdot value grows by exactly $17\,\delta$, and the prover needs $17\,\delta = 38$, which gives $\delta = 25$, since $17 \cdot 25 = 38$ modulo 43. The result is $\v{r}'' = (41, 21, 16, 4, 4, 4, 0, 0)$. This vector is not a valid trace, because its gates do not hold. It still satisfies the consolidated equation at this one pair, and the verifier accepts the whole proof. The same vector, committed honestly before the challenges, passes the revdot check at only 44 of the 1849 pairs.
 
 <!-- /worked:cheat-early -->
 
@@ -520,6 +480,71 @@ Suppose the prover commits to the false trace first, so $\bar{R} = (27,\,30)$, a
 <!-- /worked:cheat-binding -->
 
 On a real curve this requires solving discrete log, and the toy curve's small size is what makes it possible here.
+
+## 15. The constant wire
+
+The runs so far used four claims, while the book's list has six. The two extra claims, about $a(0)$ and $k(0)$, concern a wire that our two-gate circuit does not have, and this section adds it so that we can run the book's list as written. The cheating analysis above does not depend on it.
+
+Our toy circuit moved its constant 5 into the instance, so that the output constraint read $a_0 + c_1 = 30$. A real circuit needs constants inside its constraints, and the arithmetization chapter [mentioned](./arithmetization.md#_13-the-arithmetization-in-ragu) how Ragu provides them, with a wire $d_0$ that holds the value 1. A constraint can then use $5 d_0$ wherever it needs the constant 5. The wire lives in an extra gate at position 0, the system gate, so the other two gates move up by one and $n$ becomes 3.
+
+The constraints change too. We put the two constraints that involve the instance first, so that $k(Y)$ has its nonzero coefficients at the lowest powers of $Y$.
+
+<!-- worked:one-constraints -->
+
+The new constraint 0 says $d_0 = k_0$, and the instance supplies $k_0 = 1$. Constraint 1 is the output constraint, now written $c_2 + a_1 + 5 d_0 = k_1$ with $k_1 = 35$, so the constant 5 sits inside the constraint and multiplies the wire $d_0$. Constraints 2 to 4 are the old constraints 0 to 2 with every wire index raised by one, namely $a_1 = b_1$, $a_2 = c_1$ and $b_2 = a_1$.
+
+<!-- /worked:one-constraints -->
+
+The system gate also needs values for $a_0$, $b_0$ and $c_0$. Setting $b_0 = c_0 = 0$ satisfies its equation $a_0 b_0 = c_0$ for any $a_0$. Ragu fills $a_0$ with a random value, and the [book's local wiring chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/local/wiring.md?plain=1#L85-L89) says that this value does not supply hiding. Its purpose is to keep combinations of commitments away from the identity point. We pick an arbitrary nonzero value for it:
+
+<!-- worked:one-trace -->
+
+Gate 0 holds $a_0 = 11$, $b_0 = 0$, $c_0 = 0$ and $d_0 = 1$. Gates 1 and 2 are the two gates from the arithmetization chapter. The instance is $k(Y) = 1 + 35Y$, and the trace is $\v{r} = (0, 9, 27, 9, 3, 11, 0, 3, 3, 0, 0, 1)$. Its constant coefficient is $r(0) = c_0 = 0$, and its top coefficient is $d_0 = 1$. Checking all 1849 challenge pairs confirms that the consolidated equation holds at every one.
+
+<!-- /worked:one-trace -->
+
+The polynomials now have $4n = 12$ coefficients, so this section uses four further generators, $G_8$ to $G_{11}$, which the script lists. The value $n = 3$ is not a power of two, which the inner product argument needs, as the [next chapter](./recursive-proofs.md) points out. The run below works anyway, because the verifier reads $\v{p}$ in full and no argument runs.
+
+::: warning The Ragu Book and the code differ here
+[Chapter 05 recorded](./polynomial-encoding.md#_17-the-encoding-in-ragu) that the NARK chapter checks $r(0) = 1$, while the code and the local wiring chapter have $c_0 = 0$ and $d_0 = 1$, which gives $r(0) = 0$. This site follows the code, as chapter 05 did, so our claim about $a(0)$ has the value 0. [Chapter 08's preview](./batched-openings.md#_1-why-a-proof-makes-many-claims) quoted the book's form with the value 1. We found no opening of $r$ at 0 in `verify_uncompressed`, and the [local wiring chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/local/wiring.md?plain=1#L82-L84) explains that the gate equations already force $c_0 = 0$ once $d_0 = 1$, so we keep the claim here only to match the shape of the book's list.
+:::
+
+The wire $d_0$ sits at the top of the trace, position $4n - 1$, and its partner in the revdot product is position 0, so the constraint $d_0 = k_0$ puts the coefficient 1 on $X^0$ in $s(X, Y)$ with $Y^0$. This gives the identity $s(X, 0) = 1$, which the book [states as well](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/local/wiring.md?plain=1#L78-L80) and which the script confirms.
+
+The claims list now has the six entries of chapter 08's preview, on four polynomials, so one value per polynomial still suffices at $u$. Here $\alpha = 11$ again, and the weights run from $\alpha^5$ down to 1:
+
+<!-- worked:one-claims -->
+
+| Claim $i$ | Polynomial | Point | Value | Weight |
+| --- | --- | --- | --- | --- |
+| 0 | $\bar{A}$ | 0 | 0 | 16 |
+| 1 | $\bar{A}$ | 2 | 14 | 21 |
+| 2 | $\bar{B}$ | 9 | 22 | 41 |
+| 3 | $S$ | 9 | 39 | 35 |
+| 4 | $K$ | 0 | 1 | 11 |
+| 5 | $K$ | 7 | 31 | 1 |
+
+<!-- /worked:one-claims -->
+
+With the same challenges as before, the batching of Section 8 reduces these six claims to one claim, the revealed $\v{p}$ matches the derived $\bar{P}$ and $v$, and the verifier accepts.
+
+The claim $k(0) = 1$ matters only for a verifier that takes $K$ from the prover without comparing it with the statement, which is how the book's list of steps reads. The wire $d_0$ is constrained only to equal $k_0$, so if nothing checks $k_0$, a prover can give the constant a different value and change the meaning of every constraint that uses it:
+
+<!-- worked:one-attack -->
+
+Take $x = 4$, which is false for the real statement, since $4^3 + 4 + 5 = 30$ modulo 43. A cheater sets $d_0 = 2$ and commits to $k'(Y) = 2 + 35Y$. Then $c_2 + a_1 + 5 d_0 = 21 + 4 + 10 = 35$, so every gate and constraint holds, and the consolidated equation holds at all 1849 challenge pairs. Run against the book's verifier as written, which takes $K$ from the prover and never compares it with the statement, this proof passes every check once the two constant claims are removed from the list. With the claims in the list, the false claim $k'(0) = 1$ remains. Keeping the other challenges fixed, the verifier rejects for 42 of the 43 values of $\beta$, and it accepts only at $\beta = 0$, which removes $f$ from $p$.
+
+<!-- /worked:one-attack -->
+
+The claim pins only one coefficient of $K$, so it does not rescue a verifier that skips the comparison altogether, since the attack of Section 4 changes a different coefficient. The verifier in this chapter makes that comparison, and the code computes $k(y)$ itself, and either one catches the attack without the claim:
+
+<!-- worked:one-attack-tied -->
+
+Our verifier from Section 4 rejects the same proof at its first step, because $K' = 2 \cdot G_0 + 35 \cdot G_1$ differs from the $K$ it computes from the statement. The code's route also rejects it, since the cheater's $c = k'(y)$ differs from the verifier's own $k(y)$ at all 43 values of $y$.
+
+<!-- /worked:one-attack-tied -->
+
+So in our protocol the claim $k(0) = 1$ is redundant, as the claim about $a(0)$ is, and we keep both to match the book's list. The rest of the chapter returns to the two-gate circuit.
 
 ## 16. What the verifier pays
 
@@ -577,13 +602,17 @@ A verifier of this form is fine as a final check, but it cannot be placed inside
 
 ## 17. A short proof from the same parts
 
-We already have replacements for two of those three. The revdot product can use the split from [chapter 05](./polynomial-encoding.md#_12-splitting-the-product), at the cost of the prover's FFTs, and the evaluation check can use the inner product argument. Applying both shows what the third item leaves behind. The verifier never receives $\v{s}$ here, because it only needs the single value $s(x, y)$, which it computes alone. We no longer need $b(X)$, $S$ or $K$, so the claims concern only $r$, $c_1$ and $c_2$.
+We already have replacements for two of those three. The revdot product can use the split from [chapter 05](./polynomial-encoding.md#_12-splitting-the-product), at the cost of the prover's FFTs, and the evaluation check can use the inner product argument. Applying both shows what the third item leaves behind. Several objects of the long proof disappear. The split replaces the direct revdot check, so no right factor $b(X)$ is ever formed and the proof needs no commitment $\bar{B}$. The verifier only needs the single values $s(x, y)$ and $k(y)$, which it computes itself from the circuit and the statement, so the proof carries neither $\v{s}$ nor the commitments $S$ and $K$. The claims therefore concern only $r$, $c_1$ and $c_2$.
 
 ::: warning Reconstructed from code at commit 3219e08, not confirmed by the authors
 This section is our own assembly of the [oracle protocol in the book](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L144-L163) with the batching and IPA chapters. It omits blinding, as the IPA at this commit does, and it uses the symmetric IPA of [chapter 07](./inner-product-argument.md#_4-one-round-of-folding). Ragu does not run this exact protocol. Its [compression](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/mod.rs#L1-L21) follows the same pattern on a larger set of folded claims.
 :::
 
-The first thirteen steps mostly repeat chapter 05 and chapter 08, and now every oracle has become a commitment:
+The first thirteen steps mostly repeat chapter 05 and chapter 08, and now every oracle has become a commitment. Step 7 is the split check from [chapter 05](./polynomial-encoding.md#_13-polynomial-oracles), which with $4n = 8$ reads
+
+$$r(x)\big(r(xz) + s(x, y) + t(x, z)\big) = x^{7} c_1(x^{-1}) + x^{8} c_2(x).$$
+
+Step 7 of the next table evaluates each side of it separately:
 
 <!-- worked:short-commit -->
 
@@ -595,7 +624,7 @@ The first thirteen steps mostly repeat chapter 05 and chapter 08, and now every 
 | 4 | Verifier sends | $x = 9$, so $xz = 2$ and $x^{-1} = 24$ |
 | 5 | Prover sends | $r(9) = 5$, $r(2) = 9$, $c_1(0) = 13$, $c_1(24) = 6$, $c_2(9) = 30$ |
 | 6 | Verifier computes | $s(9, 7) = 23$, $t(9, 5) = 3$, $k(7) = 13$ |
-| 7 | Verifier checks | The split, $5 \cdot (9 + 23 + 3) = 3$ and $36 \cdot 6 + 23 \cdot 30 = 3$, and the target, $c_1(0) = 13 = k(7)$ |
+| 7 | Verifier checks | The split, with left side $5 \cdot (9 + 23 + 3) = 3$ and right side $9^7 c_1(24) + 9^8 c_2(9) = 36 \cdot 6 + 23 \cdot 30 = 3$, and the target, $c_1(0) = 13 = k(7)$ |
 | 8 | Verifier sends | $\alpha = 11$ |
 | 9 | Prover sends | $F = (20,\,6)$, the commitment to the combined quotient |
 | 10 | Verifier sends | $u = 17$ |
@@ -630,6 +659,12 @@ The inner product argument takes $k = 3$ rounds for 8 coefficients. Its round ch
 The prover sends the final scalar $\hat{a} = 6$. The verifier computes the coefficients of $g(X)$ from the three challenges, which are $(28, 37, 5, 2, 22, 26, 7, 20)$, then $\hat{b} = g(17) = 30$ and $\hat{G} = (4,\,25)$ from one MSM over all eight generators. The left side of the check is $(8,\,22)$, and $\hat{a} \cdot (\hat{G} + \hat{b} \cdot U) = (8,\,22)$, so the verifier accepts.
 
 <!-- /worked:short-final -->
+
+<!-- worked:short-repeats -->
+
+The last folded point and the left side of the final check are the same point by construction, because the verifier computes both from the statement point and the same $L_j$ and $R_j$. Several other points repeat points named earlier in the chapter. Among the points of the argument, $R_1$ equals the statement point $P + v \cdot U$, $L_2$ equals $P$, $R_2$ equals $F$, $R_3$ equals $G_5$, the folded point of round 3 equals the cheater's $K$ from Section 4, and $\hat{G}$ equals the unblinded trace commitment $R$. These matches have no meaning. The toy group has only 43 points and this chapter names a few dozen, so repeats are unavoidable, as [chapter 08](./batched-openings.md#_5-alpha-batching) noted for one of its commitments. On a curve with about $2^{255}$ points they would not occur.
+
+<!-- /worked:short-repeats -->
 
 The proof is now short:
 
@@ -681,7 +716,7 @@ let native_revdot_claims = {
 - **The commitments.** The [batched check](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/verify.rs#L251-L262) compares the stored commitments with their polynomials, and it includes the polynomial $p$, as our step 17 does.
 - **The instance.** The verifier [computes $k(y)$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/verify.rs#L159-L167) itself, as Section 4 described.
 - **Derived values.** The [module documentation](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/verify.rs#L10-L27) says that $c$ and $v$ are derived from the polynomials and never read from the proof, whereas the book's instance lists them as prover messages.
-- **The status of this path.** The [same documentation](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/verify.rs#L102-L105) calls this verifier a test oracle, available only with the `test-utils` feature. Production proofs go through compression, which [the chapter on recursion in Ragu](./ragu-recursion.md) covers.
+- **The status of this path.** The [same documentation](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/verify.rs#L102-L105) calls this verifier a test oracle, available only with the `test-utils` feature. Production proofs go through compression, which [the chapter on compression in Ragu](./compression.md) covers.
 :::
 
 ## 19. Where this chapter leaves us

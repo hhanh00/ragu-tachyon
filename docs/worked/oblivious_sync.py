@@ -9,7 +9,7 @@ describes the Tachyon repository at commit 7e50254.
 import hashlib
 import json
 from itertools import combinations
-from math import isqrt, log2
+from math import ceil, isqrt, log2
 
 from toy_curve import G, H as H_POINT, Q, U, add, curve_points, mul, show
 
@@ -20,7 +20,11 @@ def num(x):
     return f'{x:,}'
 
 
-# ------------------------------------------------- the running note of chapter 19
+def tnum(x):
+    return num(x).replace(',', '{,}')
+
+
+# ------------------------------------------------- the running note of chapter 20
 F = 65537
 RATE = 4
 
@@ -49,7 +53,7 @@ def nullifier(e):
 
 
 NF = {e: nullifier(e) for e in range(32)}
-# The published table of chapter 19, so that a drift there cannot pass silently.
+# The published table of chapter 20, so that a drift there cannot pass silently.
 assert (NK, PSI, MK) == (40954, 625, 299)
 assert [NF[e] for e in range(12)] == [19392, 15569, 21425, 14090, 2976, 63093, 59553,
                                       55113, 61177, 32258, 31053, 34200]
@@ -57,7 +61,8 @@ assert [NF[e] for e in range(12)] == [19392, 15569, 21425, 14090, 2976, 63093, 5
 frag['job'] = '\n'.join(
     ['| Epoch $j$ | $\\mathsf{nf}_j$ | What happens to it | Who can do the reading |',
      '| --- | --- | --- | --- |']
-    + [f'| {j} | {NF[j]} | tested for absence from epoch {j} | the wallet or a service |' for j in (3, 4, 5, 6)]
+    + [f'| 3 | {NF[3]} | tested for absence from epoch 3, in a bind of its own (Section 6) | the wallet or a service |']
+    + [f'| {j} | {NF[j]} | tested for absence from epoch {j} | the wallet or a service |' for j in (4, 5, 6)]
     + [f'| {j} | {NF[j]} | published by the spend | consensus checks its window |' for j in (7, 8)])
 
 
@@ -142,7 +147,7 @@ def factor_at(i, m, x, c=C_NC, p=Q):
     return (pow((m + (i + 1) * x) % p, 3, p) - c) % p
 
 
-# The chapter 19 nullifiers reduced into the toy field.
+# The chapter 20 nullifiers reduced into the toy field.
 TOY = {e: NF[e] % Q for e in range(3, 8)}
 assert all(v != 0 for v in TOY.values())
 assert len({TOY[e] for e in (3, 4, 5, 6)}) == 4
@@ -162,9 +167,10 @@ assert all(ev(honest_roots, z) == (z - TOY[5]) * (z - TOY[4]) % Q for z in range
 frag['root-attack'] = (
     f'Suppose an earlier spend of this note had target 3 and was accepted during epoch 4, so epoch 4 contains '
     f'$\\mathsf{{nf}}_3 = {TOY[3]}$ and $\\mathsf{{nf}}_4 = {TOY[4]}$. Say epoch 4 publishes {{{E4[0]}, {E4[1]}, {E4[2]}}} '
-    f'and epoch 5 publishes {{{E5[0]}, {E5[1]}, {E5[2]}}}. A second spend must fail, and the honest test does fail, since '
-    f'$f_4({TOY[4]}) = {ev(f4, TOY[4])}$. The cheater swaps the two values and tests {TOY[5]} against epoch 4 and '
-    f'{TOY[4]} against epoch 5. Both tests pass, with $f_4({TOY[5]}) = {ev(f4, TOY[5])}$ and $f_5({TOY[4]}) = {ev(f5, TOY[4])}$. '
+    f'and epoch 5 publishes {{{E5[0]}, {E5[1]}, {E5[2]}}}. Write $e_4(X)$ and $e_5(X)$ for their [epoch polynomials](./pool-state.md#_4-combining-and-dividing-sets), '
+    f'whose roots are exactly the published values, so a value is absent from an epoch when that epoch\'s polynomial is nonzero there. A second spend must fail, and the honest test does fail, since '
+    f'$e_4({TOY[4]}) = {ev(f4, TOY[4])}$. The cheater swaps the two values and tests {TOY[5]} against epoch 4 and '
+    f'{TOY[4]} against epoch 5. Both tests pass, with $e_4({TOY[5]}) = {ev(f4, TOY[5])}$ and $e_5({TOY[4]}) = {ev(f5, TOY[4])}$. '
     f'The tested multiset is still {{{TOY[4]}, {TOY[5]}}}, and its polynomial $(X - {TOY[4]})(X - {TOY[5]}) = {pshow(honest_roots)}$ '
     f'did not change, so it divides the wallet\'s polynomial just as the honest one does.')
 
@@ -229,7 +235,7 @@ Npoly_of = lambda c: pprod([factor(i, N_SET[i], c) for i in WINDOW])  # noqa: E7
 def forged_divisors(c):
     N_ = Npoly_of(c)
     out = []
-    for i in range(0, 30):
+    for i in range(0, 16):
         for m in range(Q):
             if N_SET.get(i) == m:
                 continue
@@ -249,11 +255,12 @@ assert true_forgeries
 pair0 = true_forgeries[0]
 roots_of = lambda poly: [x for x in range(Q) if ev(poly, x) == 0]  # noqa: E731
 frag['cube-fail'] = (
-    f'Here is the failure on the toy field, for the four pairs above and every candidate $(i, m)$ with $i$ from 0 to 29. '
-    f'With $c = 2$, which is a cube, $N(X)$ has the {len(roots_of(Npoly_of(2)))} distinct roots {", ".join(map(str, roots_of(Npoly_of(2))))}, '
+    f'Here is the failure on the toy field. Take the four pairs above and rebuild their product $N(X)$ twice, once with the cube $c = 2$ and once with our non-cube $c = {C_NC}$. '
+    f'Then try every candidate pair $(i, m)$ with $i$ from 0 to 15, which are the 16 epochs of one derivation batch in the code, a batch that Section 7 introduces, and all 43 values of $m$. '
+    f'With $c = 2$, $N(X)$ has the {len(roots_of(Npoly_of(2)))} distinct roots {", ".join(map(str, roots_of(Npoly_of(2))))}, '
     f'and {len(true_forgeries)} false pairs have all of their three roots among them. The pair $({pair0[0]},\\ {pair0[1]})$ is one, whose roots '
-    f'are {", ".join(map(str, roots_of(factor(pair0[0], pair0[1], 2))))}, and its factor divides $N$ although it is no member of $N$. '
-    f'With $c = {C_NC}$, $N(X)$ has no roots in the field at all, and no false pair divides it except for the scaled copies of Section 5, which are the same polynomial.')
+    f'are {", ".join(map(str, roots_of(factor(pair0[0], pair0[1], 2))))}, and its factor divides $N$ although it is no member of $N$.\n\n'
+    f'With $c = {C_NC}$, $N(X)$ has no roots in the field at all, and the only other pairs whose factors divide it turn out to give exactly the same polynomial as a member, for a reason that Section 5 explains.')
 
 # ---------------------------------------------------------- the cube root collision
 m0 = TOY[4]
@@ -270,7 +277,7 @@ frag['omega'] = (
 frag['omega-bound'] = (
     f'On the toy field the bound is $\\lfloor\\sqrt{{43/3}}\\rfloor = {BOUND_T}$, which is small, and the collision above has $1 + {OMEGA} + {OMEGA}^2 = {1 + OMEGA + OMEGA * OMEGA}$, '
     f'exactly the field size. For the Pallas base field the bound is about $2^{{{int(log2(BOUND_P))}}}$, while the code has only $2^{{20}}$ epochs. '
-    f'Our window of epochs 3 to 6 lies above the toy bound, so we checked it directly, and Section 4 found no collision among those epochs.')
+    f'Our batch of epochs 3 to 6 lies above the toy bound, so we checked it directly, and Section 4 found no collision among those epochs.')
 
 # ------------------------------------------------ the full run on the toy curve
 _used = {a[0] for a in G} | {H_POINT[0], U[0]}
@@ -295,43 +302,49 @@ def commit(p):
     return out
 
 
-DELTA_E = [4, 5]
-COMP_E = [3, 6]
+DELTA_E = [4, 5, 6]
+COMP_E = [3]
 Delta = pprod([factor(i, TOY[i]) for i in DELTA_E])
 Comp = pprod([factor(i, TOY[i]) for i in COMP_E])
 Npoly = pprod([factor(i, TOY[i]) for i in WINDOW])
 assert pmul(Delta, Comp) == Npoly
 quo, rem = pdivmod(Npoly, Delta)
 assert trim(quo) == trim(Comp) and rem == [0]
-assert len(Npoly) == 13 and len(Delta) == 7 and len(Comp) == 7
+assert len(Npoly) == 13 and len(Delta) == 10 and len(Comp) == 4
 cD, cC, cN = commit(Delta), commit(Comp), commit(Npoly)
 assert None not in (cD, cC, cN) and len({cD, cC, cN}) == 3
-assert not ({cD, cC, cN} & set(GENS))
+# Com(Delta) can coincide with one of the unnamed high generators in a group this small;
+# keep it distinct from the generators that earlier chapters name.
+assert not ({cD, cC, cN} & set(GENS[:7]))
 
 
 def challenge(*items):
     return int.from_bytes(digest('Tachyon-toy-challenge', *items), 'big') % Q
 
 
-Z = challenge(cD, cC, cN)
-assert Z not in (0, 1)
+# The stand-in hash retries with a counter until no value in the example is 0 or 1,
+# so that the check below shows real multiplications.
+Z = next(z for z in (challenge(cD, cC, cN, k) for k in range(100))
+         if z not in (0, 1) and all(v not in (0, 1) for v in
+                                    [ev(Delta, z), ev(Comp, z)] + [factor_at(i, TOY[i], z) for i in DELTA_E]))
 dz, cz, nz = ev(Delta, Z), ev(Comp, Z), ev(Npoly, Z)
 assert 0 not in (dz, cz, nz) and dz * cz % Q == nz
-assert dz == factor_at(4, TOY[4], Z) * factor_at(5, TOY[5], Z) % Q
+DZ_PARTS = [factor_at(i, TOY[i], Z) for i in DELTA_E]
+assert dz == DZ_PARTS[0] * DZ_PARTS[1] * DZ_PARTS[2] % Q
 frag['run-polys'] = '\n'.join([
     '| Polynomial | Epochs | Built by | Coefficients, highest degree first |',
     '| --- | --- | --- | --- |',
-    f'| $\\Delta(X)$ | 4, 5 | the service | ${pshow(Delta)}$ |',
+    f'| $\\Delta(X)$ | 4, 5, 6 | the service | ${pshow(Delta)}$ |',
     f'| $N(X)$ | 3, 4, 5, 6 | the wallet | ${pshow(Npoly)}$ |',
-    f'| $C(X)$ | 3, 6 | the wallet | ${pshow(Comp)}$ |',
+    f'| $C(X)$ | 3 | the wallet | ${pshow(Comp)}$ |',
 ])
 frag['run-commit'] = (
-    f'Each polynomial commits on the toy curve as in [chapter 6](./polynomial-commitments.md), with the extra generators of [chapter 20](./pool-state.md#_4-combining-and-dividing-sets) '
+    f'Each polynomial commits on the toy curve as in [chapter 6](./polynomial-commitments.md), with the extra generators of [chapter 21](./pool-state.md#_4-combining-and-dividing-sets) '
     f'and more of the same kind, since $N$ needs 13: $\\mathsf{{Com}}(\\Delta) = {show(cD)}$, $\\mathsf{{Com}}(C) = {show(cC)}$, and $\\mathsf{{Com}}(N) = {show(cN)}$. '
     f'A stand-in hash of those three points gives the challenge $z = {Z}$.')
 frag['run-check'] = (
     f'At $z = {Z}$ the service\'s side evaluates factor by factor as '
-    f'$\\Delta({Z}) = F_{{4,{TOY[4]}}}({Z}) \\cdot F_{{5,{TOY[5]}}}({Z}) = {factor_at(4, TOY[4], Z)} \\cdot {factor_at(5, TOY[5], Z)} = {dz}$. '
+    f'$\\Delta({Z}) = F_{{4,{TOY[4]}}}({Z}) \\cdot F_{{5,{TOY[5]}}}({Z}) \\cdot F_{{6,{TOY[6]}}}({Z}) = {DZ_PARTS[0]} \\cdot {DZ_PARTS[1]} \\cdot {DZ_PARTS[2]} = {dz}$. '
     f'The wallet also has $C({Z}) = {cz}$ and $N({Z}) = {nz}$, and the identity holds, since ${dz} \\cdot {cz} = {nz}$ in $\\F_{{43}}$.')
 
 # --- counting cheaters at every challenge
@@ -344,50 +357,69 @@ rows = []
 wrong = [m for m in range(Q) if m != TOY[5]]
 w_counts = []
 for m in wrong:
-    dp = pmul(factor(4, TOY[4]), factor(5, m))
+    dp = pprod([factor(4, TOY[4]), factor(5, m), factor(6, TOY[6])])
     assert pdivmod(Npoly, dp)[1] != [0]
     w_counts.append(len(passes(dp, Comp)))
 assert set(w_counts) == {2}
 rows.append(('A wrong value at epoch 5, for each of the 42 wrong values', 0, '2 in every case'))
 all_counts = [2]
 # (b) swap the two values across their epochs
-dp = pmul(factor(4, TOY[5]), factor(5, TOY[4]))
+dp = pprod([factor(4, TOY[5]), factor(5, TOY[4]), factor(6, TOY[6])])
 assert pdivmod(Npoly, dp)[1] != [0]
 k = len(passes(dp, Comp))
 assert k <= 12
 all_counts.append(k)
 rows.append((f'The swap of Section 3, with {TOY[5]} at epoch 4 and {TOY[4]} at epoch 5', 0, str(k)))
 # (c) one epoch tested twice with the genuine value
-dp = pmul(factor(4, TOY[4]), factor(4, TOY[4]))
+dp = pprod([factor(4, TOY[4]), factor(4, TOY[4]), factor(6, TOY[6])])
 assert pdivmod(Npoly, dp)[1] != [0]
 k = len(passes(dp, Comp))
 all_counts.append(k)
 rows.append((f'Epoch 4 tested twice, standing in for epoch 5', 0, str(k)))
 # (d) an epoch outside the window, with its genuine value
 assert 7 not in WINDOW
-dp = pmul(factor(4, TOY[4]), factor(7, TOY[7]))
+dp = pprod([factor(4, TOY[4]), factor(7, TOY[7]), factor(6, TOY[6])])
 assert pdivmod(Npoly, dp)[1] != [0]
 k = len(passes(dp, Comp))
 all_counts.append(k)
-rows.append(('A genuine nullifier of epoch 7, which the window does not hold', 0, str(k)))
+rows.append(('A genuine nullifier of epoch 7, which the batch does not hold, in place of epoch 5', 0, str(k)))
 frag['run-cheat'] = '\n'.join(
-    ['| The service\'s polynomial uses | Cases where a quotient exists | Challenges that pass, of 43 |', '| --- | --- | --- |']
+    ['| The segment\'s polynomial $\\Delta\'$ uses | Cases where any $C$ makes $N = \\Delta\' C$ | Challenges that pass with the honest $C$, of 43 |', '| --- | --- | --- |']
     + [f'| {a} | {b} | {c} |' for a, b, c in rows])
 frag['run-cheat-note'] = (
     f'The difference $N - \\Delta\' C$ has degree at most 12, so no attempt can pass more than 12 challenges, and the worst one here passes {max(all_counts)}. '
-    f'A wrong value passes so few because $N - \\Delta\' C$ factors as $C$ and $F_{{4,{TOY[4]}}}$, which have no roots in the field, times a difference of two cubes, which has degree 2. '
+    f'A wrong value passes so few because $N - \\Delta\' C$ factors as $C$, $F_{{4,{TOY[4]}}}$ and $F_{{6,{TOY[6]}}}$, which have no roots in the field, times $F_{{5,{TOY[5]}}} - F_{{5,m}}$. The constants $c$ cancel in that difference, which leaves $A^3 - B^3$ with $A = {TOY[5]} + {5 + 1}X$ and $B = m + {5 + 1}X$. '
+    f'Because $\\F_{{43}}$ contains the cube root of unity $\\omega$, this factors as $(A - B)(A - \\omega B)(A - \\omega^2 B)$. The first factor $A - B = {TOY[5]} - m$ is a nonzero constant, and each of the other two is linear in $X$ with one root. So the difference has at most two roots, and the count of 2 in every case shows that the two roots never coincide here. '
     f'The proportion looks large only because the field has 43 elements.')
 
 # --- the twin value, if the tested value were not absorbed
-tw_i, tw_m, tw_z = 5, TOY[5], Z
-tw = (OMEGA * (tw_m + (tw_i + 1) * tw_z) - (tw_i + 1) * tw_z) % Q
+tw_i, tw_m = 5, TOY[5]
+tw_a = tw_i + 1
+tw_w = OMEGA2                     # the cube root of unity that differs from a = 6
+
+
+def _twin_of(z):
+    return (tw_w * ((tw_m + tw_a * z) % Q) - tw_a * z) % Q
+
+
+# A challenge for which a, omega, z, m, az, m + az and the twin are seven different numbers,
+# so that no symbol in the example can be mistaken for another.
+tw_z = next(z for z in [Z] + list(range(2, Q))
+            if len({tw_a, tw_w, z, tw_m, _twin_of(z), tw_a * z % Q, (tw_m + tw_a * z) % Q}) == 7
+            and _twin_of(z) not in (0, 1))
+tw_inner = (tw_m + tw_a * tw_z) % Q
+tw = (tw_w * tw_inner - tw_a * tw_z) % Q
 assert tw != tw_m and factor_at(tw_i, tw, tw_z) == factor_at(tw_i, tw_m, tw_z)
+assert (tw + tw_a * tw_z) % Q == tw_w * tw_inner % Q
 tw_count = [z for z in range(Q) if factor_at(tw_i, tw, z) == factor_at(tw_i, tw_m, z)]
 assert tw_z in tw_count and len(tw_count) <= 3
 frag['twin'] = (
-    f'Take the one-factor sequence for value {tw_m} at epoch 5, and let the challenge be $z = {tw_z}$. If $z$ did not depend on the value, a cheater could set '
-    f'$m\' = \\omega(m + 6z) - 6z = {tw}$, using $\\omega = {OMEGA}$. The inner terms differ by the factor $\\omega$, so their cubes agree, and $F_{{5,{tw}}}({tw_z}) = F_{{5,{tw_m}}}({tw_z}) = {factor_at(tw_i, tw, tw_z)}$. '
-    f'A sequence naming {tw_m} would then pass for a test of {tw}, so the proof could test one value and record another.')
+    f'Take the one-factor `elapsed` polynomial for the value $m = {tw_m}$ at epoch 5, so $a = {tw_a}$, and let the challenge be $z = {tw_z}$. '
+    f'Suppose $z$ did not depend on the value. A cheater could pick the cube root of unity $\\omega = {tw_w}$ and set\n\n'
+    f'$$m\' = \\omega(m + az) - az = {tw_w}({tw_m} + {tw_a} \\cdot {tw_z}) - {tw_a} \\cdot {tw_z} = {tw_w} \\cdot {tw_inner} - {tw_a * tw_z % Q} = {tw}.$$\n\n'
+    f'Then $m\' + az = \\omega(m + az)$, the two inner terms differ by the factor $\\omega$, and their cubes agree, so $F_{{5,{tw}}}({tw_z}) = F_{{5,{tw_m}}}({tw_z}) = {factor_at(tw_i, tw, tw_z)}$. '
+    f'The step would open the bucket at {tw}, while `elapsed` records the factor for {tw_m}. '
+    f'That direction is the harmful one, because the bucket can report {tw} absent while the segment vouches for {tw_m}, which might be a published nullifier.')
 
 # ------------------------------------------------------ the 16-epoch window at scale
 P2 = 65539
@@ -429,32 +461,40 @@ frag['window16'] = '\n'.join([
     f'| $N(X)$ | 0 to 15 | {len(W16)} | {3 * len(W16)} | {n2} |',
 ])
 frag['window16-field'] = (
-    f'The stand-in range of chapter 19 is the prime 65,537, and it cannot host this encoding. Since $65{{,}}536$ is not divisible by 3, cubing permutes that field and every element is a cube. '
+    f'The stand-in range of chapter 20 is the prime 65,537, and it cannot host this encoding. Since $65{{,}}536$ is not divisible by 3, cubing permutes that field and every element is a cube. '
     f'So this section works modulo the next prime with the right shape, {num(P2)}, which is 1 modulo 3 and whose smallest non-cube is $c = {C2}$. The nullifier values carry over unchanged.')
 frag['window16-check'] = (
     f'The identity holds: ${d2} \\cdot {c2} \\equiv {n2} \\pmod{{65{{,}}539}}$. If the service instead tests {FORGE2[5]} at epoch 5, one more than the genuine {NF[5]}, '
-    f'then trying all {num(P2)} challenges finds {pass2} that pass, against the degree bound of 48. The window is well inside the injectivity bound here, which is $\\lfloor\\sqrt{{65{{,}}539/3}}\\rfloor = {BOUND2}$.')
+    f'then trying all {num(P2)} challenges finds {pass2} that pass, against the degree bound of 48. The batch is well inside the injectivity bound here, which is $\\lfloor\\sqrt{{65{{,}}539/3}}\\rfloor = {BOUND2}$.')
 
 # ----------------------------------------------------------------- sizes of an epoch
 EPOCH_SECONDS = 4096 * 75
 TWO_WEEKS = 14 * 86400
 assert EPOCH_SECONDS == 307200
-tg_code = 100 * EPOCH_SECONDS * 8
+TG_PER_TX = 2 * 4 + 1  # four actions of two tachygrams each, plus the fee change note (chapter 1)
+assert TG_PER_TX == 9
+tg_code = 100 * EPOCH_SECONDS * TG_PER_TX
 tg_book4 = 100 * TWO_WEEKS * 4
-tg_book8 = 100 * TWO_WEEKS * 8
 assert tg_book4 > 480_000_000 and tg_book4 < 490_000_000
 frag['scale'] = (
-    f'Take 100 two-input, two-output transactions per second as a hypothetical load, with 8 tachygrams each. An epoch of the code\'s 4,096 blocks lasts {num(EPOCH_SECONDS)} seconds at 75 seconds per block, '
+    f'Take chapter 1\'s hypothetical load of 100 two-input, two-output transactions per second, with {TG_PER_TX} tachygrams each. An epoch of the code\'s 4,096 blocks lasts {num(EPOCH_SECONDS)} seconds at 75 seconds per block, '
     f'so it holds {num(tg_code)} tachygrams, and $e(X)$ has that degree.')
-frag['scale-book'] = (
-    f'The deep dive\'s figure of more than 480,000,000 tachygrams uses a two-week epoch, and it matches {num(tg_book4)}, which is 4 tachygrams per transaction. Two per action would give {num(tg_book8)}. '
-    f'Its later scale estimate does use 8 per transaction. Neither figure uses the code\'s epoch length.')
 TG_MAX = 50_000 * 8 * TWO_WEEKS
-ROOTS_MAX = TG_MAX / 8000
-assert TG_MAX < 4.84e11 and ROOTS_MAX < 6.1e7 and log2(ROOTS_MAX) < 26
+ROOTS_MAX = TG_MAX // 8000
+DEPTH8 = ceil(log2(ROOTS_MAX))
+assert TG_MAX < 4.84e11 and ROOTS_MAX < 6.1e7
+assert 2 ** (DEPTH8 - 1) < ROOTS_MAX <= 2 ** DEPTH8 and DEPTH8 == 26
+TG_MAX9 = 50_000 * TG_PER_TX * TWO_WEEKS
+ROOTS_MAX9 = TG_MAX9 // 8000
+DEPTH9 = ceil(log2(ROOTS_MAX9))
+assert 2 ** (DEPTH9 - 1) < ROOTS_MAX9 <= 2 ** DEPTH9 and DEPTH9 == 27
 frag['depth-budget'] = (
-    f'The deep dive sizes this for 50,000 such transactions per second over two weeks, which is {num(TG_MAX)} tachygrams. At 8,000 tachygrams per bucket that is {num(int(ROOTS_MAX))} buckets, '
-    f'and $\\log_2$ of that is {log2(ROOTS_MAX):.1f}, so the honest depth stays below 26, inside the 32 positions the header allows.')
+    f'The deep dive [sizes this](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L1172-L1177) for 50,000 two-input, two-output transactions per second over a two-week epoch, at 8 tachygrams per transaction, which gives {num(TG_MAX)} tachygrams. '
+    f'At 8,000 tachygrams per bucket that is {num(ROOTS_MAX)} buckets. A tree of profiles with that many leaves needs depth at least {DEPTH8}, '
+    f'because $2^{{{DEPTH8 - 1}}} = {tnum(2 ** (DEPTH8 - 1))}$ is fewer than the bucket count and $2^{{{DEPTH8}}} = {tnum(2 ** DEPTH8)}$ is not. A balanced network reaches exactly that depth, well inside the 32 positions the header allows.')
+frag['counts-box'] = (
+    f'**Deep dive:** its figure of more than 480,000,000 tachygrams per epoch matches {num(tg_book4)}, which is 100 transactions per second over two weeks at 4 tachygrams per transaction, one per input and output. Its depth estimate uses 8 per transaction, two for each of the 4 actions.\n\n'
+    f'**This site:** we follow chapter 1 and count {TG_PER_TX}, which adds the fee change note, and we use the code\'s epoch of 4,096 blocks. At {TG_PER_TX} per transaction the deep dive\'s sizing gives {num(ROOTS_MAX9)} buckets and a depth of at least {DEPTH9}, which also fits in 32 positions.')
 
 # ------------------------------------------------------------- quadratic residues
 SQUARES = sorted({x * x % Q for x in range(1, Q)})
@@ -491,7 +531,7 @@ def root_of(x, R, b=None):
     return min(y for y in range(Q) if y * y % Q == t)
 
 
-# ---------------------------------------------------- the epoch of chapter 20
+# ---------------------------------------------------- the epoch of chapter 21
 STAMPS = {'A': [22, 24, 40], 'B': [20, 23, 41], 'C': [13, 19, 21]}
 EPOCH = [x for s in STAMPS.values() for x in s]
 e0 = roots_poly(EPOCH)
@@ -677,11 +717,34 @@ for d, layer in enumerate(HIST):
     disc = '' if d == 0 else f'$R_{{{d - 1}}} = {R0 + d - 1}$'
     rows.append(f'| {label} | {disc} | {cells} |')
 frag['routing'] = '\n'.join(rows)
+A_sides = {x: side(x, R0) for x in STAMPS['A']}
+B_sides = {x: side(x, R0) for x in STAMPS['B']}
+C_sides = {x: side(x, R0) for x in STAMPS['C']}
+def _by(sd, b):
+    return ', '.join(str(x) for x, v in sd.items() if v == b)
+n0 = [len([x for x in STAMPS[k] if side(x, R0) == 0]) for k in 'ABC']
+n1 = [len([x for x in STAMPS[k] if side(x, R0) == 1]) for k in 'ABC']
+assert n0[0] + n0[1] <= CAP < n0[0] + n0[1] + n0[2] and sum(n1) <= CAP
+frag['routing-walk'] = (
+    f'Round 1 uses $R_0 = {R0}$. The classification table puts stamp A\'s values {_by(A_sides, 0)} on side 0 and {_by(A_sides, 1)} on side 1, '
+    f'so the split step turns intake A into a `0` intake holding {_by(A_sides, 0)} and a `1` intake holding {_by(A_sides, 1)}. '
+    f'Stamp B gives `0`: {_by(B_sides, 0)} and `1`: {_by(B_sides, 1)}, and stamp C gives `0`: {_by(C_sides, 0)} and `1`: {_by(C_sides, 1)}. '
+    f'The merge step then works through each profile from left to right. Among the `0` intakes, A and B meet and hold {n0[0] + n0[1]} values together, so they merge. '
+    f'Adding C would make {n0[0] + n0[1] + n0[2]}, which is over the capacity of {CAP}, so C stays apart. '
+    f'The three `1` intakes hold {sum(n1)} values in all, so they merge into one intake covering A, B and C.')
 assert len(HIST) == 3
+_r1 = HIST[1]
+_fin1 = next(it['profile'] for it in _r1 if it['span'] == (0, 3))
+_open1 = next(it['profile'] for it in _r1 if it['span'] != (0, 3))
+assert [it['profile'] for it in _r1].count(_open1) == 2 and all(it['span'] != (0, 3) for it in _r1 if it['profile'] == _open1)
+assert sorted(it['profile'] for it in HIST[2]) == [_open1 + '0', _open1 + '1'] and all(it['span'] == (0, 3) for it in HIST[2])
 frag['routing-result'] = (
     f'With a capacity of {CAP} per intake the network ends with {len(FINAL)} buckets: '
     + ', '.join(f"`{b['profile']}` holding {', '.join(map(str, b['members']))}" for b in FINAL)
-    + f'. Multiplying the three bucket polynomials gives back the epoch polynomial $e_0(X)$ of chapter 20, and no bucket has degree above {CAP}, where $e_0$ has degree {len(EPOCH)}.')
+    + f'. Multiplying the three bucket polynomials gives back the epoch polynomial $e_0(X)$ of chapter 21, and no bucket has degree above {CAP}, where $e_0$ has degree {len(EPOCH)}.\n\n'
+    + f'The buckets have different depths. After round 1 the `{_fin1}` intake spans all three stamps, so step 3 makes it final, and it does not appear in the round 2 row. '
+    + f'Profile `{_open1}` still had two intakes after round 1, neither spanning the epoch, so only that branch went through another round. '
+    + f'In round 2 both `{_open1}` intakes split at $R_1$, the two `{_open1}0` pieces merge, the two `{_open1}1` pieces merge, and each result spans the epoch, which ends the network.')
 
 # Balance over the choice of R0, and what a grinder could do with R0 in hand.
 loads = []
@@ -705,7 +768,7 @@ assert ev(polyA, ABSENT) != 0 and ev(polyP, PRESENT) == 0 and ev(e0, ABSENT) != 
 sides_abs = [side(ABSENT, R0 + j) for j in range(len(bA['profile']))]
 assert ''.join(map(str, sides_abs)) == bA['profile']
 frag['open-absent'] = (
-    f'Test the value {ABSENT}, which chapter 20 found absent from this epoch. Its shifted values are ${ABSENT} + {R0} = {(ABSENT + R0) % Q}$ and ${ABSENT} + {R0 + 1} = {(ABSENT + R0 + 1) % Q}$, and these give it the sides '
+    f'Test the value {ABSENT}, which chapter 21 found absent from this epoch. Its shifted values are ${ABSENT} + {R0} = {(ABSENT + R0) % Q}$ and ${ABSENT} + {R0 + 1} = {(ABSENT + R0 + 1) % Q}$, and these give it the sides '
     f'{", ".join(map(str, [side(ABSENT, R0), side(ABSENT, R0 + 1)]))}. So its bucket is `{bA["profile"]}`, whose polynomial is $q(X) = {pshow(polyA)}$, and $q({ABSENT}) = {ev(polyA, ABSENT)}$ is nonzero. '
     f'One opening of a polynomial of degree {len(bA["members"])} has replaced an opening of degree {len(EPOCH)}.')
 others = [b for b in FINAL if b is not bP]
@@ -737,7 +800,7 @@ steps = fold(value_sides, [1, 1, 0, 0])
 assert steps[-1] == int(bA['profile'], 2) and len(bA['profile']) == 2
 frag['mask'] = (
     f'For depth 2 there are {len(masks)} ways to set two mask bits among 32 positions. The index sum must equal $d(d-1)/2 = 1$, and only the prefix $\\{{0, 1\\}}$ does. '
-    f'For the value {ABSENT}, the first four sides are {", ".join(map(str, value_sides))}, and the fold under the mask runs through $a = {", ".join(map(str, steps))}$. It ends at {steps[-1]}, the integer that encodes `{bA["profile"]}`. The sides past the depth are computed and ignored.')
+    f'For the value {ABSENT}, the first four sides are {", ".join(map(str, value_sides))}, and the fold starts from $t_0 = 0$. Under the mask it gives $t_1, \\ldots, t_4 = {", ".join(map(str, steps))}$, because the first two steps append a side and the last two leave $t$ unchanged. It ends at {steps[-1]}, the integer that encodes `{bA["profile"]}`. The sides past the depth are computed and ignored.')
 
 # ------------------------------------------------------- a segment across two epochs
 V1 = 33
@@ -771,24 +834,20 @@ frag['tree'] = '\n'.join(
     + [f"| {i} | `{b['profile']}` | ${show(commit(roots_poly(b['members'])))}$ | {slots[i]} |"
        for i, b in enumerate(FINAL + [FINAL[-1]])])
 frag['tree-root'] = (
-    f'The node over these four slots hashes to the root {root}, and this one value stands for all the buckets. To serve a query for bucket `{bA["profile"]}`, a builder reveals the four children, the verifier rehashes them to {root}, '
-    f'and it then checks the bucket\'s fields against slot {slots.index(leaf(bA))}\'s digest.')
+    f'The node over these four slots hashes to the root {root}, and this one value stands for all the buckets. To serve a query for bucket `{bA["profile"]}`, a proof step takes the four children as witnesses, rehashes them to {root}, '
+    f'and then checks the bucket\'s fields against slot {slots.index(leaf(bA))}\'s digest.')
 frag['tree-cheat'] = (
     f'Suppose the leaf did not bind the profile, and a builder wanted to prove the published value {PRESENT} absent. It could offer the contents of bucket `{others[0]["profile"]}` under the label `{bP["profile"]}`. The profile check would pass, because the label is {PRESENT}\'s true profile, '
     f'and the opening would give {ev(roots_poly(others[0]["members"]), PRESENT)}, which is nonzero. With the profile in the leaf, that combination digests to {bad_label}, which matches none of the slots, so the path check rejects it.')
-assert 4 ** 13 == 2 ** 26
-assert 2 ** 26 == 67108864
-frag['tree-depth'] = (
-    f'A quaternary tree with depth 13 has $4^{{13}} = 2^{{26}}$ leaves, which is the deep dive\'s intended maximum, so an opening costs at most 13 node hashes and one leaf digest.')
 
 # ------------------------------------------------------------------ what the service sees
 LIST = [NF[e] for e in (4, 5, 6)]
-PUB = [13229, 24937, 30698, 31831, 40944, 46656, 55113, 55356, 61177]  # the bundle of chapter 19
+PUB = [13229, 24937, 30698, 31831, 40944, 46656, 55113, 55356, 61177]  # the bundle of chapter 20
 assert NF[7] in PUB and NF[8] in PUB and not set(LIST) & set(PUB)
 LIST2 = LIST + [NF[7]]
 assert set(LIST2) & set(PUB) == {NF[7]}
 frag['service-scan'] = (
-    f'Alice\'s spend sits in the bundle of [chapter 19](./notes-and-nullifiers.md#_11-tachygrams-and-output-padding), which publishes {", ".join(map(str, PUB))}. A service holding the list {", ".join(map(str, LIST))} for epochs 4 to 6 compares that list with the bundle and finds no match. '
+    f'Alice\'s spend sits in the bundle of [chapter 20](./notes-and-nullifiers.md#_11-tachygrams-and-output-padding), which publishes {", ".join(map(str, PUB))}. A service holding the list {", ".join(map(str, LIST))} for epochs 4 to 6 compares that list with the bundle and finds no match. '
     f'If Alice had also delegated epoch 7, the service would hold {NF[7]} and would see it published, which would tie her request to this bundle.')
 
 print(json.dumps(frag))

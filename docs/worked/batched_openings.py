@@ -68,10 +68,6 @@ def inv(a):
     return pow(a, -1, Q)
 
 
-def neg(point):
-    return mul(Q - 1, point)
-
-
 # The three polynomials and three claims of the running example.
 polys = [[7, 2, 5, 3], [3, 1, 8, 4], [2, 9, 4, 6]]
 points = [9, 5, 2]
@@ -89,10 +85,12 @@ claims_book, polys_book = 6, 4
 ipa_points = 2 * k
 separate = claims_book * ipa_points
 batched_points = ipa_points + 1
-frag['cost'] = (f'Take $n = 2^{{{k}}}$ with 32-byte values, and the six claims above. '
+frag['cost'] = (f'Take $n = 2^{{{k}}}$ with 32-byte values, and the six claims about four polynomials from Section 1. '
                 f'Six separate arguments carry ${claims_book} \\times {ipa_points} = {separate}$ group elements, or ${separate * 32:,}$ bytes. '
-                f'One batched argument carries ${ipa_points}$ group elements, plus the extra commitment and the ${polys_book}$ scalars that this chapter introduces, '
-                f'for ${batched_points * 32 + polys_book * 32:,}$ bytes. Both counts leave out the small constant number of extra values that each argument carries.')
+                f'One batched argument carries ${ipa_points}$ group elements, plus the commitment $F$ and one value at $u$ for each of the ${polys_book}$ polynomials, '
+                f'for ${batched_points * 32 + polys_book * 32:,}$ bytes. Both counts leave out the small constant number of extra values that each argument carries. '
+                f'The verifier saves work as well. Its largest cost in each argument is one multi-scalar multiplication over the $n$ generators, so six separate arguments need six of them of size $2^{{{k}}}$, '
+                f'while the batched argument needs one, plus a linear combination of the ${polys_book + 1}$ points $F$ and $C_i$ to form $P$. The last weight is 1, so only ${polys_book}$ of those points need a scalar multiplication.')
 
 # Section 2: different points do not combine.
 r = 6
@@ -125,7 +123,9 @@ assert pmul([-x % Q, 1], q0) == lin((1, a), (-rem0, [1]))
 wrong = (ys[0] + 1) % Q
 frag['false-division'] = (f'Suppose the prover claims $p({x}) = {wrong}$ instead. The first three lines of the table do not involve $y$, so they produce the same $q(X)$. '
                           f'The last line still computes ${rem0}$, which contradicts the claim. Expanding shows the same mismatch, since $(X - {x}) q(X) = p(X) - {rem0}$ while the claim needs $p(X) - {wrong}$. '
-                          f'No polynomial can repair this, because at $X = {x}$ the product $(X - {x}) q(X)$ is zero for every $q$, whereas $p({x}) - {wrong} = {(rem0 - wrong) % Q}$.')
+                          f'No polynomial can repair this, because at $X = {x}$ the product $(X - {x}) q(X)$ is zero for every $q$, whereas $p({x}) - {wrong} = {(rem0 - wrong) % Q}$. '
+                          f'Written with that leftover constant, the division reads $p(X) - {wrong} = (X - {x})\\,q(X) + {(rem0 - wrong) % Q}$.')
+assert lin((1, a), (-wrong, [1])) == lin((1, pmul([-x % Q, 1], q0)), ((rem0 - wrong) % Q, [1]))
 
 # Section 4: the claim at a new point.
 one_q, one_rem = divide(polys[1], points[1])
@@ -154,6 +154,9 @@ for c, x_i, y_i in zip(polys, points, ys):
 rows = ['| Claim $i$ | Polynomial $p_i(X)$ | Point $x_i$ | Value $y_i$ | Commitment $C_i$ | Quotient $q_i(X)$ |', '| --- | --- | --- | --- | --- | --- |']
 for i in range(m):
     rows.append(f'| {i} | ${poly(polys[i])}$ | {points[i]} | {ys[i]} | ${show(Cs[i])}$ | ${poly(qs[i])}$ |')
+assert Q1 == Cs[2]
+rows.append(f'\nThe commitment $C_2 = {show(Cs[2])}$ is the same point as $Q_1$ from Section 4, although $q_1$ and $p_2$ are different polynomials. '
+            f'This is a coincidence of the toy group, which has only {Q} elements, so unrelated vectors often share a commitment. On a real curve such a collision would break binding.')
 frag['claims'] = '\n'.join(rows)
 
 # Plain sum with cancelling errors at one point.
@@ -177,7 +180,7 @@ def poles(a_):
 
 hiders = [a_ for a_ in range(Q) if poles(a_) == 0]
 assert hiders == [1]
-frag['alpha-count'] = (f'With the weights $\\alpha$ and $1$, the two errors from the previous example leave the remainder $\\alpha \\cdot {(ra - ca) % Q} + {(rb - cb) % Q}$ over $X - {xs}$. '
+frag['alpha-count'] = (f'With the weights $\\alpha$ and $1$, the two errors from the plain-sum attack above leave the combined error $R_{xs} = \\alpha \\cdot {(ra - ca) % Q} + {(rb - cb) % Q}$ over $X - {xs}$. '
                        f'Trying all 43 values of $\\alpha$ finds that only $\\alpha = {hiders[0]}$ removes it, and that value is the plain sum.')
 
 f = lin((alpha ** 2, qs[0]), (alpha, qs[1]), (1, qs[2]))
@@ -272,9 +275,15 @@ assert all(gaps)
 winsA = [(t, b) for t in us for b in range(Q) if passes(fA, true_at[t], t, b)]
 assert len(winsA) == 40 and all(b == 0 for _, b in winsA)
 gap17 = (ev(fA, u) - derived(true_at[u], u)) % Q
+# The chapter states the gap as derived value minus f(u), which equals R_5 / (u - 5).
+gap_shown = (derived(true_at[u], u) - ev(fA, u)) % Q
+R5 = alpha * (ys[1] - bad_y) % Q
+assert gap_shown == R5 * inv(u - points[1]) % Q and gap_shown == (-gap17) % Q
 frag['cheat-drop'] = (f'The cheater claims $p_1({points[1]}) = {bad_y}$, whereas the true value is ${ys[1]}$. It computes the quotients by the division table, which ignores $y$, and commits to the same $f$, then reports true values at $u$. '
-                      f'The false $y_1$ enters the verifier\'s formula, and at $u = {u}$ the derived value is ${derived(true_at[u], u)}$ while $f({u}) = {ev(fA, u)}$, a gap of ${gap17}$. '
-                      f'We tried every pair of challenges, with 40 allowed values of $u$ and 43 of $\\beta$. The gap is nonzero at all 40 values of $u$, and the only passing runs are the {len(winsA)} that have $\\beta = 0$.')
+                      f'The false $y_1$ enters the verifier\'s formula, and at $u = {u}$ the derived value is ${derived(true_at[u], u)}$ while $f({u}) = {ev(fA, u)}$. '
+                      f'We measure the gap as the derived value minus $f(u)$, which here is ${derived(true_at[u], u)} - {ev(fA, u)} = {gap_shown}$ modulo 43. '
+                      f'It equals $R_{{{points[1]}}} / (u - {points[1]})$, because at $\\alpha = {alpha}$ the combined error is $R_{{{points[1]}}} = {alpha} \\cdot ({ys[1]} - {bad_y}) = {R5}$, and ${R5} / {(u - points[1]) % Q} = {gap_shown}$ modulo 43. '
+                      f'We tried every pair of challenges. The challenge $u$ has to avoid the three claim points 9, 5 and 2, which leaves 40 allowed values, and $\\beta$ can take all 43. The gap is nonzero at all 40 values of $u$, and the only passing runs are the {len(winsA)} that have $\\beta = 0$.')
 
 # Strategy B: lie about one value at u so that f(u) looks right.
 tB = list(true_at[u])
@@ -345,8 +354,55 @@ frag['cheat-fit'] = (f'The cheater can make the committed polynomial match the v
                      f'If it lands anywhere else among the 40 allowed values, this polynomial does not match. We tried all $43^4 = {43 ** 4:,}$ polynomials of degree at most 3. '
                      f'None matches the formula at more than ${best_agree}$ points, and exactly ${reach[4]:,}$ reach ${best_agree}$, one for each choice of four points.')
 worst_num = best_agree * Q + (len(us) - best_agree) * best
-frag['cheat-total'] = (f'Combining the counts bounds the best cheater on the toy curve. It wins on at most ${best_agree}$ of the 40 values of $u$ outright and on at most ${best}$ of the 43 values of $\\beta$ at each of the other ${len(us) - best_agree}$, '
-                       f'which is at most ${worst_num}$ of the ${len(us) * Q}$ pairs of challenges.')
+
+# Every other alpha behaves like alpha = 11: the gap between the derived value and the honest f
+# is alpha times a fixed function of t, so the brute force over all cubics above covers every alpha != 0.
+def weights_for(a_):
+    return [a_ * a_ % Q, a_ % Q, 1]
+
+
+def honest_f(a_):
+    w_ = weights_for(a_)
+    return lin((w_[0], qs[0]), (w_[1], qs[1]), (w_[2], qs[2]))
+
+
+shape = {t: (derived(true_at[t], t) - ev(f, t)) * inv(alpha) % Q for t in us}
+for a_ in range(1, Q):
+    fa = honest_f(a_)
+    for t in us:
+        assert (derived(true_at[t], t, w=weights_for(a_)) - ev(fa, t)) % Q == a_ * shape[t] % Q
+
+
+def passes_w(fp, sent, at, b, w_):
+    wb = [pow(b, 3, Q), pow(b, 2, Q), b, 1]
+    v_ = (wb[0] * derived(sent, at, w=w_) + wb[1] * sent[0] + wb[2] * sent[1] + sent[2]) % Q
+    real = (wb[0] * ev(fp, at) + wb[1] * ev(polys[0], at) + wb[2] * ev(polys[1], at) + ev(polys[2], at)) % Q
+    return v_ == real
+
+
+# alpha = 0 removes the false claim's weight, so the honest f passes everywhere.
+bad_alphas = [a_ for a_ in range(Q) if a_ * (ys[1] - bad_y) % Q == 0]
+assert bad_alphas == [0]
+w0 = weights_for(0)
+f0 = honest_f(0)
+zero_wins = sum(passes_w(f0, true_at[t], t, b, w0) for t in us for b in range(Q))
+assert zero_wins == len(us) * Q
+frag['cheat-alpha'] = (f'In the running example only claim 1 is false, and its weight is $\\alpha$. The combined error at the point ${points[1]}$ is $R_{{{points[1]}}} = \\alpha \\cdot ({ys[1]} - {bad_y}) = {(ys[1] - bad_y) % Q}\\,\\alpha$ modulo 43, '
+                       f'a polynomial of degree 1 in $\\alpha$ whose only root is $\\alpha = {bad_alphas[0]}$. At that value the weights are $0, 0, 1$, so the false claim drops out of $f$ and the honest quotients pass. '
+                       f'We checked all {len(us)} allowed values of $u$ and all 43 values of $\\beta$ with $\\alpha = 0$, and the cheater passes in all ${zero_wins}$ runs.')
+
+per_alpha = best_agree * Q + (len(us) - best_agree) * best
+worst_num = zero_wins + (Q - 1) * per_alpha
+assert worst_num == 13480
+frag['cheat-total'] = (f'At $\\alpha = 0$ the cheater wins all ${zero_wins}$ pairs $(u, \\beta)$. At each of the other {Q - 1} values of $\\alpha$, the count from $\\alpha = {alpha}$ applies. '
+                       f'The cheater wins on at most ${best_agree}$ of the 40 values of $u$ outright, and on at most ${best}$ of the 43 values of $\\beta$ at each of the other ${len(us) - best_agree}$, which is at most ${best_agree} \\cdot 43 + {len(us) - best_agree} \\cdot {best} = {per_alpha}$ pairs. '
+                       f'In total that is at most ${zero_wins} + {Q - 1} \\cdot {per_alpha} = {worst_num:,}$ of the ${Q * len(us) * Q:,}$ triples. '
+                       f'Stage by stage, the bad values are $1$ of 43 for $\\alpha$, ${best_agree}$ of 40 for $u$ and ${best}$ of 43 for $\\beta$.')
+
+toy_d, toy_l = len(set(points)), m
+frag['toy-terms'] = (f'The toy example fits inside each term. With $m = {m}$, $n = {n}$, $d = {toy_d}$ and $\\ell = {toy_l}$, the three terms allow $m - 1 = {m - 1}$ bad values of $\\alpha$, '
+                     f'$n - 1 + d = {n - 1 + toy_d}$ bad values of $u$ and $\\ell = {toy_l}$ bad values of $\\beta$, against the {len(bad_alphas)}, {best_agree} and {best} that we found. '
+                     f'The first two counts are smaller because only one claim is false, which leaves a single pole and a combined error of degree 1 in $\\alpha$.')
 
 # Learning a challenge early.
 frag['early-u'] = (f'Suppose the cheater learns $u = {u}$ before it commits. The interpolated polynomial $f\'$ from earlier in this section matches the formula at that point, so the cheater commits to it, reports true values, and passes for all 43 values of $\\beta$.')
@@ -376,9 +432,9 @@ for t in range(Q):
         rr = (b * b * ev(fc, t) + b * ev(pa, t) + ev(pb, t)) % Q
         ok += vv == rr
 assert ok == 42 * 43
-frag['early-alpha'] = (f'Suppose the cheater learns $\\alpha = {alpha}$ before it makes its two claims at the point ${xs}$. It claims $p_0({xs}) = {y0c}$ and $p_1({xs}) = {y1c}$, whose errors ${e0}$ and ${e1}$ satisfy ${alpha} \\cdot {e0} + {e1} = 0$ modulo 43. '
+frag['early-alpha'] = (f'Return to the variant from Section 5 in which the claims about $p_0$ and $p_1$ both use the point ${xs}$, instead of the points 9, 5 and 2 of the running example. Suppose the cheater learns $\\alpha = {alpha}$ before it makes its two claims at the point ${xs}$. It claims $p_0({xs}) = {y0c}$ and $p_1({xs}) = {y1c}$, whose errors ${e0}$ and ${e1}$ satisfy ${alpha} \\cdot {e0} + {e1} = 0$ modulo 43. '
                        f'Both claims are false, yet $\\alpha(p_0 - {y0c}) + (p_1 - {y1c})$ is divisible by $X - {xs}$, which gives the genuine polynomial $f = {poly(fc)}$. '
-                       f'This cheater passes for all 42 values of $u$ and all 43 values of $\\beta$, a total of ${ok}$ of ${ok}$ runs.')
+                       f'Both claims use the point ${xs}$, so here $u$ only has to avoid ${xs}$, which leaves 42 values. This cheater passes for all 42 values of $u$ and all 43 values of $\\beta$, a total of ${ok}$ of ${ok}$ runs.')
 
 # Forging the final opening with known discrete logs.
 logs = [log(g, G[0]) for g in G]
@@ -398,7 +454,7 @@ endo_bits = 143
 total = (real_m - 1) + (real_n - 1 + real_d) + real_l
 assert total < 2 ** 14
 frag['real-bound'] = (f'For $n = 2^{{13}}$, with the six claims, four points and four polynomials from Section 1, the three bounds add up to $({real_m - 1} + {real_n - 1 + real_d} + {real_l}) / |\\F| = {total} / |\\F|$. '
-                      f'For a field of about $2^{{254}}$ elements, as with the Pasta curves, this is below $2^{{-240}}$. The fuse step draws $\\beta$ from a {endo_bits}-bit endoscalar, as Section 13 notes, and with that range the $\\beta$ term alone is about ${real_l} / 2^{{{endo_bits}}} = 2^{{{2 - endo_bits}}}$ and dominates the sum.')
+                      f'For a field of about $2^{{254}}$ elements, as with the Pasta curves, this is below $2^{{-240}}$. Ragu draws $\\beta$ from a shorter, {endo_bits}-bit range, for reasons the [endoscalars chapter](./endoscalars.md) explains, and with that range the $\\beta$ term alone is about ${real_l} / 2^{{{endo_bits}}} = 2^{{{2 - endo_bits}}}$ and dominates the sum.')
 
 # Section 10: shared polynomials.
 share_polys = [0, 1, 2, 0]
@@ -474,27 +530,8 @@ for t in us:
         d_sent = (d_true + shifted_alpha[0] * (sent0 - true_at[t][0]) * inv(t - points[0])) % Q
         alpha_one_wins += Q * ((d_sent + sent0) % Q == (ev(fshift, t) + true_at[t][0]) % Q)
 assert alpha_one_wins == wins
-frag['collision'] = (f'Keep the false claim $p_1({points[1]}) = {bad_y}$, and use the sum from $i = 0$ in both places, so that $f$ and $p_0$ both have weight 1 in $p$. The cheater commits to the honest $f = \\sum_i \\alpha^i q_i$, which at $\\alpha = {alpha}$ is ${poly(fbook)}$. '
-                     f'At $u = {u}$ the derived value misses $f({u})$ by ${solved_at[2]}$. The cheater then sends ${solved_at[0]}$ for $p_0({u})$, a shift of ${solved_at[1]}$. The shift changes the derived value of $f(u)$ and the $p_0$ term of $v$, and the two changes add up to exactly that miss. '
-                     f'No power of $\\beta$ appears in this equation, so we checked that the forged message passes for all 43 values of $\\beta$. The attack works at 39 of the 40 allowed values of $u$, for a total of ${wins}$ of the ${40 * Q}$ pairs $(u, \\beta)$. This forgery fails only at $u = {blocked[0]}$, where $1 + 1/(u - x_0) = 0$ modulo 43.')
-
-# Section 12: the SHPLONK form.
-ZT = 1
-for x_i in points:
-    ZT = ZT * (u - x_i) % Q
-L = [0]
-Lpoint = None
-for i in range(m):
-    Zrest = 1
-    for j in range(m):
-        if j != i:
-            Zrest = Zrest * (u - points[j]) % Q
-    L = lin((1, L), (weights[i] * Zrest, lin((1, polys[i]), (-ys[i], [1]))))
-    term = mul(weights[i] * Zrest % Q, add(Cs[i], neg(mul(ys[i], G[0]))))
-    Lpoint = add(Lpoint, term)
-L = lin((1, L), (-ZT, f))
-Lpoint = add(Lpoint, neg(mul(ZT, F)))
-assert ev(L, u) == 0 and Lpoint == commit(L) and Lpoint is not None
-frag['shplonk'] = (f'In our run $Z_T(u) = {ZT}$, and the construction gives $L(X) = {poly(L)}$. Substituting $u = {u}$ gives ${ev(L, u)}$, and the combination of $C_i$, $y_i$ and $F$ gives the commitment ${show(Lpoint)}$, which matches $L$ directly. The prover sent no values at $u$ for this check.')
+frag['collision'] = (f'Take the same false claim $p_1({points[1]}) = {bad_y}$, but start both sums at $i = 0$, so that $f$ and $p_0$ both have weight 1 in $p$. The cheater commits to the honest combination $f = \\sum_i \\alpha^i q_i$, which at $\\alpha = {alpha}$ is ${poly(fbook)}$. '
+                     f'Under these weights, with true values at $u = {u}$, the derived value falls ${solved_at[2]}$ short of $f({u})$. The cheater then sends ${solved_at[0]}$ for $p_0({u})$, a shift of ${solved_at[1]}$. The shift changes the derived value of $f(u)$ and the $p_0$ term of $v$, and the two changes add up to exactly that miss. '
+                     f'No power of $\\beta$ appears in this equation, so we checked that the forged message passes for all 43 values of $\\beta$. The attack works at 39 of the 40 allowed values of $u$, for a total of ${wins}$ of the ${40 * Q}$ pairs $(u, \\beta)$.')
 
 print(json.dumps(frag))

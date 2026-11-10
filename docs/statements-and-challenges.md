@@ -16,11 +16,13 @@ The relation has to be cheap to evaluate, since it is the test the verifier woul
 
 <!-- worked:cubic-witnesses -->
 
-Evaluating $x^3 + x + 5$ at all 43 elements of $\F_{43}$ finds that the value 35 occurs at $x \in \{3\}$. Our $x = 3$ is the only witness for this instance. The value $x = 4$ gives $30$, so the pair $(35, 4)$ falls outside the relation. Some instances have no witness at all, and the instance 2 is one of them.
+Evaluating $x^3 + x + 5$ at all 43 elements of $\F_{43}$ finds that the value 35 occurs only at $x = 3$, so our $x = 3$ is the only witness for this instance. The value $x = 4$ gives $30$, so the pair $(35, 4)$ falls outside the relation. Some instances have no witness at all, and the instance 2 is one of them.
 
 <!-- /worked:cubic-witnesses -->
 
 Later chapters use a second relation, the one behind every elliptic curve commitment. The instance is a point $P$ on a curve, the witness is a scalar $a$, and the relation holds when $a \cdot G = P$ for a public generator $G$. We work on the toy curve $E: y^2 = x^3 + 3$ over $\F_{31}$, which has 43 points. Coordinates are computed modulo 31, and scalars are computed modulo 43 because adding a point to itself 43 times returns the identity. The [chapter on polynomial commitments](./polynomial-commitments.md#_2-the-toy-curve) returns to this distinction, and the [curves appendix](./appendix-curves.md) lists the parameters.
+
+We use as generator the point $G = G_0$ from the list of public points that the [chapter on polynomial commitments](./polynomial-commitments.md#public-parameters) tabulates.
 
 <!-- worked:dlog-instance -->
 
@@ -30,13 +32,13 @@ Take the generator $G = G_0 = (1,\,2)$ and the secret scalar $a = 12$, which giv
 
 The two relations differ in one respect that affects what a proof must establish. The group has prime order, so every point is a multiple of $G$. A witness for $P$ therefore always exists, and the claim "some $a$ satisfies this" tells the verifier nothing. The useful claim is that the prover knows $a$, and Section 2 gives this difference a name.
 
-The prover could convince the verifier by sending the witness, and the verifier could run the relation. We want to avoid that for two reasons. The witness may be secret, as the spending keys in a Zcash transaction are. It may also be enormous, because in proof-carrying data the witness for one step includes everything needed to check the previous steps. A proof has to be shorter than the witness and has to keep it hidden.
+The prover could convince the verifier by sending the witness, and the verifier could run the relation. We want to avoid that for two reasons. The witness may be secret, as the spending keys in a Zcash transaction are. It may also be enormous, because in proof-carrying data the witness for one step includes everything needed to check the previous steps. These two reasons lead to two goals. For large computations, which is the case proof-carrying data cares about, the proof should be much shorter than the witness. For small secrets, such as the single scalar $a$ above, length matters less, and the point of a proof is to convince the verifier without revealing the secret. Section 3 shows a proof that is longer than its one-scalar witness yet reveals nothing about it.
 
 ## 2. Completeness and soundness
 
 We judge a proof system by how it treats honest and dishonest provers, and a useful system has to satisfy two requirements at once. **Completeness** says that a prover with a valid witness who follows the protocol always convinces the verifier. **Soundness** says that a prover making a false statement rarely convinces the verifier, however it deviates from the protocol.
 
-Each requirement alone is easy to meet. A verifier that accepts everything is complete but not sound, and a verifier that rejects everything is sound but not complete. Sending the witness satisfies both but fails the goals from Section 1, so the real work is meeting both requirements with a short message that hides the witness.
+Each requirement alone is easy to meet. A verifier that accepts everything is complete but not sound, and a verifier that rejects everything is sound but not complete. Sending the witness satisfies both but fails the goals from Section 1, so the real work is meeting both requirements with a message that is short, hides the witness, or ideally does both.
 
 We allow soundness to fail with a small probability, called the **soundness error**. Accepting a small error is what makes short proofs possible, as this chapter shows repeatedly. The error has to be small enough that no one could expect to see it happen, and Section 5 shows how a large field achieves that.
 
@@ -44,7 +46,7 @@ Three refinements of soundness appear in later chapters, and we state them here 
 
 - **Knowledge soundness** says that a prover who convinces the verifier must actually know a witness. This is the property we need for the curve relation in Section 1, where a witness always exists.
 - **Computational soundness** says that soundness holds only against provers with realistic computing power. A proof system with this weaker guarantee is called an **argument**. Ragu's proofs are arguments, because they rest on the hardness assumptions listed in Section 11.
-- **Zero knowledge** says that the verifier learns nothing from the proof beyond the truth of the statement.
+- **Zero knowledge** says that the verifier learns nothing from the proof beyond the truth of the statement. This is a goal rather than a requirement for this site's system, because [Chapter 2 found](./pcd-intro.md#_9-proof-carrying-data-in-ragu) that Ragu does not yet achieve it.
 
 This site explains why cheating fails and which assumptions that depends on, but it does not give formal definitions or security proofs.
 
@@ -141,7 +143,7 @@ This gives us knowledge soundness in an informal sense. A prover who answers mor
 
 ### What the verifier learns
 
-The response gives away nothing about $a$, because the mask $r$ is uniform and is used once.
+The response gives away nothing about $a$, because the mask $r$ is uniform and is used once. A second way to see this uses a **simulator**, which is a procedure that produces transcripts without knowing the witness. If the simulator's transcripts look exactly like real ones, then the real ones cannot carry any information about $a$.
 
 <!-- worked:schnorr-mask -->
 
@@ -149,11 +151,11 @@ Fix $c = 16$ and let the mask $r$ range over $\F_{43}$. The response $s = r + 16
 
 <!-- /worked:schnorr-mask -->
 
-The second comparison is informative. The same trick that lets a cheater forge when it knows $c$ early also lets anyone produce transcripts with the correct distribution without knowing $a$. A transcript that anyone could have produced cannot teach the verifier anything about $a$, which is the informal reason the protocol is zero knowledge for a verifier who picks $c$ honestly. Reusing a mask would destroy this, since two responses with the same $r$ reveal $a$ through the subtraction above.
+Comparing the honest and simulated lists shows that the same trick that lets a cheater forge when it knows $c$ early also lets anyone produce transcripts with the correct distribution without knowing $a$. A transcript that anyone could have produced cannot teach the verifier anything about $a$, which is the informal reason the protocol is zero knowledge for a verifier who picks $c$ honestly. Reusing a mask would destroy this, since two responses with the same $r$ reveal $a$ through the subtraction above.
 
 ## 4. Counting the roots of a polynomial
 
-Schnorr's protocol relied on a linear equation in $c$, which has one solution. Most protocols on this site check polynomial equations of high degree, so we need to count the solutions of those equations. The count rests on one algebraic fact about roots.
+Schnorr's protocol relied on a linear equation in $c$, which has one solution. Most protocols on this site check polynomial equations of high degree instead. The reason is that a long vector of values can be stored as the coefficients of a polynomial, so a claim about the whole vector becomes a claim that two polynomials are equal, and the [chapter on polynomial encoding](./polynomial-encoding.md) builds such encodings. To know how often a false claim of this kind survives a check, we need to count the solutions of polynomial equations. The count rests on one algebraic fact about roots.
 
 ### Each root gives a linear factor
 
@@ -227,13 +229,11 @@ The bound of 3 is what a cheater can reach at best, and many polynomials stay be
 
 ## 5. Testing polynomials at a random point
 
-The root count gives us a cheap test for equality. Let $p$ and $q$ be different polynomials of degree at most $d$, and let $x$ be uniform in $\F$. If $p(x) = q(x)$, then $x$ is a root of the nonzero polynomial $p - q$, whose degree is at most $d$. It has at most $d$ roots, so
+The root count gives us a cheap test for equality. From here on we write $\F_q$ for the field, which has $q$ elements. Let $f$ and $g$ be different polynomials of degree at most $d$, and let $x$ be uniform in $\F_q$. If $f(x) = g(x)$, then $x$ is a root of the nonzero polynomial $f - g$, whose degree is at most $d$. It has at most $d$ roots, so
 
-$$\Pr\big[p(x) = q(x)\big] \le \frac{d}{|\F|}.$$
+$$\Pr\big[f(x) = g(x)\big] \le \frac{d}{|\F_q|}.$$
 
-This is the one-variable case of the **Schwartz–Zippel lemma**. Comparing two polynomials coefficient by coefficient takes time proportional to their size, whereas this test compares one field element from each side.
-
-The test is more useful for identities that are expensive to check directly. Suppose a prover claims that $r(X) = p(X)q(X)$. Multiplying the two polynomials out takes a number of field multiplications that grows with the square of the degree in the schoolbook method, but checking the claim at one point requires only three evaluations and one multiplication.
+This is the one-variable case of the **Schwartz–Zippel lemma**. For two polynomials that are already written out, the test gains nothing, because evaluating each side costs about as much as comparing coefficients. The payoff comes when one side is expensive to compute. Suppose a prover claims that $r(X) = p(X)q(X)$. Multiplying the two polynomials out takes a number of field multiplications that grows with the square of the degree in the schoolbook method, but checking the claim at one point requires three evaluations and one multiplication. Each evaluation costs about $d$ multiplications by Horner's rule, so the check takes work linear in the degree rather than quadratic.
 
 <!-- worked:product-honest -->
 
@@ -267,7 +267,7 @@ If the prover knows the point $9$ in advance, it can send $r'(X) = r(X) + (X - 9
 
 The [chapter on polynomial commitments](./polynomial-commitments.md#choosing-the-point-after-the-commitment) builds the tool that fixes a polynomial without revealing it.
 
-The second condition is that the degree must be well below the field size. The bound says nothing once $d$ reaches $|\F|$:
+The second condition is that the degree must be well below the field size. The bound says nothing once $d$ reaches $|\F_q|$:
 
 <!-- worked:degree-limit -->
 
@@ -290,12 +290,12 @@ The checks in later chapters often involve more than one challenge, which turns 
 The relevant size measure is the **total degree**, the largest sum of exponents among the monomials. The monomial $X^2 Y$ has total degree 3, so $(Y - 5)(X^2 - Y) = X^2 Y - Y^2 - 5X^2 + 5Y$ has total degree 3.
 
 ::: tip Schwartz–Zippel lemma
-Let $f$ be a nonzero polynomial in $m$ variables with total degree $d$ over a field $\F$. If $r_1, \ldots, r_m$ are chosen uniformly and independently from $\F$, then
+Let $f$ be a nonzero polynomial in $m$ variables with total degree $d$ over a field $\F_q$. If $r_1, \ldots, r_m$ are chosen uniformly and independently from $\F_q$, then
 
-$$\Pr\big[f(r_1, \ldots, r_m) = 0\big] \le \frac{d}{|\F|}.$$
+$$\Pr\big[f(r_1, \ldots, r_m) = 0\big] \le \frac{d}{|\F_q|}.$$
 :::
 
-The bound does not grow with the number of variables, so it is worth going through the two-variable argument. Longer lists of variables follow by repeating it.
+The bound may look surprising, because it ignores the number of variables. The two-variable argument shows why, and longer lists of variables follow by repeating it.
 
 Group the terms of $f(X, Y)$ by powers of $X$:
 
@@ -305,14 +305,16 @@ where $k$ is the highest power of $X$ whose coefficient $f_k(Y)$ is a nonzero po
 
 Now picture choosing $y$ first and $x$ second. Two cases can occur:
 
-- **The chosen $y$ is a root of $f_k$.** By Section 4 there are at most $d - k$ such values, so this happens with probability at most $(d - k)/|\F|$. We give up on these rows and assume the worst, which is that $f$ vanishes for every $x$.
-- **The chosen $y$ is not a root of $f_k$.** Then $f(X, y)$ is a one-variable polynomial with nonzero leading coefficient $f_k(y)$ and degree $k$. It has at most $k$ roots, so a uniform $x$ hits one with probability at most $k/|\F|$.
+- **The chosen $y$ is a root of $f_k$.** By Section 4 there are at most $d - k$ such values, so this happens with probability at most $(d - k)/|\F_q|$. We give up on these values of $y$ and assume the worst, which is that $f$ vanishes for every $x$.
+- **The chosen $y$ is not a root of $f_k$.** Then $f(X, y)$ is a one-variable polynomial with nonzero leading coefficient $f_k(y)$ and degree $k$. It has at most $k$ roots, so a uniform $x$ hits one with probability at most $k/|\F_q|$.
 
 Adding the two probabilities gives
 
-$$\Pr\big[f(x, y) = 0\big] \le \frac{d - k}{|\F|} + \frac{k}{|\F|} = \frac{d}{|\F|}.$$
+$$\Pr\big[f(x, y) = 0\big] \le \frac{d - k}{|\F_q|} + \frac{k}{|\F_q|} = \frac{d}{|\F_q|}.$$
 
-The figure shows both cases for one polynomial:
+The same argument handles $m$ variables. Treat one variable as $X$ and group the other $m - 1$ variables as $Y$, so that the coefficients $f_i$ become polynomials in $m - 1$ variables. In the first case, $f_k$ is a nonzero polynomial in $m - 1$ variables of total degree at most $d - k$, so the lemma for $m - 1$ variables bounds the probability that the chosen values $(y_2, \ldots, y_m)$ make it zero by $(d - k)/|\F_q|$. The second case is unchanged, because once those values are fixed, $f$ is a nonzero one-variable polynomial of degree $k$ in $X$, and the root count gives $k/|\F_q|$. The two terms again add to $d/|\F_q|$, and repeating the step down to one variable proves the lemma for any $m$.
+
+To check the bound on the toy field, we count zeros instead of measuring probabilities. Over $\F_{43}$ there are $43^2$ points $(x, y)$, so a probability bound of $d/43$ allows at most $(d/43) \cdot 43^2 = d \cdot 43$ zeros, which we call the limit. The figure shows both cases for one polynomial:
 
 ![A 43 by 43 grid of the points of the toy field. The row y equals 5 is filled in, and the remaining rows contain at most two marked points that trace a parabola.](./manim/statements-zero-grid.png)
 
@@ -322,9 +324,7 @@ For $f(X, Y) = (Y - 5)(X^2 - Y)$ we have $k = 2$ and $f_2(Y) = Y - 5$, so the on
 
 <!-- /worked:biv-rows -->
 
-For $m$ variables, we treat one variable as $X$ and the rest as a group, and the same two cases apply with the lemma for $m - 1$ variables in place of the root count.
-
-Over $\F_{43}$ there are $43^2$ points to test, so the probability bound $d/43$ becomes a limit of $d \cdot 43$ on the number of zeros. The next table counts the zeros of several polynomials.
+The next table counts the zeros of several polynomials.
 
 <!-- worked:biv-table -->
 
@@ -366,7 +366,7 @@ The verifier picks a separate uniform $r_i$ for each claim and checks $\sum_i r_
 
 $$e_k r_k + w = 0,$$
 
-which has exactly one solution $r_k = -w / e_k$. A uniform $r_k$ hits that solution with probability exactly $1/|\F|$, however many claims there are.
+which has exactly one solution $r_k = -w / e_k$. A uniform $r_k$ hits that solution with probability exactly $1/|\F_q|$, however many claims there are.
 
 <!-- worked:rlc-independent -->
 
@@ -380,7 +380,7 @@ Independent weights require one random value per claim. A single value $r$ can s
 
 $$\sum_{i=0}^{m-1} r^i e_i = 0.$$
 
-The left side is a polynomial in $r$ whose coefficients are the errors. If any error is nonzero, this polynomial is nonzero with degree at most $m - 1$, so Section 5 gives an error of at most $(m - 1)/|\F|$. The verifier sends one field element rather than $m$, and the cost is a larger soundness error that a large field absorbs. The [next chapter](./arithmetization.md#_5-reducing-the-gates-to-one-equation) applies this form to circuit gates and constraints.
+The left side is a polynomial in $r$ whose coefficients are the errors. If any error is nonzero, this polynomial is nonzero with degree at most $m - 1$, so Section 5 gives an error of at most $(m - 1)/|\F_q|$. The verifier sends one field element rather than $m$, and the cost is a larger soundness error that a large field absorbs. The [next chapter](./arithmetization.md#_5-reducing-the-gates-to-one-equation) applies this form to circuit gates and constraints.
 
 All nonzero error vectors of length 3 are few enough to enumerate:
 
@@ -392,7 +392,7 @@ All nonzero error vectors of length 3 are few enough to enumerate:
 | 1 | 3612 |
 | 2 | 37926 |
 
-The counts cover all $79506$ nonzero vectors, and no vector is hidden by more than 2 of the 43 values, which agrees with the bound $(m - 1)/|\F| = 2/43$. The errors $(6, 5, 1)$ from the previous example are hidden by 2 values in this form, namely $r \in \{40, 41\}$.
+The counts cover all $79506$ nonzero vectors, and no vector is hidden by more than 2 of the 43 values, which agrees with the bound $(m - 1)/|\F_q| = 2/43$. The errors $(6, 5, 1)$ from the previous example are hidden by 2 values in this form, namely $r \in \{40, 41\}$.
 
 <!-- /worked:rlc-powers -->
 
@@ -426,9 +426,11 @@ Interaction is a problem for proof-carrying data. A proof has to travel with its
 
 The observation behind the **Fiat–Shamir transform** is that the verifier in these protocols contributes nothing but random values. Protocols with this property are called **public coin**, since the verifier's coins are visible and it keeps no secrets. The challenge needs only two properties, which are that it looks random and that nobody can predict it before the prover's message is fixed. A hash of the prover's message has both properties, provided the hash behaves like a random function.
 
-The transform therefore replaces each verifier message with a hash of everything sent so far. We keep this running record in an object called a **transcript**, with two operations. Absorbing adds a value to the record, and squeezing produces a challenge that depends on everything absorbed so far. Prover and verifier run the same sequence of operations, so they obtain the same challenges. For Schnorr's protocol, the sequence is:
+The transform therefore replaces each verifier message with a hash of everything sent so far. We keep this running record in an object called a **transcript**, with two operations. Absorbing adds a value to the record, and squeezing produces a challenge that depends on everything absorbed so far. Prover and verifier run the same sequence of operations, so they obtain the same challenges. Our toy transcript works with elements of $\F_{43}$, so the tag has to be written as field elements too. We encode the toy protocol's name as the pair $(11, 22)$, which is an arbitrary choice.
 
-1. Start the transcript with a tag that names the protocol.
+The transcript should also give different challenges to different sequences of messages. Suppose the message $(m)$ and the message $(m, 0)$ produced the same challenge. A prover could then fix the challenge first and decide afterward which of the two messages it had sent, which is the early-challenge attack of Section 3 in another form. General-purpose transcripts rule this out by absorbing the length of every message before the message itself. Our toy transcript follows Ragu, which prefixes only the tag, so it absorbs the tag's length, 2, before the tag and absorbs the later values without a length. Section 12 explains why Ragu can safely drop the other prefixes. For Schnorr's protocol, the sequence is:
+
+1. Start the transcript with the length of the tag and then the tag, which names the protocol.
 2. Absorb the instance $P$.
 3. Absorb the commitment $R$.
 4. Squeeze the challenge $c$.
@@ -487,13 +489,15 @@ This breaks the protocol completely, since a cheater can forge a proof for any i
 
 Suppose instead that the transcript absorbs $R$ but not $P$. [Bernhard, Pereira, and Warinschi](https://eprint.iacr.org/2016/771) call this variant weak Fiat–Shamir and examine its pitfalls. The cheater can no longer choose $R$ after the challenge, but it can now choose the statement afterward. Rearranging the check $s \cdot G = R + c \cdot P$ to isolate $P$ gives $P = c^{-1} \cdot (s \cdot G - R)$.
 
+The cheater has to take $R$ from somewhere other than its own mask. If it picked $R = r \cdot G$ for a known $r$, the solved instance would be $P' = c^{-1}(s - r) \cdot G$, so the cheater would know the witness for $P'$ and the proof would be honest. The forgery needs an $R$ whose discrete log the cheater does not know. The fixed public points $G_1, G_2, \ldots$ from the [chapter on polynomial commitments](./polynomial-commitments.md#public-parameters) serve this purpose, because they are meant to be points whose discrete logs relative to $G_0$ nobody knows. A real system arranges this by deriving them from a hash. On a curve with 43 points anyone could find those discrete logs by counting, so the toy list only imitates this property.
+
 <!-- worked:omit-instance -->
 
-Start from the public point $R = G_3 = (17,\,7)$, whose relation to $G$ the cheater need not know. The flawed transcript gives $c = 15$ without looking at any instance. Picking $s = 19$ and solving gives $P' = c^{-1} \cdot (s \cdot G - R) = (9,\,9)$. The check holds, since $s \cdot G = (27,\,1)$ and $R + c \cdot P' = (27,\,1)$.
+Start from the public point $R = G_3 = (17,\,7)$, one of the fixed points from Section 1, whose discrete log relative to $G$ the cheater is assumed not to know. The flawed transcript gives $c = 15$ without looking at any instance. Picking $s = 19$ and solving gives $P' = c^{-1} \cdot (s \cdot G - R) = (9,\,9)$. The check holds, since $s \cdot G = (27,\,1)$ and $R + c \cdot P' = (27,\,1)$.
 
 <!-- /worked:omit-instance -->
 
-The cheater now has a valid proof for $P'$, and the construction used only public points, so it never needed the discrete log of $P'$. The cheater cannot aim at a specific $P'$ this way. A weak transcript also lets an observer adapt someone else's proof to a related statement, and in that case the observer does choose the target. The challenge does not change when the instance changes, so the observer can add a multiple of $G$ to the instance and add the corresponding amount to the response:
+The cheater now has a valid proof for $P'$. The construction used only public points, so the cheater does not know the discrete log of $P'$, and the proof claims knowledge it lacks. The cheater cannot aim at a specific $P'$ this way, because for a chosen $P'$ it would need an $s$ with $s \cdot G = R + c \cdot P'$, and finding that $s$ is a discrete log problem. A weak transcript also lets an observer adapt someone else's proof to a related statement, and in that case the observer does choose the target. The challenge does not change when the instance changes, so the observer can add a multiple of $G$ to the instance and add the corresponding amount to the response:
 
 $$s' \cdot G = (s + c \cdot t) \cdot G = R + c \cdot P + c \cdot t \cdot G = R + c \cdot (P + t \cdot G).$$
 
@@ -525,7 +529,7 @@ The toy field makes grinding visible, because each attempt has a chance of about
 
 <!-- worked:grinding -->
 
-A cheater repeats the early-challenge trick. It guesses a challenge, picks a response, computes $R = s \cdot G - c \cdot P$, and tests whether the hash of the transcript returns its guess. Running through the pairs from the largest values downward with $P = (18,\,10)$, attempt 19 succeeds with the guess $c = 42$, the response $s = 23$ and $R = (30,\,23)$. The honest verifier accepts this proof, and the search never touched $a$. Across all 1806 pairs that give a nonidentity $R$, exactly 42 succeed, which is one attempt in 43.
+A cheater repeats the early-challenge trick. It guesses a challenge, picks a response, computes $R = s \cdot G - c \cdot P$, and tests whether the hash of the transcript returns its guess. With $P = (18,\,10)$, it tries guesses $c$ from 42 downward and, for each guess, responses $s$ from 42 downward, skipping any pair that gives the identity as $R$. The identity has no affine coordinates for the transcript to absorb, so a proof with that $R$ cannot be written down. Attempt 19 succeeds with the guess $c = 42$, the response $s = 23$ and $R = (30,\,23)$. The honest verifier accepts this proof, and the search never touched $a$. Across all 1806 pairs that give a nonidentity $R$, exactly 42 succeed, which is one attempt in 43.
 
 <!-- /worked:grinding -->
 
@@ -533,7 +537,7 @@ A cheater with $T$ attempts therefore has a success probability of up to about $
 
 <!-- worked:grinding-scale -->
 
-Suppose a cheater can compute $2^{128}$ hashes, and each attempt faces the error $d/|\F|$ with $d = 2^{13}$ and a field above $2^{254}$. Each attempt succeeds with probability below $2^{-241}$, and all attempts together succeed with probability below $2^{-113}$.
+Suppose a cheater can compute $2^{128}$ hashes, and each attempt faces the error $d/|\F_q|$ with $d = 2^{13}$ and a field above $2^{254}$. Each attempt succeeds with probability below $2^{-241}$, and all attempts together succeed with probability below $2^{-113}$.
 
 <!-- /worked:grinding-scale -->
 
@@ -567,11 +571,11 @@ Over $\F_{43}$, the map $x \mapsto x^2$ takes only 22 distinct values and $x \ma
 
 <!-- /worked:sbox -->
 
-Computing $x^5$ takes three multiplications, as $x^2$, then $x^4$, then $x^4 \cdot x$. The S-box is therefore the part of Poseidon that costs gates, which suggests applying it sparingly. Poseidon does so by running two kinds of rounds. **Full rounds** apply the S-box to every cell, and **partial rounds** apply it to the first cell only. A permutation places half of its full rounds at the start, all of its partial rounds in the middle, and the remaining full rounds at the end.
+Computing $x^5$ takes three multiplications, as $x^2$, then $x^4$, then $x^4 \cdot x$. The S-box is therefore the part of Poseidon that costs gates, which suggests applying it sparingly. Poseidon does so by running two kinds of rounds. **Full rounds** apply the S-box to every cell, and **partial rounds** apply it to the first cell only. A permutation places half of its full rounds at the start, all of its partial rounds in the middle, and the remaining full rounds at the end. The full rounds at each end protect against statistical attacks, which track how differences in the input spread through the state, while the cheaper partial rounds in the middle raise the algebraic degree of the permutation.
 
 ### A toy Poseidon
 
-Our examples use a small instance over $\F_{43}$ with three cells, of which two are rate cells, along with 8 full rounds and 8 partial rounds. We derive its round constants from SHA-256 and use a Cauchy matrix for the mixing step. This instance has the structure of Poseidon and none of its security, because its parameters were chosen to fit on a page and its outputs have only 43 possible values. The next table shows the first round of the first permutation from Section 8, along with the fifth round of that permutation, which is the first partial round:
+Our examples use a small instance over $\F_{43}$ with three cells, of which two are rate cells, along with 8 full rounds and 8 partial rounds. We derive its round constants from SHA-256. For the mixing step we use a Cauchy matrix, whose entry in row $i$ and column $j$ is $1/(x_i + y_j)$ for distinct values $x_i$, distinct values $y_j$, and every sum $x_i + y_j$ nonzero. These conditions guarantee that the matrix is invertible. Ours uses $x = (0, 1, 2)$ and $y = (3, 4, 5)$. This instance has the structure of Poseidon and none of its security, because its parameters were chosen to fit on a page and its outputs have only 43 possible values. The next table shows the first round of the first permutation from Section 8, along with the fifth round of that permutation, which is the first partial round:
 
 <!-- worked:round-trace -->
 
@@ -619,51 +623,34 @@ The Ragu Book lists [three assumptions](https://github.com/tachyon-zcash/ragu/bl
 
 ## 12. The transcript in Ragu
 
-Ragu's transcript has the structure described above, with a few differences that come from its goal of keeping in-circuit hashing cheap. The operation that combines two proofs is called "fuse" in the code and in much of the Ragu Book, while some pages of the book say "merge". This chapter uses "fuse", following the code.
+Ragu's transcript has the structure described above, with a few differences that come from its goal of keeping in-circuit hashing cheap. The operation that combines two proofs is the one [Chapter 2 called fuse](./pcd-intro.md#fusing-in-ragu).
 
 ::: warning Reconstructed from code at commit 3219e08, not confirmed by the authors
-**Parameters.** The transcript wraps a [Poseidon sponge](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/poseidon/mod.rs#L77-L87) over the circuit field. A [comment in the test vectors](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/poseidon/tests/halo2_vectors.rs#L11-L16) states that Ragu's instance has five cells with a rate of 4, and that the tests check the [permutation structure](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/poseidon/mod.rs#L415-L419) against `halo2`'s published vectors at `halo2`'s own width of three cells. A [test](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/poseidon/tests/mod.rs#L84-L99) fixes the cost of one permutation with Ragu's parameters at 288 gates. The constants themselves live in a dependency outside the repository, and we did not read them.
+**Parameters.** The transcript wraps a [Poseidon sponge](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/poseidon/mod.rs#L77-L87) over the circuit field. A [comment in the test vectors](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/poseidon/tests/halo2_vectors.rs#L11-L16) states that Ragu's instance has five cells with a rate of 4, and a [test](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/poseidon/tests/mod.rs#L84-L99) fixes the cost of one permutation with these parameters at 288 gates.
 
-**Tags.** [`Transcript::new`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/transcript.rs#L82-L97) absorbs the length of the tag and then the tag itself in 16-byte chunks. The two tags are [`ragu-pcd-v1`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/lib.rs#L115) for the fuse protocol and [`ragu-ipa-v1`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/mod.rs#L47) for compression. The [book](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/transcript.md?plain=1#L27-L40) explains that these tags version the protocol, so proofs made under an earlier tag stop verifying under a later one.
+**Tags.** [`Transcript::new`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/transcript.rs#L82-L97) absorbs the length of the tag and then the tag itself in 16-byte chunks, as our toy transcript does with its two-element tag. The two tags are [`ragu-pcd-v1`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/lib.rs#L115) for the fuse protocol and [`ragu-ipa-v1`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/mod.rs#L47) for compression. The [book](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/transcript.md?plain=1#L27-L40) explains that these tags version the protocol, so proofs made under an earlier tag stop verifying under a later one.
 
-**Challenges.** The [fuse prover](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/mod.rs#L101-L283) alternates between absorbing a commitment and squeezing challenges:
-
-| Absorbed | Squeezed |
-| --- | --- |
-| Tag, then the preamble bridge commitment | $w$ |
-| The $s'$ bridge commitment | $y$, $z$ |
-| The inner error bridge commitment | $\mu$ |
-| The outer error bridge commitment | $\mu'$ |
-| The $AB$ bridge commitment | $x$ |
-| The query bridge commitment | $\alpha$ |
-| The $f$ bridge commitment | $u$ |
-| The eval bridge commitment | `pre_beta` |
-
-The later chapters explain what each commitment and challenge does. Here we need only the pattern, which is the one in Section 8. We read the word "bridge" as reflecting that these commitments are recorded in a form the transcript's field can absorb, which the chapters on [curve cycles](./curve-cycles.md) and [endoscalars](./endoscalars.md) explain.
+**Challenges.** The [fuse prover](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/mod.rs#L101-L283) alternates between absorbing one commitment and squeezing one or two challenges, about nine times in all. This is the pattern of Section 8 repeated, and the [chapter on recursion in Ragu](./ragu-recursion.md) lists each commitment and challenge once the objects behind them have been defined.
 :::
-
-The in-circuit cost explains one further choice. Each recursive step has to recompute these challenges inside a circuit, and Ragu divides that work [across two internal circuits](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/recursion/index.md?plain=1#L59-L80), `hashes_1` and `hashes_2`, by saving the sponge state between them. The [chapter on recursion in Ragu](./ragu-recursion.md) returns to this split.
 
 ### Absorption without length prefixes
 
-Ragu's sponge adds input to the state and records no message lengths, so a trailing zero in the buffer has no effect on the result. We can see this on the toy sponge, which [follows the same absorption rule](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/poseidon/mod.rs#L128-L134):
+Reconstructed from code at commit `3219e08`, not confirmed by the authors. Section 8 explained why a transcript must not give $(m)$ and $(m, 0)$ the same challenge. Ragu's sponge adds input to the state and records no message lengths, so a trailing zero in the buffer has no effect on the result. We can see this on the toy sponge, which [follows the same absorption rule](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/poseidon/mod.rs#L128-L134):
 
 <!-- worked:zero-absorb -->
 
-Absorb the seven elements from the table above. The seventh waits in the buffer alone, so absorbing a zero after it leaves the sum unchanged. Both runs squeeze the challenge $10$.
+Absorb the seven elements from the sponge trace in Section 11. The seventh waits in the buffer alone, so absorbing a zero after it leaves the sum unchanged. Both runs squeeze the challenge $10$.
 
 <!-- /worked:zero-absorb -->
 
-General-purpose transcript libraries prevent this ambiguity by prefixing each message with its length. Ragu [prefixes only the tag](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/transcript.rs#L25-L37), and its source comments give efficiency as the reason. The code argues that this is safe because the circuit code fixes how many elements are absorbed at each point and the verifier replays that exact sequence. A prover therefore has no way to attach a message of a different length, and protocols with different sequences have different tags.
+Ragu [prefixes only the tag](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/transcript.rs#L25-L37), and its source comments give efficiency as the reason. The code argues that this is safe because the circuit code fixes how many elements are absorbed at each point and the verifier replays that exact sequence. The verifier therefore never accepts $(m, 0)$ where the protocol expects $(m)$, and protocols with different sequences have different tags.
 
 ### An honest prover that retries
 
-One challenge in the table has a special property. The fuse prover [grinds `pre_beta`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/mod.rs#L261-L286), re-randomizing the eval commitment and squeezing again until the value falls in the range an endoscalar requires. Section 10 treated repeated attempts as a cheater's tool, and here the honest prover uses them to meet a range condition. The [chapter on endoscalars](./endoscalars.md) explains that requirement.
+Reconstructed from code at commit `3219e08`, not confirmed by the authors. Section 10 treated repeated attempts as a cheater's tool, but the fuse prover also [retries one challenge](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/mod.rs#L261-L286), re-randomizing a commitment and squeezing again until the challenge falls in a range that a later step requires. The [chapter on endoscalars](./endoscalars.md) explains that requirement.
 
 ::: warning The Ragu Book and the code differ here
 The book's [transcript chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/transcript.md?plain=1#L11-L16) says that Ragu uses the permutation as a fixed-length hash "rather than as a full sponge". The code at commit `3219e08` has a [`Sponge` type](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/poseidon/mod.rs#L77-L87) that alternates absorbing and squeezing over one protocol run, and its documentation restricts it to fixed-length inputs. We read the book as describing the absence of length handling, and this site says "sponge", following the code.
-
-The book's [configuration guide](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/guide/configuration.md?plain=1#L386) also gives an illustrative figure of about 280 constraints for two Poseidon hashes, whereas the [test](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/poseidon/tests/mod.rs#L96) counts 288 gates for one permutation. The two figures may count different things, and this site uses the test's number.
 :::
 
 Ragu and Tachyon are both still changing. Tachyon has not activated on mainnet, and the details above describe one commit rather than a settled specification.
@@ -675,7 +662,7 @@ This chapter took the following steps:
 1. A statement claims that a public instance has a secret witness in a relation, and a proof system has to be complete and sound, with a small soundness error.
 2. Schnorr's protocol shows the commit, challenge, and response pattern, and it shows why the challenge has to come after the commitment.
 3. A nonzero polynomial of degree $d$ over a field has at most $d$ roots, so two different low-degree polynomials rarely agree at a random point.
-4. The Schwartz–Zippel lemma extends this to several variables, with the bound $d/|\F|$ for total degree $d$.
+4. The Schwartz–Zippel lemma extends this to several variables, with the bound $d/|\F_q|$ for total degree $d$.
 5. A random linear combination, usually built from powers of one challenge, replaces many claims with one.
 6. The Fiat–Shamir transform replaces the verifier's challenges with hashes of a transcript, which must include all public data and every prover message.
 7. Non-interactive proofs allow repeated trials, so the soundness error has to remain small after multiplying by the number of hashes a cheater can compute.
