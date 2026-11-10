@@ -1,8 +1,8 @@
-Chapter twenty-three. Aggregation and Bundles.
+Chapter twenty-four. Aggregation and Bundles.
 
-An earlier chapter followed one aggregate through its proof tree, and it treated the transactions around that aggregate as labelled boxes. This chapter opens those boxes. We look at what a Tachyon bundle contains on the wire, and how a wallet commits to a fee before the fee is known. We see how merging and stripping leave intact what the owner signed, how identifiers survive those changes, and what an aggregator does when blocks land mid-work.
+Chapter two followed one aggregate through its proof tree, and it treated the transactions around that aggregate as labelled boxes. This chapter opens those boxes. We look at what a Tachyon bundle contains on the wire, and how a wallet commits to a fee before the fee is known. We see how merging and stripping leave intact what the owner signed, how identifiers survive those changes, and what an aggregator does when blocks land mid-work.
 
-The chapter on the proof tree holds the internals of the steps that produce a stamp, so here we use those steps by what they establish. We keep the earlier bundles, an innocent aggregate called A and three wallet bundles called X, Y and Z, and we give them real toy values.
+The chapter on the proof tree holds the internals of the steps that produce a stamp, so here we use those steps by what they establish. We keep the bundles X, Y and Z from chapter two, and we give them real toy values. In chapter two the aggregator built X itself. Here X belongs to an ordinary wallet, and the aggregator carries the result on a bundle of its own called A, which has no actions. The next section calls such a bundle an innocent aggregate.
 
 Status of these designs.
 
@@ -44,7 +44,7 @@ The max fee note.
 
 To reserve the maximum, the bundle counts it as one more output, so that the signed balance already accounts for it. Every bundle carries a max fee note, with the same fields as any note, namely the payment key, the value, and two trapdoors. The note is never spent, and the bundle publishes only its value commitment.
 
-That commitment uses two generators, which we'll call V for values and R for blinds. It multiplies V by the negative of the max fee and adds R multiplied by a blind. A blind normally comes from fresh randomness, but this one is a Poseidon hash of the payment key and the two trapdoors. So signing the commitment also fixes who will own the change. A prover who substitutes a different payment key gets a different blind and a different commitment, unless it can find a collision in Poseidon. The value balance then equals the spends, minus the outputs, minus the max fee.
+That commitment uses two generators, which we'll call V for values and R for blinds. Our toy versions are the ones the chapter on the proof tree fixed. It multiplies V by the negative of the max fee and adds R multiplied by a blind. A blind normally comes from fresh randomness, but this one is a Poseidon hash of the payment key and the two trapdoors. So signing the commitment also fixes who will own the change. A prover who substitutes a different payment key gets a different blind and a different commitment, unless it can find a collision in Poseidon. The value balance then equals the spends, minus the outputs, minus the max fee.
 
 The binding signature.
 
@@ -54,7 +54,7 @@ Now expand those commitments and collect the two generators. The multiple of V b
 
 Bundle Y shows this modulo forty-three. It spends thirty, creates an output of twenty-one, and reserves six, so its value balance is three. The blinds are sixteen, fifteen and five, which makes the planner's key thirty-six. The point the validator derives equals thirty-six times R, so the two agree.
 
-Now suppose a bundle claims a value balance of four while the committed values still give three. The validator's key keeps a leftover term of minus one times V, and the key thirty-six no longer matches it. On our toy curve the matching key is three, found by counting. Finding it requires the discrete log of V with respect to R, which nobody can compute on a real curve. So this argument assumes that discrete log is unknown. The real generators are shared with Orchard and come from hashing to the curve, and a book footnote suggests considering a separate personalization.
+Now suppose a bundle claims a value balance of four while the committed values still give three. The validator's key keeps a leftover term of minus one times V, and the key thirty-six no longer matches it. On our toy curve the matching key is thirty-eight, found by counting. Finding it requires the discrete log of V with respect to R, which nobody can compute on a real curve. So this argument assumes that discrete log is unknown. The real generators are shared with Orchard and come from hashing to the curve, and a book footnote suggests considering a separate personalization.
 
 The fee change note.
 
@@ -80,7 +80,7 @@ A stamp's header commits to an action set and a tachygram set. The action set ho
 
 Each set is encoded as a polynomial with its members as roots, and then committed, as the chapter on pool state did for tachygrams. The action set must ignore order because merging combines stamps from unrelated wallets in any order, and the polynomial gives this for free. It sits alongside the ordered BLAKE two b digest of the actions, which serves the signatures, and the book stresses that the two digests are not interchangeable.
 
-For our bundles, all lifted to one common anchor, A has one digest and one tachygram, which come from its fee alone. X and Z each have two digests and three tachygrams, and Y has three digests and five tachygrams.
+Our four stamps all sit at one common anchor, which for older stamps means that they have already been lifted to it. The sizes of X, Y and Z match chapter two. A has one digest and one tachygram, which come from its fee alone. X and Z each have two digests and three tachygrams, and Y has three digests and five tachygrams.
 
 Merging stamps.
 
@@ -92,7 +92,7 @@ On our stamps, A with X gives three digests and four tachygrams. Adding Y gives 
 
 Repeated values.
 
-Stamp Merge does not reject a repeated entry on its own. A code comment confirms that it proves a multiset union, so a dishonest prover can fuse overlapping stamps. The honest path cannot do this, because it builds the merged polynomial from the set union, which is not the product when inputs overlap, so its product check fails. The defence against a dishonest prover comes from what the verifier compares.
+The Join rule of chapter two rejected a repeated entry on its own, and Stamp Merge has no such check. A code comment confirms that it proves a multiset union, so a dishonest prover can fuse overlapping stamps. The honest path cannot do this, because it builds the merged polynomial from the set union, which is not the product when inputs overlap, so its product check fails. The defence against a dishonest prover comes from what the verifier compares.
 
 Suppose a wallet publishes a second bundle, which we'll call X prime, that spends the same note as X with a fresh value of theta. Its descriptor and fee note differ, but it shares the nullifiers twenty-six and thirty-three with X. A forger can still fuse A, X and X prime, because the product polynomial has degree seven with double roots at those values, and the step checks only the product.
 
@@ -164,7 +164,7 @@ The proof verification reads the carried tachygram commitment and not the list, 
 
 Aggregation also changes nothing about who pays. The merged stamp on A states a fee of zero and the adjuncts state five, four and two, all covered by the one proof. So the bundles pay eleven in total, the same as if each had been mined alone.
 
-A miner cannot quietly adjust these amounts. Suppose a miner rewrites adjunct Y's trailer from fee four to fee three, still within the signed maximum of six. The bundle commitment does not change, because the fee is not effecting data, so the signatures still verify. But the fee digest changes from thirty-six to thirty, so the rebuilt action set has a different commitment, and the proof cannot verify against that header.
+A miner cannot quietly adjust these amounts. Suppose a miner rewrites adjunct Y's trailer from fee four to fee three, still within the signed maximum of six. The bundle commitment does not change, because the fee is not effecting data, so the signatures still verify. But the fee digest changes from twenty-seven to seventeen, so the rebuilt action set has a different commitment, and the proof cannot verify against that header.
 
 What aggregation saves.
 

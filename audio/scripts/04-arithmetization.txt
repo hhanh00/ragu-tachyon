@@ -2,120 +2,198 @@ Chapter four. Arithmetization.
 
 A proof system cannot reason about a program directly. Its algebra works with field elements, so the first step in any proof is to rewrite the statement as equations over a field. This rewriting is called arithmetization, and every later step depends on its output.
 
-In this chapter we take one small computation through the whole process. We express it as a list of multiplications and linear equations, and then we compress all of those into a single equation with one secret list of numbers. Ragu proves that final equation, and the next chapter turns it into a statement about polynomials.
+In this chapter we take one small computation through the whole process. We start with ordinary arithmetic and express it as a list of multiplications and linear equations. Then we compress all of those equations into a single equation with one secret list of numbers. That final equation is the form Ragu proves, and the next chapter turns it into a statement about polynomials.
 
 What arithmetization produces.
 
-We continue with the running example from the last chapter. The prover says, I know a number whose cube, plus the number itself, plus five, equals thirty-five. Thirty-five is the instance and the secret number is the witness. Arithmetization has to produce a fixed set of equations, determined only by the statement's structure, and a witness must satisfy them exactly when the statement is true.
+We continue with the running example from the last chapter. The prover says, I know a number whose cube, plus the number itself, plus five, equals thirty-five. Thirty-five is the instance, and the secret number is the witness. Arithmetization has to produce a fixed set of equations, determined only by the statement's structure, so that a witness satisfies the equations exactly when the statement is true.
 
-The equations cannot depend on the secret value, because the verifier must know them in advance. So a program with an if branch has to compute both branches and select one arithmetically. A value becomes a bit by requiring that the value times one less than the value is zero. To select with that bit, multiply one candidate by the bit, multiply the other by one minus the bit, and add. Hash functions and signature checks reduce to field equations in the same way, with many more of them. All arithmetic in this chapter happens modulo forty-three, the scalar field of the toy curve.
+All arithmetic in this chapter happens modulo forty-three, the scalar field of the toy curve from the curves appendix. The statement is an equation in this field, though our small values make it look like ordinary arithmetic.
+
+The equations cannot depend on the secret value, because the verifier must know them in advance. So a program with an if branch has to compute both branches and select one arithmetically. A value is forced to be a bit by requiring that the value, times the value minus one, equals zero. Only zero and one make that product zero.
+
+To select with the bit, multiply one candidate by the bit, multiply the other candidate by one minus the bit, and add. Take the candidates ten and twenty. A bit of one selects ten, and a bit of zero selects twenty. The value two fails the bit equation, because two times one is two, not zero. Without that equation, the value two would select zero modulo forty-three, which is neither candidate.
+
+Hash functions and signature checks reduce to field equations in the same way, with many more of them.
 
 Flattening a computation.
 
 The expression contains several operations at once, so we first split it into steps that each perform one operation. Take the secret to be three. The first step multiplies the secret by itself and gives nine. The second multiplies that result by the secret and gives twenty-seven. The third adds the secret and five, which gives thirty-five.
 
-These steps have different costs. The third is a linear combination of values we already have, and linear combinations can be checked in bulk with a single random combination. The first two multiply two unknown values, which no linear check can express. So a proof system counts multiplications as its main cost.
+These steps have different costs in a proof system. The third only adds values we already have, so it can become one row of coefficients in a linear equation, and it needs no new values. The first two multiply two unknowns, which no linear equation can express, so each needs its own gate with its own wires.
+
+The witness grows in proportion to the number of gates, and later chapters show that the prover's work and the size of the commitments grow with it. A proof system therefore counts multiplications as its main cost, and we keep their number small.
 
 Gates.
 
-Each multiplication becomes a gate. A circuit uses three lists with one entry per gate, which we'll call the left inputs, the right inputs, and the outputs. Each gate requires that its left input times its right input equals its output. The entries of these lists are called wires. Together they form the witness, which also goes by the name trace because it records one execution. Our computation has two gates. Gate zero says three times three is nine, and gate one says nine times three is twenty-seven.
+Each multiplication becomes a gate. A circuit uses three lists with one entry per gate, which we'll call the left inputs, the right inputs, and the outputs. Each gate requires that its left input times its right input equals its output. The entries of these lists are called wires.
+
+Together the wires form the witness, which also goes by the name trace, because it records one execution of the computation. Our computation has two multiplications, so it has two gates. Gate zero says three times three is nine, and gate one says nine times three is twenty-seven.
 
 Linear constraints.
 
 The gates alone are not enough, because they treat every wire as independent. Nothing yet says that the left input of gate one is the output of gate zero, or that the same secret is used everywhere. A separate set of linear constraints connects the wires and ties them to the instance.
 
-Each constraint takes three public lists of coefficients, one per wire list, and forms the inner product of each with its wire list. The three results must add up to a public number. The coefficient lists describe the circuit, and the public numbers form the public input list, which holds the instance.
+Each constraint has three public lists of coefficients, one for each list of wires. Take the inner product of each coefficient list with its wire list, and add the three results. The total must equal a public number. The coefficient lists describe the circuit, and the public numbers together form the public input vector, which holds the instance.
 
-Our statement needs four constraints. The left and right inputs of gate zero must be equal. The left input of gate one must equal the output of gate zero. The right input of gate one must equal the left input of gate zero. The last one checks the output after moving the constant five across, so the output of gate one plus the left input of gate zero must equal thirty.
+Our statement needs four constraints. The first three connect wires. The left and right inputs of gate zero must be equal. The left input of gate one must equal the output of gate zero. The right input of gate one must equal the left input of gate zero.
 
-The third flattened step has now disappeared into that last constraint at no cost in gates. This is why addition is cheap here, since a sum of any number of wires appears as one row of coefficients. Ragu allows up to four constraint rows per gate, a limit that comes from the size of the polynomial holding the wiring data. So our circuit has room for eight rows, and the four unused rows are all zeros, which any witness satisfies.
+The last constraint checks the output. It moves the constant five to the right side, which leaves a target of thirty. So the output of gate one plus the left input of gate zero must equal thirty. The third flattened step has disappeared into this constraint without adding a gate, as the cost argument predicted.
 
-The gates and constraints together reject false statements. Try the secret four. The gates give sixteen and then twenty-one modulo forty-three, and the first three constraints hold. The last constraint gives twenty-five rather than thirty, so this witness fails.
+Later we will pad the list of constraints with rows of zeros, up to a length that we fix once the witness takes its final shape. A zero row says zero equals zero, which every witness satisfies, so padding changes nothing about which witnesses pass.
+
+The gates and constraints together reject false statements. Try the secret four instead. The gates give four times four is sixteen, and sixteen times four is twenty-one modulo forty-three. Both gates and the first three constraints hold. The last constraint gives twenty-five, which is not thirty, so this witness is rejected.
 
 Reducing the gates to one equation.
 
-A real circuit has thousands of gates and constraints, and a proof that handled each separately would be enormous. So we want one equation that still fails if any of them fails.
+The verifier now faces one equation per gate and one per constraint, and a real circuit has thousands of each. A proof that handled every equation separately would be enormous. So we want to replace them all with one equation that still fails if any of them fails.
 
-Define a gate's error as its left input times its right input, minus its output. The random linear combination from the last chapter does the job, using powers of a random value that we'll call the gate challenge. Multiply each error by the matching power of the challenge and add up the results. This sum is a polynomial in the challenge with the errors as its coefficients, so it is zero for every challenge when all the gates hold. If any gate fails, and the prover fixed the witness before seeing the challenge, a random challenge hides the failure with probability below the gate count divided by the field size.
+Define the error of a gate as its left input times its right input, minus its output. The random linear combination from the last chapter does this job. The errors are the claims, and the weights are the powers of a random value, which we'll call the gate challenge. Multiply each gate's error by the matching power of the challenge, and add.
 
-Here is a dishonest witness that sets the output of gate zero and the left input of gate one to eight. It satisfies all the linear constraints, but its gate errors are one and forty. At a challenge of five the sum is twenty-nine, which exposes the error. Of all forty-three challenges, exactly one hides it, namely twenty-nine, the root of this degree-one polynomial. On a field of about two to the two hundred fifty-five elements, that probability is negligible, so we give up certainty for an overwhelming probability and check only one equation.
+This sum is a polynomial in the gate challenge, with the errors as its coefficients. When all the gates hold, it is zero for every challenge. If any gate fails, the bound from the last chapter applies, because the prover must fix the witness before seeing the challenge. The polynomial's degree is less than the number of gates, so a random challenge hides the failure with probability at most that degree divided by the field size.
+
+Here is a dishonest witness that satisfies all four linear constraints. Its left inputs are three and eight, its right inputs are three and three, and its outputs are eight and twenty-seven. Its gate errors are one and forty modulo forty-three. At a challenge of five, the sum is one plus five times forty, which is twenty-nine, so the error is exposed. Of all forty-three challenges, exactly one hides it, the value twenty-nine, which is the root of this degree-one polynomial.
+
+On a field of about two to the two hundred fifty-five elements, this probability is negligible. We have traded certainty for an overwhelming probability, in exchange for checking only one equation.
 
 Reducing the constraints to one equation.
 
-The constraints collapse in the same way, using a second random value that we'll call the constraint challenge. Multiply each constraint by the matching power of this challenge and add. Inner products are linear, so we can move the powers inside. That combines all the left coefficient lists into one public list, and likewise for the right and the output lists. The right side becomes the inner product of the public input list with the powers of the challenge. The result is one linear equation in the witness, and at a challenge of seven, both sides for the honest witness come to thirteen.
+The constraints collapse in the same way, using a second random value that we'll call the constraint challenge. Multiply each constraint by the matching power of this challenge and add them all up. Inner products are linear, so the powers can move inside them.
 
-We now have two equations, one quadratic in the witness and one linear. The next sections merge them into one equation about a single list.
+That move turns each family of coefficient lists into one combined list. The combined list for the left inputs is the sum of every constraint's left-input coefficients, each weighted by its power of the challenge, and the same goes for the right inputs and the outputs. The combined lists are public once the challenge is known, so the result is one linear equation in the witness. Its right side weights each public input by the same powers.
+
+Each entry of a combined list collects one column of the constraint table. For example, the left input of gate zero has coefficient one, minus one, and one in constraints zero, two, and three. So its combined coefficient is one, minus the challenge squared, plus the challenge cubed. With a constraint challenge of seven, the left side for the honest witness comes to thirteen modulo forty-three. The right side is seven cubed times thirty, also thirteen, because only the last public input is nonzero.
+
+We now have two equations, one quadratic in the witness and one linear. A verifier who could see the witness could check both directly, but the verifier will not see it. Instead, the next chapters have the prover commit to the witness as a single polynomial. A commitment to one polynomial is only useful if every check reads its witness data from that one polynomial.
+
+Those chapters also give the verifier a way to check one coefficient of a product of two committed polynomials, without seeing either polynomial. So the task for the rest of this chapter has two parts. We put all three wire lists into one vector. And we write both checks as a single claim that a certain coefficient of a product equals a public value.
 
 Reading one coefficient of a product.
 
-The merged equation needs a specific form, and the reason comes from polynomial multiplication. Take two polynomials with coefficient lists of equal length. A coefficient of their product is the sum of all pairings whose exponents add up to that power. At the middle power, which is one less than the list length, each entry of the first list meets the entry of the second list at the mirrored position.
+We first need to see which operation on two coefficient lists produces one coefficient of their product. Take two polynomials whose coefficient lists have the same length. A coefficient of the product collects every pair of terms whose exponents add up to its own exponent. Look at the middle coefficient, whose exponent is one less than the list length.
 
-That sum is the inner product of the first list with the reversal of the second, and it is called the revdot product. Take the coefficient lists one, two, three, four and five, six, seven, eight. The middle coefficient of their product collects one times eight, two times seven, three times six, and four times five, which is seventeen modulo forty-three. So a claim about a revdot product is a claim about one coefficient of a polynomial product. This link is why Ragu writes its checks as revdot products, and our goal now is to express both equations as one revdot product.
+For that coefficient, each entry of the first list meets the entry of the second list at the mirrored position. The first entry meets the last, the second meets the second to last, and so on. That sum is the inner product of the first list with the reversal of the second, and it is called the revdot product.
+
+Take the polynomial with coefficients one, two, three, four, and the one with coefficients five, six, seven, eight. The coefficient of the cube in their product pairs one with eight, two with seven, three with six, and four with five. Those products add up to seventeen modulo forty-three. The revdot product computes the same sum, and in the full product of seven coefficients, seventeen is the one in the middle.
+
+So a claim about a revdot product is a claim about one coefficient of a polynomial product. This link is why Ragu writes its checks as revdot products. Our goal now is to express both equations as one revdot product involving the witness vector.
 
 Arranging the witness.
 
-A gate's product has to appear in a revdot product of the witness with itself. Since revdot pairs each position with its mirror image, each gate's two inputs must sit at mirrored positions. We also need room for the outputs, whose partners must not create unwanted products.
+Call the single witness vector the structured vector. The two kinds of term put different demands on it. The gate products are quadratic, so they have to come from a revdot product of the structured vector with itself. A revdot product pairs each position with its mirror, so each gate's left and right inputs must sit at mirrored positions.
 
-A list with four blocks, each as long as the gate count, achieves this. The first block holds the outputs in order, and the second holds the left inputs reversed. The third holds the right inputs in order, and the fourth holds a reversed block of extra wires, set to zero for now. So gate zero's two inputs sit on either side of the midpoint, gate one's sit one step further out, and each output pairs with a zero at the far end. A list with this arrangement is called a structured vector.
+The linear terms are different. Later sections will read each wire through a revdot product of the structured vector with a public vector, and that only works for wires stored in the structured vector. So the outputs must also be stored there, even though no product uses them.
 
-Each product appears twice in the revdot sum, once from each end of the pair. So the revdot of the structured vector with itself is twice the sum of the gate products, which is twenty-nine modulo forty-three for our witness.
+A first attempt puts three blocks side by side. The outputs come first, then the left inputs in reverse order, then the right inputs, for a length of three times the gate count. Every position in a revdot product has a partner, and the outputs get the wrong ones.
 
-The Ragu Book's chapters differ here. Its core arithmetization chapter swaps the roles of the left and right inputs. Its local arithmetization chapter uses the arrangement we described, and the wiring code at the commit this site pins matches that. The two give the same products because multiplication is commutative, and this site follows the code.
+With two gates, this arrangement holds nine, twenty-seven, nine, three, three, three. Each position now pairs with the one at the same distance from the other end. The first output pairs with the second right input, and the second output pairs with the first right input. The two left inputs pair with each other. The revdot product comes to twelve, while twice the sum of the gate products is twenty-nine. No gate product appears at all, and stray products take their place.
+
+Rearranging the three blocks does not help. The left and right blocks must mirror each other, so together they fill positions placed symmetrically about the center. Partnering is symmetric, so the outputs can then only pair among themselves. The revdot product picks up products of two outputs that no gate asked for. These terms are quadratic in the witness, and the public vectors can only add linear terms, so nothing later can cancel them.
+
+A fourth block solves this, because it gives each output a partner that the honest prover sets to zero. We'll call it the extra block. The structured vector has four blocks, each as long as the gate count. The outputs come first, then the left inputs reversed, then the right inputs, then the extra block reversed.
+
+Reversing the left block places each left input at the mirror of its right input, so they are partners. Reversing the extra block the same way places each extra wire at the mirror of the matching output. An honest prover sets the extra block to zero. A dishonest prover may put other values there, and we will see later that the final equation forces each output times its extra wire to be zero, so this gains nothing.
+
+For our witness, the structured vector holds nine, twenty-seven, nine, three, three, three, zero, zero. Each gate product now appears twice in the revdot sum, once from each end of the pair, and the outputs meet only zeros. So the revdot product of the structured vector with itself is twice the sum of the gate products. Both sides come to twenty-nine modulo forty-three.
+
+Now that the structured vector exists, we can fix the number of constraint rows. Nothing in this chapter forces a particular number, so the padding length is a convention. Every vector we build from here on has four times the gate count entries, and later chapters turn each one into a polynomial with that many coefficients.
+
+The chapter on wiring and the registry, chapter fifteen, shows that the constraint weights must also fit within that many terms. The reason is that the wiring is committed with the same generators as the witness. So the constraint list is padded to four times the gate count. Our circuit has four real rows, so it gets four rows of zeros, and the public input vector gets four zero entries. A circuit that needs more constraints does not fit, and Ragu imposes this limit.
+
+The Ragu Book's chapters arrange the witness in two ways. Its core arithmetization chapter swaps the roles of the left and right inputs and fills the last block with zeros. Its local arithmetization chapter uses the arrangement we built, and so does the wiring code at the commit this site pins. The two arrangements give the same products, because multiplication is commutative, and this site uses the arrangement from the code.
 
 Weighting each gate.
 
-The doubled sum has lost track of which product belongs to which gate, so it cannot check them individually. We solved the same problem earlier by giving each gate its own power of the gate challenge, and we can build that weighting into the revdot product.
+Twice the sum of the gate products has lost track of which product belongs to which gate, so it cannot check the gates individually. The gate equation earlier solved the same problem by giving each gate its own power of the gate challenge, and we can build that weighting into the revdot product.
 
-Multiply each entry of the second list by the challenge raised to that entry's position, an operation called dilation. Now group the revdot terms by gate. Each gate's product gets a weight made of two powers of the challenge, mirrored around the middle of the list, and no other gate uses those powers. The outputs and extra wires contribute a second sum in the same way, which vanishes while the extra block is zero. At a challenge of five, the two gates get weights nineteen and eleven, and the weighted total is thirty-eight modulo forty-three.
+Multiply each entry of the second vector by the gate challenge raised to that entry's position. This operation is called dilation. Now group the terms of the revdot product by gate. Each gate's product picks up two powers of the challenge, one from each end of its pair, and no other gate uses those powers. Each output and its extra wire contribute in the same way, at the outer positions.
 
-Removing the output wires.
+For an honest prover the extra block is zero, so only the gate terms remain. At a gate challenge of five, the dilated revdot product comes to thirty-eight. The two gate weights are nineteen and eleven, and nine times nineteen plus twenty-seven times eleven is also thirty-eight modulo forty-three.
 
-That expression contains the gate products, but a gate check needs each product minus its output. So we have to subtract each output with the same weight as its gate. This subtraction is linear in the witness, so we can write it as a revdot with a public list that we'll call the gate vector. It holds the negated gate weight at the partner position of each output, and zeros everywhere else.
+Subtracting the gate outputs.
 
-Adding the two revdot products gives a sum over the gates, where each error is multiplied by its weight. This is the earlier gate check with different weights, so it is zero for every challenge when the gates hold, and otherwise a nonzero polynomial in the challenge. At a challenge of five, the new revdot comes to five, and thirty-eight plus five is zero modulo forty-three.
+The dilated revdot product contains the gate products, but a gate check needs each product minus its output. So we have to subtract each output with the same weight as its gate. This subtraction is linear in the witness, so it can be written as a revdot product of the structured vector with a public vector. We'll call it the subtraction vector.
+
+Each output sits at some position, and its partner is the mirrored position. Placing minus the gate's weight at that partner position makes the revdot product pick up the output with exactly that weight. All other entries are zero. Adding the two revdot products gives each gate's error times its weight, summed over the gates.
+
+This is the gate check from earlier, with different weights. It is zero for every challenge when all the gates hold, and otherwise it is a nonzero polynomial in the gate challenge. At a challenge of five, the subtraction vector holds thirty-two and twenty-four in its last two places, which are minus eleven and minus nineteen modulo forty-three. Its revdot product with the structured vector is five, and thirty-eight plus five is zero modulo forty-three, as it should be for a witness that satisfies its gates.
 
 Encoding the constraints.
 
-The combined constraint equation is also linear in the witness, so it fits the same pattern. Build a public list, which we'll call the wiring vector, by placing each wire's combined coefficient at the partner of that wire's position. Its revdot with the structured vector then equals the left side of the constraint equation, which is thirteen in our example. The wiring vector contains the whole circuit structure, compressed by the constraint challenge. The chapter on wiring and the registry studies how a verifier can check it without computing it from scratch.
+The combined constraint equation is also linear in the witness, so it fits the same pattern. We want a public vector whose revdot product with the structured vector equals the constraint equation's left side. Each wire's combined coefficient goes at the partner of that wire's position. We'll call the result the wiring vector.
+
+At a constraint challenge of seven, the wiring vector has six, forty-two, thirty-seven, seven, forty-two, and thirty-six after two leading zeros. Its revdot product with the structured vector is thirteen, the same as the right side.
+
+The wiring vector contains the whole circuit structure, compressed by the constraint challenge. The chapter on wiring and the registry studies how a verifier can check it without computing it from scratch.
 
 The consolidated equation.
 
-Both checks are now revdot products with the same left list, and revdot is linear in its second argument, so we can add them. On the left, take the revdot of the structured vector with the sum of its dilated self, the gate vector, and the wiring vector. On the right, take the inner product of the public input list with the powers of the constraint challenge.
+Both checks are now revdot products with the same left vector, the structured vector. The revdot product is linear in its second argument, so we can add the two checks into one equation. The structured vector, revdot its own dilation plus the subtraction vector plus the wiring vector, must equal the public inputs weighted by powers of the constraint challenge.
 
-This is the output of arithmetization. It contains one secret list, and everything else depends only on the circuit, the instance, and the two challenges. Checking all one thousand eight hundred forty-nine pairs of challenges confirms that the honest witness passes at every pair.
+This is the output of arithmetization, and it contains one secret vector. The gate challenge enters through the dilation and the subtraction vector. The constraint challenge enters through the wiring vector and the powers on the right side. Everything else is fixed by the circuit and the instance.
+
+At a gate challenge of five and a constraint challenge of seven, both sides come to thirteen. Checking the equation at all one thousand eight hundred forty-nine pairs of challenges confirms that the honest witness passes at every pair.
 
 Why a false witness fails.
 
-Subtract the right side from the left, and the equation splits into two parts. The weighted sum of gate errors depends only on the gate challenge, and every power of the challenge in it is at least the gate count. The constraint error depends only on the constraint challenge. A gate error therefore cannot cancel a constraint error for all values of the challenges, because the two parts vary independently.
+The argument has to cover every vector a prover might choose, including one with a nonzero extra block. So we restore the products of each output with its extra wire, which we dropped by assuming the honest case. Subtracting the right side from the left splits the equation into three parts.
 
-If either part is nonzero, the expression is a nonzero polynomial in the two challenges, of degree at most four times the gate count minus one. The prover fixes the structured vector before seeing the challenges, so a random pair passes with probability at most that degree divided by the field size. This is the two-variable Schwartz-Zippel lemma from the last chapter.
+The gate part sums each gate error times its weight. The extra part sums each output times its extra wire, weighted by the outer powers of the gate challenge. The constraint part sums each constraint's error times its power of the constraint challenge. The extra block appears only in the extra part, because the public vectors have zeros at its partner positions.
 
-On the toy field we can count the passing pairs exactly. A witness whose gates fail passes at one hundred seventy-two pairs. One whose last constraint fails passes at forty-three, and one where both fail passes at forty. The bound for this circuit is seven in forty-three, and all three fall below it. Those rates are large only because the field is tiny. For two to the eleven gates on a two hundred fifty-five bit field, the bound falls below two to the minus two hundred forty.
+Treat the whole left side as one polynomial in the two challenges, and look at which terms each part can contain. The gate part uses only the middle powers of the gate challenge. The extra part uses the lowest powers and the highest powers. The constraint part contains only powers of the constraint challenge. With two gates, the gate part uses powers two through five, and the extra part uses powers zero, one, six, and seven.
 
-The argument depends on the challenge order. A prover who learned the challenges before fixing the structured vector could look for a witness that satisfies only this one equation. The chapter on polynomial commitments provides the tool that fixes the vector first.
+So the gate part shares no term with either of the others. The extra part and the constraint part share exactly one, the constant term. The first output times its extra wire reaches it, and so does the error of the first constraint.
+
+Suppose the whole left side is the zero polynomial. Then every term has coefficient zero. One term in the gate part carries each gate's error alone, so every gate holds. One of the highest terms carries each output times its extra wire, so every such product is zero, including the one that also reaches the constant.
+
+With the first two parts gone, the constraint part must be zero too, so every constraint holds. An error of any kind therefore leaves a nonzero polynomial. An error in one part cannot cancel an error in another, because cancellation would have to happen term by term, and the parts share no term apart from the constant.
+
+That nonzero polynomial has total degree at most one less than four times the gate count, because no term contains both challenges. The verifier draws both challenges independently and at random, and the prover has to fix the structured vector first. So a random pair passes with probability at most that degree divided by the field size. This is the two-variable Schwartz-Zippel lemma from the last chapter.
+
+On the toy field we can count the passing pairs exactly, out of one thousand eight hundred forty-nine. A witness whose gates fail while its constraints hold passes at one hundred seventy-two pairs. One whose gates hold while its last constraint fails passes at forty-three. One where both fail passes at forty. The bound for this circuit is seven in forty-three, and none of these exceeds it.
+
+The second case follows from the term structure. Its gates hold and its extra block is zero, so only the constraint part survives, with an error of minus five in the last constraint. That part is minus five times the constraint challenge cubed, which is zero only when the constraint challenge is zero. That one value passes with all forty-three gate challenges.
+
+The last case keeps the honest gates and constraints and sets the first extra wire to one. Only nine times one plus the gate challenge to the seventh survives. It vanishes at the seven gate challenges whose seventh power is minus one, for any constraint challenge. That gives seven times forty-three, or three hundred one passing pairs, which reaches the bound exactly.
+
+Those rates are large only because the field has forty-three elements. Take two to the eleven gates on a two hundred fifty-five bit field. The bound then falls below two to the minus two hundred forty-one.
+
+The argument depends on the prover fixing the structured vector before it learns the challenges. A prover who knew the challenges first could look for a vector that satisfies this one equation without satisfying the gates and constraints. The chapter on polynomial commitments, two chapters ahead, provides the tool that fixes the vector first.
 
 The arithmetization in Ragu.
 
-This section is reconstructed from the code at the commit this site pins, and the authors have not confirmed it. Our toy circuit sets the extra block to zero and moves constants into the public input list. Ragu differs in three ways.
+This section is reconstructed from the code at the commit this site pins, and the authors have not confirmed it. Our toy circuit sets the extra block to zero and moves constants into the public input vector. Ragu's implementation differs in four ways.
 
-First, each gate has four wires. The local arithmetization chapter adds a second gate equation, saying that the output times the extra wire is zero, and the dilation's second sum already checks it. At a gate whose output is zero, the extra wire is free to hold more witness data.
+First, each gate has four wires. Ragu's local arithmetization chapter gives each gate two equations. One is the familiar product rule, and the other says the output times the extra wire is zero. The consolidated equation already enforces the second one, through the extra part of the dilation. At a gate whose output is zero, the extra wire is free to hold more witness data.
 
-Second, one wire holds the constant one. The setup code reserves gate zero as a system gate, with its extra wire set to one and a blinding factor in its left input. A constraint ties this wire to the constant term of the instance, so constants such as our five can appear in constraints as multiples of it.
+Second, one wire holds the constant one. The circuit setup code reserves gate zero as a system gate. Its extra wire is set to one, and its left input holds a random value whose purpose the chapter on the complete proof explains. Because the extra wire is one, its output must be zero, and with a nonzero left input the right input must then be zero too.
 
-Third, Ragu has virtual wires. Its driver interface offers one operation for gates, one for constraints, and one for adding, which names a linear combination of existing wires. A virtual wire adds no gate, which matches the low cost of addition. The core chapter of the Ragu Book describes the simpler form with the extra block at zero, and our example follows that form.
+A constraint ties that constant wire to the first entry of the public input vector, and a comment in the circuit code says the verifier sets that entry to one. Constants such as our five can then appear in constraints as multiples of the constant wire, instead of being moved into the public input vector.
 
-Comparison with R one C S and PLONK.
+Third, a circuit can have at most four times as many constraints as gates. The book's local wiring chapter states this limit, which matches the padded length we chose. The chapter on wiring and the registry explains the reason, which comes from the degree of the polynomial that holds the wiring.
 
-Other proof systems make different choices at this stage, and the first of these two is needed for the next chapter.
+Fourth, Ragu has virtual wires. Its driver interface offers one operation for gates, one for constraints, and one for adding, which names a linear combination of existing wires. A virtual wire adds no gate, which matches the low cost of addition we saw earlier. The core chapter of the Ragu Book describes the simpler form with the extra block at zero, and our example follows that form.
 
-R one C S stands for rank-one constraint system. It uses one list containing the constant one, the instance, and the witness, and three public matrices define the constraints. Each row multiplies two linear combinations of that list and compares the result with a third. Our statement fits in three rows, over the list one, thirty-five, three, nine, twenty-seven. The first says three times three is nine, and the second says nine times three is twenty-seven. The third says five plus three plus twenty-seven, times one, is thirty-five.
+Comparing R one C S and PLONK.
 
-R one C S and Ragu's system have the same expressive power, and each converts to the other with a linear increase in size. R one C S merges the wiring into its multiplication rows, while Ragu's system, called Bootle sixteen after its source paper, keeps gates and linear constraints apart. That separation makes the revdot form possible.
+Other proof systems make different choices at this stage. Two of them are worth knowing, and the first is needed for the next chapter.
 
-PLONK uses gates with selectable coefficients, which weight the left wire, the right wire, the output wire, the product of left and right, and a constant, and require the total to be zero. Separate copy constraints connect the wires. Later variants add custom gates and lookup tables that reduce the gate count for certain operations. Ragu deliberately avoids these features. It uses a simple circuit model and splits large computations into many small circuits that communicate along the proof-carrying data tree.
+R one C S stands for rank-one constraint system. It uses one vector containing the constant one, the instance, and the witness, and three public matrices define the constraints. Each row multiplies two linear combinations of that vector and compares the result with a third.
 
-Where this leaves us.
+Our statement fits in three rows, over the vector one, thirty-five, three, nine, twenty-seven. The first row says three times three is nine, and the second says nine times three is twenty-seven. The third says five plus three plus twenty-seven, times one, equals thirty-five.
 
-A computation became multiplication gates and linear constraints over a field, and random powers of two challenges reduced them to two equations at the cost of a small failure probability. A revdot product corresponds to one coefficient of a polynomial product. The structured vector places each pair of gate inputs at mirrored positions, dilation weights each gate separately, and two public lists add the outputs and the wiring, which gives one equation.
+R one C S and Ragu's system have the same expressive power, and each converts to the other with a linear increase in size. An R one C S row becomes one gate, plus three linear constraints that set its wires equal to the row's three combinations. In the other direction, a gate becomes a row whose combinations each select one wire. A linear constraint becomes a row that multiplies its combination by the constant one.
 
-The prover still has to convince the verifier of this equation without revealing the structured vector. The next chapter starts from the R one C S form to derive the standard QAP reduction, and then uses the link between revdot and product coefficients to reach a polynomial test for the consolidated equation.
+R one C S merges the wiring into its multiplication rows, while Ragu's system keeps gates and linear constraints apart. The Ragu Book calls this system Bootle sixteen, after the two thousand sixteen paper by Bootle, Cerulli, Chaidos, Groth, and Petit that introduced it. The separation gives the revdot form its shape. The gates become one fixed revdot product of the structured vector with its own dilation, the same for every circuit of a given size, and all the circuit-specific wiring moves into the wiring vector.
+
+PLONK uses gates with selectable coefficients. Each gate weights the left wire, the right wire, the output wire, and the product of left and right, adds a constant, and requires the total to be zero. Separate copy constraints connect the wires. Later variants add custom gates and lookup tables that reduce the number of gates for certain operations.
+
+Ragu deliberately avoids these features. It uses a simple circuit model and splits large computations into many small circuits that communicate along the proof-carrying data tree.
+
+Where this chapter leaves us.
+
+A computation became a list of multiplication gates and linear constraints over a field. Random powers of two challenges reduced all of them to two equations, at the cost of a small failure probability. A revdot product corresponds to one coefficient of a polynomial product.
+
+The structured vector places each pair of gate inputs at mirrored positions, and dilation by the gate challenge weights each gate separately. The subtraction vector and the wiring vector add the gate outputs and the wiring, which gives one equation.
+
+The prover still has to convince the verifier of this equation without revealing the structured vector. The next chapter starts from the R one C S form to derive the standard QAP reduction. Then it uses the link between revdot products and product coefficients to reach a polynomial test for the consolidated equation.

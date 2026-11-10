@@ -1,89 +1,203 @@
 Chapter six. Polynomial commitments.
 
-The last two chapters turned a computation into claims about polynomials, and those polynomials are built from the prover's secret data. The verifier now has to check the claims without receiving the polynomials. Sending them is not an option, for two reasons. A polynomial with thousands of coefficients is too large to pass along at every recursive step, and sending it would expose the secrets inside it.
+The last two chapters turned a computation into claims about polynomials, and those polynomials are built from the prover's secret data. The protocol at the end of the previous chapter assumed an oracle for each of them. An oracle is a black box that fixes a polynomial when the prover creates it, and later reports its value at any point the verifier asks about.
 
-A polynomial commitment addresses both problems. The prover replaces the whole polynomial with one short value, and after that the prover cannot change the polynomial behind it. In this chapter we build the commitment Ragu uses, in three moves. We commit to a list of numbers, then we treat a polynomial as the list of its coefficients, and finally we rewrite the evaluation of a polynomial as a statement about that list. The next chapter proves that statement with a short argument.
+Real verifiers have no such box, so the verifier has to check the claims some other way. Receiving the polynomials is not an option, for two reasons. A polynomial with thousands of coefficients is too large to send in every recursive step, and sending it would expose the secrets inside it.
+
+A polynomial commitment addresses both problems. The prover replaces the whole polynomial with one short value, and after that the prover cannot change the polynomial behind it. That does the oracle's first job, which is fixing the polynomial. Each answer to a query then becomes an opening, meaning a claimed value together with evidence that it matches the committed polynomial. The verifier plugs the opened values into the split check and the target check, exactly as it used the oracle's answers.
+
+In this chapter we build the commitment Ragu uses, in three moves. We commit to a list of numbers, then we treat a polynomial as the list of its coefficients, and finally we rewrite the evaluation of a polynomial as a statement about that list. Near the end we put these pieces together and remove the oracles from the previous chapter's protocol. The next chapter proves the remaining statement with a short argument.
 
 The exchange.
 
 Picture a prover holding a polynomial and a verifier holding nothing. First, the prover sends a short commitment. Later, the verifier picks a point. The prover then replies with the polynomial's value at that point, plus a proof that this value is correct for the polynomial behind the commitment.
 
-One evaluation counts as real evidence because two different low-degree polynomials rarely agree at a random point. That reasoning only holds if the prover fixed the polynomial before seeing the point, so we ask two things of a commitment. It must be binding, which means the prover cannot later open it to a second polynomial. And when the polynomial contains secrets, it should also be hiding, which means the commitment reveals nothing about what's inside.
+One evaluation counts as real evidence because two different low-degree polynomials rarely agree at a random point, as the chapter on statements and challenges showed. That reasoning only holds if the prover fixed the polynomial before seeing the point, so we ask two things of a commitment. It must be binding, which means the prover cannot later open it to a second polynomial. And when the polynomial contains secrets, it should also be hiding, which means the commitment reveals nothing about what's inside.
 
 A hash of the coefficients seems like a natural first try, since it is short and binding. The trouble is that a hash has no algebraic structure. To prove anything about the polynomial from its hash, you would have to run the whole hash computation inside a proof. Ragu's accumulation scheme also needs to combine commitments directly, and the hash of a sum has no relation to the hashes of its parts. Elliptic curve points have the structure that hashes lack, because adding two commitments gives a commitment to the sum.
 
 The toy curve.
 
-Real systems use curve groups with about two to the two hundred fifty-five elements, far too many to follow by hand, so the examples on this site use a tiny curve instead. It has forty-three points, and two different moduli come with it. The coordinates of a point are computed modulo thirty-one, while the scalars, which count how many times you add a point to itself, are computed modulo forty-three. The reason for the second modulus is that adding any point to itself forty-three times brings you back to the identity, and then the multiples repeat.
+Real systems use curve groups with about two to the two hundred fifty-five elements, far too many to follow by hand, so the examples on this site use a tiny curve instead. Its equation is y squared equals x cubed plus three, with coordinates taken modulo thirty-one. It has forty-three points, counting the identity.
 
-We fix a handful of these points as public parameters, and we call them generators. A real system derives its generators by hashing, so that nobody knows any relation among them. On the toy curve anyone can work out those relations by counting, which is insecure, and we'll use that weakness shortly to see what goes wrong.
+Two different moduli come with this curve. The coordinates of a point are computed modulo thirty-one, because they belong to the field the curve is defined over. Doubling the point one, two, for example, uses a tangent slope computed modulo thirty-one and lands on the point sixteen, ten.
+
+Scalars behave differently. A scalar counts how many times you add a point to itself, and repeated addition eventually returns to the identity. The forty-second multiple of the point one, two is the point one, twenty-nine. One more addition gives the identity, and one after that gives the starting point back. The multiples repeat with period forty-three, so scalars are computed modulo forty-three. Since forty-three is prime, every point other than the identity generates the whole group in this way.
+
+We fix six points as public parameters. Four of them, which we call the generators, will carry the entries of a list. The other two, which we'll call H and U, each get a separate job later in the chapter. The toy curve is deliberately insecure, because anyone can compute its discrete logs by counting. We'll use that weakness shortly to see what goes wrong when a discrete log is known.
 
 Committing to a list of numbers.
 
-To commit to a single number, the prover could multiply a public generator by that number and send the resulting point. On a large curve this has both properties we want. Recovering the number from the point means solving a discrete log, and since each multiple of the generator is distinct, the point corresponds to only one number.
+To commit to a single number, the prover could multiply a public generator by that number and send the resulting point. This is binding. The multiples of the generator are all distinct until they repeat, so each point corresponds to exactly one number, and the prover cannot open the point to a second number.
 
-A list takes more thought. Sending one point per entry would make the commitment as long as the list, so we add those points together into one. But if every entry used the same generator, the result would depend only on the sum of the entries, and their positions would be lost. For example, the lists seven, two, five, three and five, seven, three, two contain the same numbers in a different order, and with one shared generator they commit to the same point.
+It hides the number only when the number is hard to guess. Recovering the number from the point means solving a discrete log. But anyone with a short list of likely values can multiply each one by the generator and compare. We'll remove this limit later in the chapter.
 
-The fix is a separate generator for each position. Multiply each entry by the generator for its position, then add up all the results. Moving a value to another position now changes which generator multiplies it, so those two lists give different points. This construction is called a Pedersen vector commitment, and its output is one curve point no matter how long the list is.
+A list takes more thought. Sending one point per entry would make the commitment as long as the list, so we add those points together into one. But if every entry used the same generator, the result would depend only on the sum of the entries, and their positions would be lost. For example, the lists seven, two, five, three and seven, five, three, two contain the same numbers in different positions. With one shared generator in every position, both give seventeen times that generator.
+
+The fix is a separate generator for each position. Multiply each entry by the generator for its position, then add up all the results. Moving a value to another position now changes which generator multiplies it, so those two lists give different points. This construction is called a Pedersen vector commitment, and its output is one curve point no matter how long the list is. For the list seven, two, five, three, the four terms add up to the single point twenty-seven, thirty. We'll call that point the commitment.
 
 Why the prover cannot change the list.
 
 Suppose a prover could open the same commitment to two different lists. Subtract one opening from the other, and the shared point cancels. What remains is a combination of the generators, with coefficients that aren't all zero, adding up to the identity. So a second opening requires a relation among the generators.
 
-Such a relation amounts to knowing a discrete log. With two generators, for instance, you can rearrange the relation to express one generator as a known multiple of the other. So if nobody can find such a multiple, nobody can open a commitment in two ways. This assumption is called the discrete log relation assumption, and binding rests on it. It also explains why real generators come from a hash. A person who produced a generator by multiplying another one by a chosen scalar would know the relation and could forge openings.
+With two generators, such a relation hands over a discrete log directly. You can move one term across and divide, which expresses one generator as a known multiple of the other. With more generators, a relation no longer gives a discrete log in one step. So we assume directly that nobody can find any such relation among the generators.
 
-The toy curve lets us carry out that forgery. Counting shows that the second generator equals thirty times the first. So thirty copies of the first generator, minus one copy of the second, add up to nothing. Now take the honest list seven, two, five, three. Add thirty to the first entry and subtract one from the second, and you get thirty-seven, one, five, three. The changes to those two entries cancel exactly, so this different list commits to the same point, and the commitment now has two valid openings. A prover who could do this on a real curve could change the polynomial after seeing the challenge. On a curve of two hundred fifty-five bits, no known method finds such a relation in practice.
+This assumption is called the discrete log relation assumption. For generators chosen at random, it is known to be no stronger than the discrete log assumption itself. If nobody can find a relation, nobody can open a commitment in two ways, so binding rests on this assumption. It also explains why real generators come from a hash. A person who produced a generator by multiplying another one by a chosen scalar would know the relation and could forge openings.
+
+The toy curve lets us carry out that forgery. Counting shows that the second generator equals thirty times the first. So thirty copies of the first generator, minus one copy of the second, add up to nothing. Now take the honest list seven, two, five, three. Add thirty to the first entry and subtract one from the second, and you get thirty-seven, one, five, three.
+
+The changes to those two entries cancel exactly. The first two terms of the forged list add up to the same point as the first two terms of the honest list, and the last two entries are unchanged. So this different list also commits to twenty-seven, thirty, and the commitment now has two valid openings. A prover who could do this on a real curve could change the committed polynomial after seeing the challenge. On a curve of two hundred fifty-five bits, no known method finds such a relation in practice.
 
 Adding commitments.
 
 Because point addition is commutative and scalar multiplication distributes over it, we can regroup the terms of two commitments by generator. Adding two commitments then gives the commitment to the sum of the two lists. Multiplying a commitment by a scalar likewise gives the commitment to the scaled list.
 
-The name for this property is linearly homomorphic. It means anyone can compute a commitment to a linear combination of lists from the commitments alone, without seeing the lists. Much of the later construction depends on this. Batched openings and accumulation both replace many committed polynomials with one random linear combination, and the verifier computes the combined commitment using only group operations.
+The name for this property is linearly homomorphic. It means anyone can compute a commitment to a linear combination of lists from the commitments alone, without seeing the lists. Here is a check on the toy curve. Take a second list, three, one, eight, four, whose commitment is the point six, twenty-three, and take the scalar six.
+
+Working only with the two points, we multiply the second commitment by six and add the first commitment, which gives the point seven, six. Working only with the lists, we add six times the second list to the first and get twenty-five, eight, ten, twenty-seven, modulo forty-three. Committing to that list directly also gives seven, six. The two routes reach the same point, and the first route never looked at either list.
+
+Much of the later construction depends on this property. Batched openings and accumulation both replace many committed polynomials with one random linear combination, and the verifier computes the combined commitment using only group operations.
 
 Hiding the list.
 
-So far the commitment is deterministic, which creates a problem. Anyone who can guess the list can recompute the commitment and check the guess, one candidate after another. That matters whenever the list comes from a small set of likely values.
+So far the commitment is deterministic, which creates a problem. Anyone who can guess the list can recompute the commitment and test the guess. An observer holding the point twenty-seven, thirty might try three, one, eight, four, and then seven, five, three, two, and see no match. On the third try, seven, two, five, three, the recomputed point matches. That matters whenever the list comes from a small set of likely values.
 
-To stop this, the prover adds one more term, which is a random number called a blinding factor, multiplied by one extra generator. Hiding then follows from a counting argument. Take any commitment point and any candidate list. The gap between that point and the candidate's unblinded commitment is some group element, and exactly one blinding factor produces it. So every candidate list explains the point equally well, and the point alone says nothing about which list is the real one.
+To stop this, the prover adds one more term. That term is a random number called a blinding factor, multiplied by the extra generator H. The same list now produces a different point for each blinding factor. With blinding factor twenty, our list commits to the point twenty-eight, twenty-one, and with twenty-nine it commits to eighteen, twenty-one. Without the blinding factor, an observer cannot test a guessed list against either point.
 
-The other properties survive this change. Binding still holds under the same assumption, once the extra generator joins the list of generators. And adding two blinded commitments gives a blinded commitment to the sum, whose blinding factor is the sum of the two blinding factors.
+To see that the observer learns nothing at all, we count. Take any commitment point and any candidate list. The gap between that point and the candidate's unblinded commitment is some group element. Because H generates the group, exactly one blinding factor times H equals that gap. So every candidate list explains the point with exactly one blinding factor.
 
-Here the Ragu Book and the code differ. The book describes hiding commitments with blinding factors. The code, at the commit this site pins, states that blinding is omitted for now, and its commit function has no blinding term. This site reads the book as the intended design and the code as the current state of the implementation, and the authors have not confirmed that reading.
+The toy curve shows this for the point twenty-eight, twenty-one, which we made from our list with blinding factor twenty. The unrelated list three, one, eight, four also explains that point, using blinding factor forty-one. An observer sees one point, and every candidate list has exactly one blinding factor that fits it.
 
-From lists to polynomials.
+The prover draws the blinding factor uniformly at random. Then the blinding term is a uniformly random point whatever the list is, so the commitment is a uniformly random point as well. Since every candidate fits with exactly one blinding factor, and all of them are equally likely, the point alone gives no information about the list. A predictable blinding factor would break this, because an observer could subtract the blinding term and test guesses as before.
 
-A polynomial is determined by its coefficients, so a commitment to a polynomial is the Pedersen commitment to its coefficient list. Adding commitments now corresponds to adding polynomials. The number of generators sets the degree limit, and a polynomial of lower degree fits by treating its missing coefficients as zeros. The argument in the next chapter halves the list in each round, which is why the length is a power of two.
+The two properties rest on different foundations. Hiding holds even against an observer with unlimited computing power, because the counting argument uses no hardness assumption. Binding holds only because finding a relation among the generators is computationally hard, and the forgery showed that a prover who can count discrete logs breaks it.
 
-Next, we need to connect evaluation to that list. To evaluate a polynomial at a point, you multiply each coefficient by the matching power of the point and add up the results. Read another way, that sum is an inner product between two lists, the secret coefficients and the public powers of the point. Anyone can compute the powers.
+The other properties carry over. An opening now consists of the list together with its blinding factor. Binding still holds under the same assumption once H joins the generators, because two openings would again produce a relation among the points. And adding two blinded commitments gives a blinded commitment to the sum, whose blinding factor is the sum of the two blinding factors.
 
-This rewriting matters because the claim is now linear in the secret list. Each coefficient appears once, multiplied by a value the verifier already knows, which is the same shape as the commitment itself. As a result, commitments and evaluations combine with the same coefficients. A verifier holding two commitments and two claimed values can compute the commitment and the value of any linear combination, without seeing either polynomial. The chapter on batched openings uses this to reduce many evaluation claims to one.
+Here the Ragu Book and the code differ. The book's NARK chapter describes hiding commitments with blinding factors. The code, at the commit this site pins, states that blinding is omitted for now, because compression currently proves unblinded relations, and its commit function has no blinding term. This site reads the book as the intended design and the code as the current state of the implementation. The authors have not confirmed that reading.
+
+Committing to a polynomial.
+
+A polynomial is determined by its coefficients, so a commitment to a polynomial is the Pedersen commitment to its coefficient list. Adding commitments now corresponds to adding polynomials, because adding polynomials adds their coefficients.
+
+The number of generators sets a degree limit. With some number of generators, you can commit only to polynomials whose degree is below that number. A polynomial of lower degree fits by treating its missing coefficients as zeros. For example, six plus X has degree one, so with four generators its list becomes six, one, zero, zero. Its commitment is six times the first generator plus the second, which is the point twenty-five, two, because the zero entries contribute nothing.
+
+The same limit supplies the degree bounds that the previous chapter assumed for its oracles. A circuit with some number of gates has polynomials with four coefficients per gate. The oracles had a degree bound one less than that coefficient count. Committing with one generator per coefficient enforces that bound, because the committed list has an entry for each power up to the bound and none for any higher power. So whatever point the prover sends, any opening of it describes a polynomial within the bound.
+
+The committed lists therefore have length four times the gate count. The argument in the next chapter halves the list in each round, which is why the length is a power of two.
+
+Writing an evaluation as an inner product.
+
+Next we need to connect evaluation to that list. To evaluate a polynomial at a point, you multiply each coefficient by the matching power of the point and add up the results. Read another way, that sum is an inner product between two lists, the secret coefficients and the public powers of the point. Anyone can compute the powers.
+
+This rewriting matters because the claim is now linear in the secret list. Each coefficient appears once, multiplied by a value the verifier already knows, which is the same shape as the commitment itself.
+
+Our running list becomes the polynomial seven plus two X plus five X squared plus three X cubed. Take the point nine. Its powers, modulo forty-three, are one, nine, thirty-eight, and forty-one. Multiplying each coefficient by its power gives seven, eighteen, eighteen, and thirty-seven. Those add up to thirty-seven modulo forty-three, so the polynomial's value at nine is thirty-seven. Direct substitution gives the same value.
+
+Because evaluation is linear in the coefficients, commitments and evaluations combine with the same coefficients. A verifier holding two commitments and two claimed values can compute the commitment and the value of any linear combination, without seeing either polynomial. The two results then describe the same polynomial.
+
+Read the second list, three, one, eight, four, as a second polynomial, the same one that the chapter on statements and challenges used. Its value at nine is seven. From the points alone, the verifier computes the first commitment plus six times the second, which is seven, six, as before. From the claims alone, it computes thirty-seven plus six times seven, which is thirty-six modulo forty-three. These belong together, because the point seven, six commits to a polynomial whose value at nine is thirty-six. The chapter on batched openings uses this fact to reduce many evaluation claims to one.
 
 Combining the commitment and the claim.
 
-The prover now has to show two facts. The secret list opens the commitment, and its inner product with the powers equals the claimed value. Proving them separately isn't enough, because a prover could satisfy the first with one list and the second with another. So we package both facts into a single point.
+The prover now has to show two facts about one list. The list opens the commitment, and its inner product with the powers equals the claimed value. Proving them separately isn't enough, because a prover could satisfy the first with one list and the second with another. So we package both facts into a single point.
 
-We take one more generator, and we'll call it U. The statement point is the commitment plus the claimed value times U, and both sides can compute it from public values. The prover then claims to know a list such that the statement point equals that list's commitment plus its inner product with the powers, times U. In this form the statement point is itself a Pedersen commitment to a list one entry longer, where the final entry is the claimed value and U is its generator. The binding argument from before now applies to the longer list. If the final entry is anything other than the true inner product, the prover must know a relation among the generators, including U. The same list has to do both jobs, since the list that multiplies the generators is also the one whose inner product multiplies U.
+We take the extra generator U. The statement point is the commitment plus the claimed value times U, and both sides can compute it from public values. The prover then claims to know a list such that the statement point equals that list's commitment plus its inner product with the powers, times U. In this form, the statement point has the shape of a Pedersen commitment to a list one entry longer. The final entry is the inner product, and U is its generator. That lets us reuse the binding argument with the longer set of generators.
 
-This also means U must have no known relation to the other generators. On the toy curve, where all of those relations can be found by counting, a cheating prover can claim a false value. With every point written as a multiple of the first generator, the equation becomes one linear equation in the list's entries, so the prover keeps three entries fixed and solves for the fourth. The resulting list neither opens the original commitment nor evaluates to the claimed value, and yet the check passes.
+To run that argument, we need two openings to compare. Suppose the prover committed honestly to its coefficient list. Then the statement point equals the honest list's commitment plus the claimed value times U. So the honest list, extended by the claimed value, is one opening of the statement point, whatever value the prover claimed.
 
-Timing matters as well, because the verifier has to choose the point after the prover commits. Suppose the prover learned the point first. Then it could commit to a different polynomial, built by adding a term that vanishes at exactly that point. The two polynomials agree there, so the check can't tell them apart. When the commitment comes first, the prover has to fix the polynomial without knowing the point, and then the random-point test applies. On the toy curve, one cubic polynomial and a different one agree at only three of the forty-three possible points, so a random challenge misses the difference with a chance of three in forty-three. On a curve the size of Pallas, that chance falls below two to the minus two hundred forty.
+Now suppose the prover also produces a list that satisfies the claimed equation. That list, extended by its own inner product, is a second opening of the same point. Subtract the two openings, exactly as before. If any coefficient of the difference is nonzero, the prover knows a relation among the generators and U.
 
-Now we can run the whole exchange. The prover commits, the verifier sends a point, and the prover sends the claimed value. The prover then reveals the coefficients, and the verifier recomputes everything and confirms that the equation holds. This works, but the reveal is the problem. It exposes the coefficients and removes the size benefit, and the verifier's final check costs one group operation per generator. For a polynomial with eight thousand one hundred ninety-two coefficients, revealing them takes about two hundred sixty-two thousand bytes. The argument in the next chapter uses twenty-six group elements, which is about eight hundred thirty-two bytes, plus a small constant number of extra values.
+A prover who knows no such relation must therefore have every coefficient equal to zero. The coefficients on the generators force the claimed list to be the committed list. The coefficient on U then forces the claimed value to be the true value of the polynomial. One equation enforces both facts, because the same list appears in both of its terms.
+
+On the toy curve, the statement point for our claim of thirty-seven is five, twenty-nine. Committing to the five entries seven, two, five, three, thirty-seven, under the four generators and U, gives the same point. A prover claiming thirty-eight instead gets the statement point one, twenty-nine, which does not match the honest computation from the coefficients.
+
+Forging a claim with known relations.
+
+The derivation needs U to have no known relation to the generators, and not only the generators to have none among themselves. A prover who knows the relations can run the argument in reverse, as it did for the forged opening. It turns the equation for the statement point into an equation between scalars and solves it for one entry of the list.
+
+On the toy curve, counting gives the discrete logs of the other three generators and U, relative to the first generator. They are thirty, twenty-eight, twenty-five, and five. The prover wants to claim the false value thirty-eight, and counting once more shows that its statement point is forty-two times the first generator.
+
+Next, the prover writes every point in the equation as a multiple of the first generator. Each entry contributes itself times the discrete log of its generator. The inner product with the powers gets multiplied by five, the discrete log of U. Comparing the multiples on both sides gives one linear equation in the four entries.
+
+After collecting terms modulo forty-three, the equation says that six times the first entry, plus thirty-two times the second, plus three times the third, plus fifteen times the fourth, equals forty-two. The prover keeps the honest second, third, and fourth entries, two, five, and three. Their terms add up to thirty-eight, so six times the first entry must be four, and the first entry is fifteen.
+
+The forged list is fifteen, two, five, three. Its inner product with the powers of nine is two. Its commitment plus two times U is the point one, twenty-nine, which equals the false statement point. So the check passes, although the forged list does not open the commitment and its inner product is two rather than thirty-eight. The prover can make this work only because it knows that U is five times the first generator.
+
+A commitment with a hidden U term.
+
+The derivation has a second requirement that is easy to miss. It started from an honest commitment, one built from the generators alone. Nothing in the statement checks that the commitment has this form. A prover can instead send its honest commitment plus some hidden multiple of U that it chooses itself.
+
+Then the opening the prover knows has the claimed value plus that hidden multiple as its final entry. The same subtraction now forces the claimed value plus the hidden multiple to equal the true value. So the claimed value sits below the true value by exactly the hidden amount.
+
+The toy curve shows this with a hidden multiple of six. The prover keeps the honest list seven, two, five, three, but sends its commitment plus six times U, which is the point fourteen, twenty-two. The polynomial behind the generators is still the same one, whose value at nine is thirty-seven. The prover claims thirty-one instead.
+
+The statement point for that claim is five, twenty-nine. The honest list, with its true inner product of thirty-seven, also gives five, twenty-nine. So the honest list satisfies the statement for the false claim. The hidden six times U and the claimed thirty-one times U add up to the thirty-seven times U that the true value needs.
+
+The prover is still bound to something. It fixed the hidden multiple when it sent the commitment, before it saw the point. So at every point, the only value it can defend is the true value minus six. At the point two, the same commitment passes only with the claim twelve minus six, which is six.
+
+These accepted values belong to the polynomial with coefficients one, two, five, three, which is the original minus six. That polynomial's ordinary commitment would be built from the generators alone, and no list the prover knows opens the sent point under the generators alone. So the statement still ties the prover to one polynomial, but not to the one whose coefficients make up the commitment's generator part.
+
+This matters when the verifier treats the sent point as a commitment to the original polynomial, for example by adding it to other commitments. The verifier would then combine a commitment to one polynomial with values of another. The next chapter shows that its halving argument inherits this gap. It closes the gap by giving U a weight that the verifier chooses after receiving the commitment, so a hidden U term no longer matches the claim except by luck.
+
+Choosing the point after the commitment.
+
+Timing matters as well, because the verifier has to choose the point after the prover commits. The chapter on statements and challenges showed that a prover who knows the point in advance can pass the test with a different polynomial. A commitment does not change this, because the prover can commit honestly to the wrong polynomial.
+
+Suppose the protocol requires a commitment to our polynomial, and the prover learns the point nine before it commits. It can add X minus nine to the polynomial and commit honestly to the result, which is the point sixteen, ten. The added term vanishes at nine, so an honest opening there gives thirty-seven, the same value as before, and the check cannot tell the two apart.
+
+At every other point the two polynomials differ, and checking all forty-three points confirms that they agree only at nine. If the verifier picks the point after receiving the commitment, the substitute passes with probability one in forty-three.
+
+Sending the commitment before the verifier picks the point removes this option, but only because the commitment is binding. Once the commitment is sent and the point is known, the only route to a different answer is a second opening. And a second opening needs a relation among the generators.
+
+A complete run on the toy curve.
+
+Now we can run the whole exchange. In this version the prover finishes by revealing the coefficients. The prover commits to the point twenty-seven, thirty. The verifier sends the point nine, and the prover sends the claimed value thirty-seven. The prover then reveals the coefficients seven, two, five, three.
+
+The verifier computes the statement point five, twenty-nine and the powers of nine. It computes the inner product, thirty-seven, and checks that the list's commitment plus thirty-seven times U equals the statement point. It does, so the claim is confirmed.
+
+This works, but the reveal is the problem. It sends every coefficient, which exposes them and removes the size benefit of the commitment. The verifier's final check also costs one group operation per generator. The next chapter replaces the reveal with a short argument, which makes the proof small and keeps the coefficients secret. That argument still leaves the verifier with work that grows linearly with the list length, and the recursion chapters deal with that cost.
+
+The saving in size alone is large at Ragu's scale. Ragu's circuits have at most two to the eleven gates, a limit set in the code at the commit this site pins. With four coefficients per gate, the committed lists have two to the thirteen entries, which is eight thousand one hundred ninety-two. With thirty-two-byte values, revealing them costs two hundred sixty-two thousand one hundred forty-four bytes.
+
+The next chapter's argument halves the list once per round, which takes thirteen rounds, and it sends two points per round. Those twenty-six group elements cost eight hundred thirty-two bytes, plus a small constant number of extra values. The statement that argument must prove, in its textbook form, is the one we built. Given the generators, U, the statement point, and the evaluation point, the prover knows a list satisfying the combined equation.
+
+Replacing the oracles.
+
+We can now return to the previous chapter's protocol and remove its oracles. An oracle did two jobs. It fixed a polynomial at the moment the prover sent it, and it later answered queries about that polynomial. A commitment does the first job, provided the prover sends it at the same moment the oracle was sent. An opening does the second, because each query becomes a claim naming a commitment, a point, and a value.
+
+The previous chapter's toy run had two gates. So the trace polynomial and the two pieces of the product each have eight coefficients, and each needs eight generators. We fixed only four, so we add four more points, the same ones that the NARK chapter uses later.
+
+The commitments take the places of the oracles in the message order. The prover commits to the trace before it sees the gate challenge and the constraint challenge. It commits to the reversed piece and the upper piece before it sees the evaluation point, nine. We leave out blinding factors here so that the points stay readable.
+
+The verifier's five oracle queries become five opening claims. The trace opens at nine with value five, and at two with value nine. The reversed piece opens at twenty-four with value six, and at zero with value thirteen. The upper piece opens at nine with value thirty.
+
+Two of these claims deserve a closer look. The point two is nine times the gate challenge, five, so the dilated query reuses the trace commitment at a second point and needs no extra commitment. The point twenty-four is the inverse of nine. The query at zero uses a power list with a one in the first position and zeros elsewhere, so the inner product picks out the constant coefficient that the target check reads.
+
+These values match the oracle answers of the previous chapter's run, so the verifier plugs them into both checks exactly as before. The split check gives three on both sides. The target check compares the opened thirteen with the public input polynomial's value at the constraint challenge, which is also thirteen.
+
+Both checks pass. The only change is that each value now arrives with a proof that it matches a commitment the prover sent earlier. Running five separate arguments for five claims is wasteful, and the chapter on batched openings merges them into one.
 
 Comparison with KZG.
 
-The best-known alternative is KZG, which offers the same interface by a different route. KZG needs a setup that publishes multiples of a secret scalar's powers, and a commitment is the polynomial's value at that secret, carried on a curve point. To open at a point, the prover commits to a quotient polynomial, which exists exactly when the claimed value is correct, and the verifier checks this relation using a pairing, a special bilinear map between curve groups.
+The best-known alternative is KZG, which offers the same interface by a different route. KZG uses the same kind of setup as Groth sixteen in the previous chapter. That setup publishes the generator multiplied by each power of a secret scalar. The commitment to a polynomial is then the polynomial's value at the secret, carried on a curve point.
+
+To open at a point, the prover commits to a quotient. The quotient is the polynomial minus the claimed value, divided by X minus the point, and it is a polynomial exactly when the claimed value is correct. An honest quotient therefore satisfies one product relation with the original polynomial.
+
+The verifier checks that relation at the secret. It cannot compute either polynomial's value there, but it holds both values hidden inside the two points it received. A pairing, the same bilinear map Groth sixteen used, can multiply two hidden scalars. So the verifier pairs each side of the relation and compares, using the public multiple of the secret and never the secret itself.
 
 KZG proofs are a single group element, and verification cost doesn't depend on the polynomial's size. In exchange, KZG requires pairing-friendly curves and a trusted setup, because anyone who learns the secret can forge openings. Ragu avoids the trusted setup and uses the Pasta curves, which Zcash already deploys in Orchard. The cost of that choice is a verifier whose work grows linearly with the size of the polynomial, and most of the recursion chapters exist to manage that cost.
 
 The commitment in Ragu.
 
-The core of Ragu's commit function matches what we built. It asserts that the number of coefficients is exactly the expected power of two, and then it runs a multi-scalar multiplication over the generators.
+The core of Ragu's commit function matches what we built. It asserts that the number of coefficients is exactly the expected length, and then it runs a multi-scalar multiplication over the generators.
 
-The next point is reconstructed from the code, and the authors have not confirmed it. The Ragu Book writes the opening relation the way we did, with a generator it calls Q in place of U. The prover code, adapted from Halo two, takes a different path. It first adds a random multiple of a masking polynomial's commitment and subtracts the claimed value from the constant coefficient, and then it proves that the resulting polynomial has a root at the chosen point. Its generator U enters during the rounds of the argument. Both forms establish the same evaluation claim, and the next chapter compares them step by step.
+The next point is reconstructed from the code at the commit this site pins, and the authors have not confirmed it. The Ragu Book writes the opening relation the way we did, with a generator it calls Q in place of U. The prover code, adapted from Halo two, proves an equivalent statement in a different form. It shows that a related polynomial has a root at the chosen point. The next chapter compares the two forms step by step.
 
 Where this leaves us.
 
 We can now compress a list into one curve point using one generator per position. That commitment is binding as long as nobody knows a relation among the generators, a blinding factor adds hiding, and commitments add the way their lists do. A polynomial is committed through its coefficients, and its evaluation is an inner product with the powers of the point. One statement point ties the commitment and the claimed value to a single list, and choosing the point after the commitment is what gives one evaluation its meaning.
+
+Each oracle of the previous chapter becomes a commitment sent at the same moment, and each oracle query becomes an opening claim. Committing with one generator per coefficient enforces the degree bound the oracles assumed.
 
 Nothing so far makes the proof of that final statement short. The next chapter supplies that step, by halving the list again and again.

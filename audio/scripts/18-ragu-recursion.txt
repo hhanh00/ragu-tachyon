@@ -1,219 +1,231 @@
 Chapter eighteen. Recursion in Ragu.
 
-The last part of this site built the pieces one at a time. We have a way to fold revdot claims, a registry that makes wiring cheap to check, endoscalars that let challenges cross the curve cycle, and stages that let circuits share data. This chapter puts them together into the operation that Ragu actually runs, and then follows a finished proof out of the tree.
+Part four built the pieces one at a time. We have a way to fold revdot claims, a registry that makes wiring cheap to check, endoscalars that let challenges cross the curve cycle, and stages that let circuits share data. This chapter puts them together into the operation that Ragu runs at every node of the tree.
 
-The first half describes one fuse, including its circuits, its transcript, and the public inputs they share. The second half describes compression, with a complete run on the toy curve, and then covers what the verifier pays, the size of the result, rerandomization, and the comparison with Orchard.
+That operation is one fuse. We list what it has to do, name the stages and commitments it produces, and follow the order of its messages. Then we look at the circuits that divide the work, the split of the transcript between two of those circuits, the public inputs they share, and what a proof hands to its parent. The next chapter takes the proof that leaves the root of the tree and makes it short.
 
-This chapter is reconstructed from the code at the commit this site pins and from the book's recursion chapters, and the authors have not confirmed it. The numeric runs use small circuits of our own and a shortened instance, so they show the structure of the code and not its real contents. The sizes come from our reading of the code's wire format. We did not build or run the code, and we did not run its benchmarks.
+This chapter is reconstructed from the code at the commit this site pins and from the book's recursion chapters, and the authors have not confirmed it. The numeric runs use the toy sponge and small stand-in values, so they show the structure of the code and not its real contents. We did not build or run the code.
 
-A few names will recur. This site says fuse for the operation at a node of the tree, and native and nested for the two sides of the cycle. The decider is the check that runs when the recursion ends. The code uses the name pre-beta for the challenge from which the short challenge beta is extracted.
+A few names will recur. This site says fuse for the operation at a node of the tree, and native and nested for the two sides of the cycle. The decider is the check that runs when the recursion ends. The code uses the name pre-beta for the challenge from which the short challenge beta is extracted. We call the two challenges of the revdot fold tau and tau prime, as in the revdot folding chapter, where the code calls them mu and mu prime.
 
 What one fuse has to do.
 
-A fuse receives two child proofs and a step, and it has to produce a new proof that a parent can fuse in turn. The recursive proofs chapter described the idea as a proof about a verifier. The children's verifier cannot run in full, so each child's expensive work joins an accumulator, and a fuse checks the cheap remainder inside its circuits. That remainder is still large, and a circuit may hold at most two to the eleven gates. So the code divides the jobs among many circuits, namely running the step, replaying the transcript, computing public input values, folding, checking the batched evaluation, and crossing the cycle.
+A fuse receives two child proofs and a step, and it has to produce a new proof that a parent can fuse in turn. The recursive proofs chapter described the idea as a proof about a verifier. The children's verifier cannot run in full, so each child's expensive work joins an accumulator, and a fuse checks the cheap remainder inside its circuits. That remainder is still large compared with one circuit, which may hold at most two to the eleven gates.
 
-Dividing the jobs among circuits creates a new need, because the circuits have to agree with each other. They must use the same challenges, and they must read the same child data. Stages give them shared witness data, and the unified instance, which we'll reach shortly, gives them shared public inputs. So a fuse produces many small traces where a textbook recursion step would produce one large one.
+Replaying the transcript alone takes two thousand three hundred four gates, more than one circuit holds, as we count later in the chapter. The walk that folds the other curve's commitments fills twenty-three circuits of its own, a count that the endoscalars chapter derived.
 
-In the standard profile, one fuse fills forty-five native polynomials, of which thirty-four are circuit traces and eleven are stages, and thirty-nine nested polynomials. It also adds four accumulator and batch polynomials on each side, for ninety-two in all. The native side folds eighty-six revdot claims and the nested side folds seventy-two. Each internal circuit's claim counts once per child in the fold, since a parent checks both children's copies. All of these polynomials come from one call to the fuse function.
+So the work has to be divided. The application circuit runs the step, and two circuits called hashes one and hashes two replay the transcript. A circuit called collapse folds the scalars of the revdot claims, and compute V checks the batched evaluation. The bind circuits carry the challenges across the cycle, and the endoscaling steps fold the other curve's commitments.
+
+Dividing the jobs among circuits creates a new need, because the circuits have to agree with each other. They must use the same challenges, and they must read the same child data. Stages give them shared witness data, and the public inputs we reach later give them shared public data. So a fuse produces many small traces where a textbook recursion step would produce one large one. We count them once each one has a name.
 
 The order of the messages.
 
-Each challenge has to depend on everything it tests, so the order of the commitments is the backbone of a fuse. The code follows one schedule of eleven numbered phases, and we'll walk through them in order.
+Each challenge has to depend on everything it tests, so the order of the commitments is the backbone of a fuse. Before we list that order, we need names for what gets committed, because the code refers to each group of commitments by a short name.
 
-In phase one, the prover computes the step's trace, with the headers, and no challenge follows. In phase two, it builds the preamble, a stage holding the children's data, and the challenge w follows. In phase three, it computes restrictions of the registry polynomial for each child, and the challenges y and z follow. In phase four, it computes another restriction and the quotients of the fold's first layer, and the challenge mu follows.
+The stages and their names.
 
-Phase five gives the second layer's quotient, the groups' values, and the saved sponge state, and then the challenge mu prime. Phase six gives the new accumulator pair, and then the challenge x. Phase seven, the query, gives one more restriction and the values that the registry claims, and then the challenge alpha. Phase eight gives the batch quotient, and then the challenge u. Phase nine gives the value of every polynomial at u, and then pre-beta. Phase ten gives the new batch polynomial and the walks over its points, and phase eleven gives the traces of the internal circuits, with no challenge after either.
+Most of the shared data of a fuse sits in stages, the partial traces that several circuits read. The native side has five stages that carry the recursion's data, and a few more that serve the endoscaling walk.
 
-Nearly every phase is a step of an earlier chapter. Phases two to four and phase seven run the walk from the chapter on wiring and the registry. Phases four to six run the quotient fold from the revdot folding chapter. Phases eight to ten run the split accumulation chapter's method.
+The preamble holds the children's data, which is their headers, their unified instances, and their circuit identifiers. The inner error stage holds the error terms of the first layer of the revdot fold. The outer error stage holds the error terms of the second layer, the values the first layer produced, and the sponge state that we meet when we split the transcript.
 
-Two details of the last phases matter later. Only pre-beta is ground, because it has to lie in the endoscalar range, so the prover blinds the eval stage again and tries again until it does. And the internal circuits come last, because they prove statements about everything before them. Their traces feed no challenge of this fuse. Instead their commitments enter the parent's preamble, which puts them on the parent's transcript.
+The query stage holds claimed values of polynomials at the points x and x times z, and the values of the registry polynomial that the circuits use. The eval stage holds the value of every queried polynomial at the point u, and running sums for the challenge binding.
+
+Five points stages hold the nested-curve commitments that the walk combines, grouped by the challenge each must come before. The walk stage holds the bits of the endoscalar and the intermediate points of the walk. Here the walk is the sequence of point additions that multiplies a point by an endoscalar in gates, as in the endoscalars chapter.
+
+The stages also form a tree, which matters for the circuits. The staging chapter showed that a stage names a parent and starts in the layout where its parent ends. At the root of the native tree sits the points binding stage, and it has two children, the preamble and the points children stage.
+
+Under the preamble sit outer error and query. Inner error sits under outer error, and eval sits under query. Under points children runs a single chain, from the points stage for the registry restrictions, to points ab, to points f, and finally to the walk.
+
+The order in the layout is separate from the order of commitment. So inner error sits under outer error in the layout, although the fuse commits it first.
+
+Not everything a fuse commits to is a stage. The restrictions of the registry polynomial, the new accumulator pair A and B, and the batch quotient f are ordinary polynomials. The code still gives each group a short name, s prime for the restrictions, a b for the pair, and f for the quotient. It does so because each group has to reach the transcript in the same way as a stage.
+
+That way is the bridge. The transcript runs in the native field, and a native commitment has coordinates in the other field, so the transcript cannot absorb it directly. The staging chapter solved this by writing the coordinates into a stage of the nested circuit and committing to that stage on the nested curve, whose coordinates are native.
+
+Ragu does this once for each of eight groups, named preamble, s prime, inner error, outer error, a b, query, f, and eval. The nested stage for a group is its bridge stage, and the nested commitment to it is its bridge commitment. A bridge stage can carry more than coordinates. The inner error bridge, for instance, also holds the nested side's own first-layer error terms, which then reach the transcript at the same moment.
+
+The schedule.
+
+The code follows one schedule of eleven phases. In each phase the prover commits to something, the transcript absorbs a bridge commitment, and the transcript then releases the challenge that tests it.
+
+In phase one, the prover commits to the trace of the application's step, which includes the child and output headers, and no bridge or challenge follows. In phase two, it commits to the preamble and two points stages, points binding and points children. The transcript absorbs the preamble bridge and releases the challenge w.
+
+In phase three, it commits to each child's restriction of the registry polynomial at w and that child's x, and to the points stage for those restrictions. The s prime bridge then releases y and z. In phase four, it commits to another restriction and the inner error stage, and the inner error bridge releases tau.
+
+In phase five, it commits to the outer error stage, whose bridge releases tau prime. In phase six, it commits to the new accumulator pair and points ab, and the a b bridge releases x. In phase seven, it commits to one more restriction and the query stage, and the query bridge releases alpha.
+
+In phase eight, it commits to the batch quotient f and points f, and the f bridge releases u. In phase nine, it commits to the eval stage, whose bridge releases pre-beta, and after that it commits to the nested challenge stage. Phase ten commits to the walk stage and the new batch polynomial p, and phase eleven commits to the traces of the internal circuits, with no challenge after either.
+
+Nearly every phase is a step of an earlier chapter. Phases two to four and phase seven run the registry consistency check from the chapter on wiring and the registry. Phases four to six run the quotient fold from the revdot folding chapter. Phases eight to ten run the split accumulation chapter's method.
+
+Each points stage is committed in the phase where its points first exist, so that its commitment rides in the bridge absorbed in that phase. Points binding and points children hold the children's nested commitments, and they are fixed before w. The other three hold the nested side's own new restrictions, accumulator pair, and quotient, fixed before y, x, and u in turn.
+
+Phases nine and ten need a further word. Phase nine ends with pre-beta, which has to lie in the range from which the endoscalars chapter extracts an endoscalar. When a squeeze lands outside that range, the prover re-randomizes the eval stage and squeezes again.
+
+The chapter on statements and challenges called this kind of retrying grinding, and it showed that each retry already costs a cheater a hash call. The retry gives a prover nothing it lacked, because a cheating prover could always re-randomize and squeeze again on its own. An honest prover almost never retries, since the values outside the range are a vanishing fraction of the field. The code grinds no other challenge.
+
+The nested challenge stage of phase nine holds the lifts of all nine challenges to the nested field, which the endoscalars chapter used to carry the challenges across the cycle. The prover can fill it only once pre-beta exists, so the code commits it after the squeeze, without blinding. Its commitment enters no transcript in this fuse, and it first reaches one in the parent, through the parent's points binding stage.
+
+The circuits that check that stage face a timing problem. The bind challenges circuits sum the stage's terms for the first eight challenges into a partial commitment, and that partial sum sits in the eval stage. But the eval bridge is what pre-beta hashes, so the eval stage is committed before pre-beta exists, and its partial sum cannot contain pre-beta's term. The parent's bind beta circuit adds that term later. The walk stage comes in phase ten for the same reason, because it holds the bits of pre-beta.
+
+Phase one has no challenge, because nothing in this fuse's transcript tests the application trace. The internal circuits come last because they prove statements about everything before them, and their traces feed no challenge of this fuse either. Instead both kinds of trace commitment enter the parent's preamble bridge, which puts them on the parent's transcript.
 
 The internal circuits.
 
-We can now say what each circuit does. Hashes one derives w, y, and z and saves the sponge state, and it enforces the children's unified public input values and that their circuit identifiers are domain points. Hashes two resumes from the saved state and derives the six remaining challenges. Collapse enforces the children's application public input values, and it checks both layers of the fold down to the accumulator's stored value. Compute V computes the batched evaluation from the query and eval stages, using the lift of beta.
+We can now say what each native circuit does. Hashes one replays the first part of the transcript to get w, y, and z, and saves the sponge state for hashes two. It also computes the children's public input values for the internal circuits, and checks that each child's circuit identifier is a point of the registry's domain. Hashes two resumes from the saved state and replays the rest, to get tau, tau prime, x, alpha, u, and pre-beta.
 
-Four bind challenges circuits recompute the commitment of the nested challenge stage from the transcript's challenges. Bind beta finishes that binding for each child, and it ties the child's walked points to its unified instance. Bind endoscalar ties the walk's bits to pre-beta, enforces curve membership, and exports the walk's end point. Twenty-three endoscaling step circuits each perform four endoscalings of the Horner walk over the nested batch.
+Collapse computes the children's public input values for the application circuit, and checks both layers of the revdot fold down to the new value c. Compute V computes the batched value v from the values held in the query and eval stages. It needs beta as a native field element, which it gets from the bits of pre-beta.
 
-This division shows why stages were worth building. Hashes one computes each child's public input value and needs the child's data, which sits in the preamble. Collapse reads that same data. Both read one polynomial, so a prover cannot show them different children, and only the bridge commitment has to enter the transcript.
+Four bind challenges circuits each take two of the transcript's challenges, and each checks that the nested side's challenge stage holds them, by walking that stage's generators. For each child, bind beta adds the pre-beta term to the partial sum that the child's bind challenges circuits exported, and compares the result with the child's challenge stage commitment. The child could not add that term itself, because its eval stage was committed before pre-beta was squeezed. Bind beta also checks that the points the child's walk used are the ones the child's public inputs name.
 
-The nested side has a shorter list. Its collapse checks the nested fold and pins its unified instance to the stages, its compute V computes the nested batched evaluation, and twenty-six endoscaling steps walk the native batch. The loading polynomial ties the walk's points to the bridge stages. That side has no transcript and no application circuit, as the curve cycles chapter found.
+Bind endoscalar checks that the bits driving the walk are the bits of pre-beta and that the walk's points lie on the curve, and it makes the walk's final point public. Twenty-three endoscaling step circuits each perform four steps of the walk that combines the nested commitments with powers of beta.
 
-The application's circuit uses no stages. All of this machinery sits beside it and leaves its budget of gates to the application.
+A circuit reads a stage by including it in its sum, as the staging chapter described. In the layout, the stages a circuit reads sit along one path of the stage tree, and the circuit's own final trace takes the gates after the last stage on that path. The circuit's final mask covers those gates, so it is named after that last stage. Circuits that end on the same stage share one final mask.
 
-The book and the code differ on one stage chain. The book's recursion chapter gives hashes two the chain preamble, then outer error. In the code, at the commit this site pins, the claim for hashes two sums only its own trace and the outer error stage, and its documentation marks the preamble as skipped. The layout still reserves the preamble's gates, which is what skipping a stage means. This site follows the code.
+Some constraints on a stage, such as a point lying on its curve, have to be written by one of the circuits that read it. The staging chapter explained that the code marks that circuit by loading the stage enforced. The other readers load it unenforced and rely on that one.
+
+Hashes one reads the preamble and outer error, and hashes two reads outer error alone, so both end on the outer error mask. Collapse reads the preamble and both error stages, and it loads the error stages enforced. Compute V and the bind challenges circuits read the preamble, query, and eval, and compute V loads the preamble enforced. Bind beta reads points binding and the preamble. Bind endoscalar and the endoscaling steps read the points stages and the walk, and bind endoscalar loads the points stages enforced.
+
+The collapse circuit shows why the final mask needs separate attention. It reads outer error, but inner error follows outer error in the tree, so collapse ends on inner error even though the fuse commits inner error earlier. In the code, the final mask for inner error covers collapse alone.
+
+Each enforced load needs a reason. The preamble's points and some of its bits must be well formed, and compute V checks them, although the code gives no reason for that choice and any single reader would serve. The points stages need every point on the curve, and bind endoscalar checks this once for the endoscaling steps.
+
+The other stages are pinned in other ways. Bind endoscalar compares the walk's bits wire by wire with pre-beta, and each intermediate point must equal what an endoscaling step computes from enforced inputs. The query and eval values need no check to be well formed, in our reading. If one is false, the claim that p at u equals v is false, and a later fold or the final verifier catches it.
+
+One example shows why stages were worth building. The hashes one circuit computes each child's public input value and needs the child's data, which sits in the preamble. The collapse circuit reads that same data. Both read one polynomial, so a prover cannot show them different children, and only the preamble's commitment has to enter the transcript.
+
+The nested side has a shorter list, with no transcript and no application circuit, as the curve cycles chapter found. Its collapse checks the nested fold, its compute V computes the nested v, and twenty-six endoscaling steps combine the native commitments, a count that the endoscalars chapter also derives.
+
+The application's circuit uses no stages. All of the machinery above sits beside it and leaves its budget of gates to the application.
+
+The book and the code differ on one stage chain. The book's recursion chapter gives hashes two the chain preamble, then outer error. In the code at the commit this site pins, the claim for hashes two sums only its own trace and the outer error stage, and its documentation marks the preamble as skipped. The layout still reserves the preamble's gates, which is what skipping a stage means. This site follows the code.
+
+What one fuse produces.
+
+With the stages and circuits named, we can count what one call to fuse commits. The count matters in two places. The end of this chapter argues that a proof keeps the same shape at every depth, and the next chapter measures how large that shape is.
+
+In the standard profile, the native side commits thirty-four circuit traces, which are the thirty-three internal circuits and the application. The nested side commits twenty-eight, which are twenty-six endoscaling steps, collapse, and compute V. Each side commits eleven stages. On the nested side those are the eight bridge stages, the challenge stage, and one stage each for the endoscalar's bits and the points it walks.
+
+Each side also commits four accumulators, which on the native side are A, B, the registry restriction at x and y, and p. And each side commits four polynomials used only inside the fuse, which are the three restrictions taken at w and the quotient f. That makes fifty-three native and forty-seven nested polynomials, so the schedule commits one hundred in all.
+
+A proof carries ninety-two of them to its parent, which is the count the code records. The other eight serve only the fuse that made them. Their values at the fuse's points sit in the query and eval stages, and the fuse folds the polynomials themselves into its new batch polynomial p. So a parent that holds p never needs them again, and the code marks them as ephemeral.
+
+The claims follow the same split. The native side folds eighty-six revdot claims, a count that the staging chapter derived. Its sixteen mask claims are one for each of the eleven stages and one for each of five final masks, which are outer error, inner error, eval, preamble, and walk. The nested side folds seventy-two claims, which are two raw claims, twenty-eight circuit claims per child, and fourteen mask claims.
 
 Splitting the transcript.
 
-The circuits have to replay the transcript, because the Fiat-Shamir challenges would otherwise be numbers that the prover merely asserts. One circuit cannot hold the whole replay. A permutation costs two hundred eighty-eight gates, and the code documents three permutations in the first half and five in the second. Together that makes eight permutations and two thousand three hundred four gates, which already exceeds the limit of two thousand forty-eight gates per circuit before any other check runs. The two halves cost eight hundred sixty-four and one thousand four hundred forty gates, so each fits.
+The transcript has to be replayed in circuit, because the Fiat-Shamir challenges would otherwise be numbers that the prover merely asserts. One circuit cannot hold the whole replay, as a count of gates shows. A permutation costs two hundred eighty-eight gates, and the code documents three permutations in the first half and five in the second.
 
-So the replay has to cross a circuit boundary, and the sponge's state has to cross with it. The second circuit cannot recompute the state without repeating the permutations it is trying to avoid, and passing the state as a public input would add wires to every public input polynomial. The code places it in a stage instead. The state is known once the transcript has absorbed the inner error bridge, and the outer error stage is the next one committed, because it holds values folded with the challenge mu that the state produces.
+Together that makes eight permutations and two thousand three hundred four gates, which already exceeds the limit of two thousand forty-eight gates per circuit before any other check runs. The two halves cost eight hundred sixty-four and one thousand four hundred forty gates, so each fits.
 
-We ran this on the toy sponge from the chapter on statements and challenges. The transcript absorbs eight bridge commitments in order, and each one releases the next challenges. The first three belong to hashes one, and the last five belong to hashes two. The first half ends by permuting and saving the three cells of the state. The second half loads those cells and squeezes mu with no further permutation. We ran the sponge once straight through and once split at this point, and all nine challenges agree.
+So the replay has to cross a circuit boundary, and the sponge's state has to cross with it. The second circuit cannot recompute the state without repeating the permutations it is trying to avoid. Passing the state as a public input would add wires to every public input polynomial, so the code places the state in a stage.
 
-Reading the state from a stage leaves one question, which is what forces the stage to hold the right value. Only hashes one knows that value, having computed it, so the check goes in that circuit. Its last transcript step saves the state and enforces that the result equals the sponge state in the outer error stage.
+The state is known once the transcript absorbs the inner error bridge. The outer error stage is the next one committed, because it holds values folded with the tau that the state produces. So hashes one replays the first three bridge commitments, hashes two replays the last five, and the state passes between them through the outer error stage.
 
-Without that check, a prover could pick the state and with it the challenges. Suppose a prover wants mu to be nine, and it writes a state beginning with nine into the outer error stage. The second half alone would resume from this state and produce the mu the prover wanted. Many states give the wanted mu. But the first half compares the stage with the state it computed, and exactly one state passes that comparison, the honest one. Both circuits read one committed stage polynomial, so the prover cannot show them different values.
+We run this on the toy sponge from the chapter on statements and challenges. The bridge commitments are points on the toy curve E prime, whose coordinates lie in the field of forty-three elements, the field the sponge works in. The first point is the one the staging chapter built, and the others are stand-ins.
+
+The preamble bridge leads to w equal to eleven. The s prime bridge leads to y equal to four and z equal to ten. Hashes one absorbs the inner error bridge, which leads to tau equal to two, and saves the state at that point. Hashes two replays the rest, which gives tau prime equal to ten, x equal to four, alpha equal to twelve, u equal to twenty-five, and pre-beta equal to thirty-three.
+
+The first half ends by permuting and saving the three cells of the state, which are two, forty-two, and twelve. The second half loads those cells and squeezes tau with no further permutation, so its five permutations begin when it absorbs the outer error bridge. We ran the sponge once straight through and once split at this point, and all nine challenges agree.
+
+The toy sponge takes three permutations in the first half and five in the second, as the code does. That happens because we leave out the domain tag, and the sponge's rate of two fits one point per permutation.
+
+Reading the state from a stage leaves one question, which is what forces the stage to hold the right value. Only hashes one knows that value, having computed it, so the check goes in that circuit. Its last transcript step saves the state and enforces that the result equals the sponge state held in the outer error stage.
+
+Without that check, a prover could pick the state and with it the challenges. Suppose a prover wants tau to be nine, and it writes the state nine, forty-two, twelve into the outer error stage. The second half alone would resume from this state and produce tau equal to nine and tau prime equal to twenty.
+
+Of the seventy-nine thousand five hundred seven possible states, one thousand eight hundred forty-nine give the wanted tau. But the first half compares the stage with the state it computed, and exactly one state passes that comparison, the honest one. Both circuits read one committed stage polynomial, so the prover cannot show them different values.
 
 Public inputs.
 
-Each circuit also has a public input polynomial, and a parent has to compute that polynomial's value at the challenge y for each of a child's circuits. If every internal circuit exposed its own values, a parent would compute many different polynomials. The code avoids that with a unified instance, one structure of values that nearly all internal circuits expose in full, so that one computed value serves them all.
+Each circuit also has a public input polynomial, and a parent has to compute its value at the challenge y for each of a child's circuits. If every internal circuit exposed its own values, a parent would compute many different polynomials. The code avoids that with a unified instance. That is one structure of values that nearly all internal circuits expose in full, so that one computed value serves them all.
 
-Sharing an instance raises the question of who checks each value, since a circuit that merely exposes a value proves nothing about it. The code assigns each slot to exactly one circuit, and the prover asserts that all were covered. Other circuits read a slot as a witness, and the shared public input value forces them to agree with the owner.
+Sharing an instance raises the question of who checks each value, since a circuit that merely exposes a value proves nothing about it. The code assigns each slot to exactly one owner circuit, which constrains the value, and soundness rests on those constraints. The prover code also asserts that every slot was filled, but that is a consistency check for honest provers and adds nothing to soundness. Other circuits read a slot as a witness, and the shared public input value forces them to agree with the owner.
 
-Hashes one and hashes two own the bridge commitments and the challenges they derive. Collapse owns the accumulator's stored value, and compute V owns the batched evaluation. The last bind challenges circuit and bind endoscalar own the points from the nested side. That adds to thirteen points and eleven elements, which is the code's thirty-seven wires.
+Hashes one owns the first three bridge commitments and w, y, and z, and hashes two owns the other five bridge commitments and its six challenges. Collapse owns c, and compute V owns v. The last bind challenges circuit owns the challenge stage's partial commitment, and bind endoscalar owns four nested points. The slots add to thirteen points and eleven elements, which is the code's thirty-seven wires.
 
-Recursion uses three forms of public input polynomial over these values, plus a fourth with no wires of its own. All are Horner evaluations ending in the constant wire's one, so the last wire before that one becomes the coefficient of the first power of Y. The unified form runs over the unified instance and then a zero. The bridge form runs over the unified instance, the left and right child headers, and then a zero. The application form runs over the left header, the right header, and the output header, with no zero.
+Recursion uses three forms of public input polynomial over these values, plus a fourth with no wires of its own. All of them are Horner evaluations ending in the constant wire's one. The unified form runs over the unified instance and then a zero. The headers form runs over the unified instance, the left and right child headers, and then a zero. The application form runs over the left header, the right header, and the output header, with no zero.
 
-Hashes one uses the bridge form because it exposes the child headers, and the application circuit exposes the same headers through the application form. Together those two claims stop a proof from using one pair of headers in the step and another in the recursion. An endoscaling step exposes nothing but the zero, so its polynomial is the constant one.
+Horner's rule multiplies the running value by Y and adds the next wire, and it ends by adding the one. So the last wire before that one becomes the coefficient of the first power of Y. The next section uses that coefficient.
+
+The hashes one circuit uses the headers form because it also exposes the child headers. The application circuit exposes the same headers through the application form. A parent computes both values from the one preamble, so together the two claims stop a proof from using one pair of headers in the step and another in the recursion.
+
+The fourth form belongs to the endoscaling steps. An endoscaling step exposes nothing but the zero, so its polynomial is the constant one. The code calls the headers form by a name containing the word bridge, but that name has nothing to do with the bridge stages and bridge commitments, so we use a different one here.
+
+A toy run shows the forms side by side. Take a unified output of five wires, which are the first bridge point's two coordinates and the challenges w, y, and z from the run above. Take two child headers, eight followed by three and twelve followed by three, whose second entry is the suffix, and the output header twenty followed by three. We evaluate everything at y equal to four.
+
+Horner's rule reaches forty after the five unified wires, and the unified and headers forms both continue from that value. The unified form ends at thirty-nine, the headers form at twenty-six, the application form at six, and the endoscaling step's form at one. The coefficient of the first power of Y is zero for every form except the application form, where it is three, the output header's suffix.
 
 These values reach the fold through the parent. Its hashes one and collapse circuits compute each child's values from the preamble stage with gates, at the y of the current fuse, and those values become the targets of the claims being folded.
 
-The book and the code count the unified instance differently. The book's public inputs chapter says that it holds twenty-nine wires, from eight commitments and thirteen field elements, while the book's recursion chapter lists eleven elements. The public inputs chapter also says that four internal circuits share the unified form. The code, at the commit this site pins, has thirteen points and eleven elements, which makes thirty-seven wires, and nine circuits share the unified form, because bind challenges has four instances. This site follows the code.
+The book and the code count the unified instance differently. The book's public inputs chapter says that it holds twenty-nine wires, from eight commitments and thirteen field elements. The book's recursion chapter lists nine challenges and two final values, which makes eleven elements. The public inputs chapter also says that four internal circuits share the unified form.
+
+The code, at the commit this site pins, has thirteen points and eleven elements, which makes the thirty-seven wires above. The five additional points are the challenge partial and the four points that bind endoscalar owns. Nine circuits share the unified form, because bind challenges has four instances. This site follows the code.
 
 Keeping internal and application circuits apart.
 
 The registry holds internal and application circuits side by side, and a proof names its application circuit by a domain point the prover selects. So a prover could try to name an internal circuit and claim its trace as an application step. To rule that out, the code makes the two kinds of public input polynomial unable to coincide. Each internal circuit ends its output with a zero, and each application header ends with a suffix that is never zero.
 
-A small count shows the effect. Let an internal circuit expose two wires and its zero suffix, and let an application circuit expose a header with one value and a suffix. If an application could use the suffix zero, then forty-three of the seventy-nine thousand five hundred seven triples of values would make the two polynomials identical, and the swap would pass at every y. For the suffixes three, four, and five, we tried every relevant pair, and none makes the polynomials identical. The two values then agree at no more than two of the forty-two nonzero values of y, and on a real field the same count is a negligible fraction.
+We saw that the last wire before the final one becomes the coefficient of the first power of Y. For every internal circuit that wire is the zero, so the coefficient is zero. For every application circuit it is the suffix, so the coefficient is not zero. The difference of an internal and an application polynomial therefore has minus the suffix as that coefficient, which means it is never the zero polynomial, whatever the other wires hold.
+
+A nonzero polynomial has at most as many roots as its degree, so the two values agree at only a few y, and a random y tells the two kinds of circuit apart. A small example checks this count and also shows what goes wrong without the suffix.
+
+Let an internal circuit expose two wires, a and b, and its zero suffix, so its polynomial is a Y cubed plus b Y squared plus one. Let an application circuit expose a header with a value d and a suffix s, so its polynomial is d Y squared plus s Y plus one. Their difference is a Y cubed, plus b minus d times Y squared, minus s Y.
+
+If an application could use the suffix zero, the difference would vanish whenever a is zero and b equals d. That happens for forty-three of the seventy-nine thousand five hundred seven triples of a, b, and d, and for those the swap would pass at every y.
+
+For the suffixes three, four, and five, nothing can cancel the coefficient of Y, and our search of all one thousand eight hundred forty-nine pairs of a and b minus d found no identical polynomials. At a nonzero y the difference vanishes only where a quadratic in y does. So the two values agree at no more than two of the forty-two nonzero values of y, and the worst pair reaches that bound.
 
 This also explains why an endoscaling step needs the zero although it exposes nothing. Its comments say that the suffix is what stops a step from satisfying an application instance, given that the application's circuit identifier may name any native slot. The nested registry holds internal circuits only, so it omits the zero.
 
 The book and the code differ on the first application suffix. The book says application-defined suffixes begin at two, with one reserved for the trivial header. The code, at the commit this site pins, reserves three values, with zero for fixed circuits, one for the unit header, and two for the dummy header of the base case, so application suffixes begin at three. This site follows the code. The book's argument is unaffected, since it needs only that the suffix is nonzero.
 
-The value two has a job of its own, which the recursive proofs chapter described. Only the internal bootstrap step declares the dummy input, and only then does collapse waive its final comparison. The rerandomize step has a witnessed suffix, so it constrains that wire away from two.
+The value two is reserved for a reason. It marks the base case from the recursive proofs chapter, where collapse waives its final comparison. So a step whose suffix is a witness, and not a constant, has to constrain that wire away from two, or it could claim the waiver.
 
 What a proof carries to its parent.
 
-A parent does not repeat the checks in a child's circuits. It folds the child's claims into its own accumulators and reads the child's public data. Here is what it takes from a child.
+A parent does not repeat the checks in a child's circuits. It folds the child's claims into its own accumulators and reads the child's public data. Here is what it takes from each child.
 
-It takes the headers and unified instance, holds them in the preamble, and computes the child's public input values. It takes the revdot accumulator, which is a pair of polynomials with a stored value, and adds the pair as a raw claim to its fold, producing a new accumulator. It takes each trace and stage commitment, and adds a circuit claim or mask claim to the same fold.
+It takes the headers and unified instance, holds them in the preamble, and computes the child's public input values. It takes the revdot accumulator, which is a pair A and B with a value c, and adds the pair as a raw claim with target c, folded into the new accumulator. It takes each trace and stage commitment, and adds a circuit claim or mask claim to the same fold.
 
-It takes the batch accumulator, which is a commitment, a point, and a value, and adds that opening claim to its batch, producing a new batch accumulator. It takes the child's registry restriction and opens it at the new w, and it opens its own new restriction at the child's circuit identifier, so that one restriction remains. Finally, it takes the nested points and the challenge partial, walks the points, and completes the challenge binding in bind beta.
+It takes the batch accumulator, which is a commitment P, a point u, and a value v. It adds the claim that p at u equals v to its batch, folded into a new batch accumulator. It takes the child's registry restriction and checks it against its own, as we describe shortly. And it takes the nested points and the challenge partial, walks the points, and completes the challenge binding in bind beta.
 
-So three accumulators pass up the tree, namely the revdot accumulator, the batch accumulator, and the registry restriction, one of each per side of the cycle. Each fuse replaces two of each with one, so a proof has the same shape at every depth. A child's internal circuits do not run again in the parent, and they cannot be skipped either, since their claims are among those folded.
+Three of these are accumulators, namely the revdot accumulator, the batch accumulator, and the registry restriction. A parent receives two of each, one from each child, and it has to leave exactly one of each. Otherwise its own parent would receive more than two, and the work per fuse would grow with depth.
 
-The application's circuit sits in the registry like any other, and the base case runs through a single bootstrap proof. The recursive proofs chapter records that the code has no Merkle root of initial states.
+A toy run shows each pair becoming one. We reuse the worked runs of the revdot folding, split accumulation, and wiring chapters, with one side of the cycle only. So the challenge values here come from those chapters' runs, and not from the transcript run above.
 
-From a large proof to a short one.
+For the revdot accumulator, the children's pairs are the first two proof claims of the revdot folding chapter, with values thirteen and thirty-five. The parent folds them with one layer of that chapter's quotient fold, the fold the schedule runs in phases four and five. For two claims the quotient has a single coefficient, nineteen. At tau equal to twenty, the challenge of that chapter's run, the new value comes out as nineteen, and the folded vectors' revdot product is also nineteen.
 
-The accumulators stay few, but each one still holds polynomials of two to the thirteen coefficients, and so does each stage and trace. A parent needs those polynomials to compute its fold. A verifier outside the tree does not want to receive them. The code's uncompressed verifier does hold every polynomial and checks the claims directly, and the code keeps it as a test oracle.
+For the batch accumulator, the left child holds the first accumulator of the split accumulation chapter's run, and the right child holds a fresh one. The parent batches the claims that the left polynomial is twenty-three at seventeen and the right polynomial is six at thirty. With alpha equal to seven, u equal to twelve, and beta equal to nineteen, the new batch polynomial evaluates to ten at twelve.
 
-Compression replaces each polynomial with its commitment and a few of its values, and it restates the decider's checks so that those are enough. The chapter on the NARK ran this idea on one circuit. The book's compression chapter and the code arrange it in three reductions, which run once per curve. The first takes the instance's revdot claims, folds them, and splits them into opening claims. The second batches those opening claims into one. The third proves that one claim with the inner product argument, and the verifier accepts or rejects.
+For the restriction, the run is the registry run of the wiring chapter, with the parent's fresh w equal to fourteen. The restriction step packs two openings into one, so we take them in turn. The parent does not keep the child's restriction. It opens that polynomial at the parent's fresh w, and the chain of restrictions from the wiring chapter carries the result into the parent's single new restriction. In the toy run the left child's restriction gives ten at w, the right child's gives seven, and the parent's new restriction gives twelve there, which closes the chain.
 
-The next sections run all three on the toy curve. We use the two circuits from the staging chapter, with lists of sixteen entries and the sixteen generators from that chapter. We choose the challenges by hand. In the code, a transcript under its own tag supplies them, after absorbing the instance and the output header, with fresh challenges on each curve.
+The parent then opens its new restriction at the child's circuit identifier. That gives the wiring value of the child's circuit, which the parent needs for the child's circuit claim. In the toy run the two children's circuits are A and B from the wiring chapter, at the domain points one and forty-two. The parent's restriction gives two at the first, which is circuit A's wiring value, and seventeen at the second, which is circuit B's.
 
-The instance and its claims.
+All of these values sit in the query stage, and only one restriction leaves the fuse.
 
-The instance has to tell the verifier everything it would otherwise read off the polynomials. For our two circuits it holds commitments to two stages, the two final traces, the accumulator pair with its stored revdot value, the registry restriction, the batch claim, and the accumulator pair's values at the batch point. The real instance holds a commitment for each native and nested polynomial, which makes it the largest part of the proof.
+The real fuse folds far more into each accumulator than the toy run does. The children's circuit and mask claims join the same revdot accumulator, and every queried polynomial joins the same batch accumulator. The count of inputs changes, but the output is still one of each, per side of the cycle. So a proof has the same shape at every depth. A child's internal circuits do not run again in the parent, and they cannot be skipped either, since their claims are among those folded.
 
-The verifier now rebuilds the decider's revdot claims from what it holds, in the order of the code's claim list. Our run has six. The first is the accumulator, a raw claim with its stored target. The second and third are the circuit claims for squaring and cubing. The fourth and fifth are the stage mask and final mask, each folding two polynomials, with target zero. The sixth is a new kind, called a wire binding, also with target zero.
+Why cheating fails in a fuse.
 
-The first five have appeared in earlier chapters. The sixth exists because the decider also compares individual wires of certain stages against values it computes for itself, and a verifier that holds only a stage's commitment needs another way to make that comparison. The code turns the comparison into a revdot claim. It builds one public list holding the expected values at those wires. It builds a second public list holding powers of a random challenge, sigma, at the mirror positions. The revdot product of the stage minus the first list with the second list then picks out the differences at those wires, weighted by powers of sigma. The target is zero, and it holds at a random sigma only if each wire holds its expected value. The real list has five such claims natively and three on the nested side.
+The earlier chapters counted cheating at each building block, and those counts still apply here. This chapter added a new risk, which comes from dividing one verifier among many circuits. A prover might try to show different circuits different data, or to exploit a check that one circuit assumes another has made. We collect the attempts this chapter met.
 
-In our run a small stage plays the role of the query stage. The registry has two circuits, whose wiring gives the values eleven and twelve, and the stage claims those values in two wires. If the stage holds a wrong value in one wire, the product is nonzero at all forty-three values of sigma. If both wires are wrong, the two errors cancel at one value of sigma out of forty-three.
+A prover might write a sponge state into the outer error stage that gives the challenges it wants. Hashes one rejects every state except the one it computed itself.
 
-A real compressed proof has fifty-six native claims, namely one accumulator pair, one application circuit, thirty-three internal circuits, sixteen masks, and five wire bindings, and it has forty-six nested claims.
+A prover might try to show hashes one and collapse different children. Both read the one preamble polynomial, whose mask stops a circuit's final trace from overwriting it, so they see the same children.
 
-Folding to three claims.
+A prover might try to leave a shared value unchecked. Every slot of the unified instance has one owner circuit that constrains it, and the shared public input value makes the other circuits agree with the owner. In the same way, every stage that needs a check of its own has one circuit that loads it enforced.
 
-Now the fold, in the form the code's compression uses. The revdot folding chapter noted that this differs from the fuse's quotient fold, and that the sources do not say why. Each claim sits in a group and a slot, and it takes two weights. One weight comes from the challenges mu and mu prime, and the other from the challenges nu and nu prime. The folded pair is the left vectors weighted by the first kind of weight, and the right vectors weighted by the second kind.
+A prover might try to pass off an internal circuit as a step. The zero at the end of an internal output and the nonzero suffix of an application header keep the two kinds of polynomial apart, except at the few chance agreements we counted.
 
-To see the target, expand the revdot product of the folded pair and separate the terms where a left vector meets its own right vector. Those terms hold the true targets. The other terms are cross products that the verifier cannot compute, and they split into a first-layer error for pairs inside a group and a second-layer error for pairs across groups.
+Finally, a prover might hope that a child's checks get skipped. A parent does not rerun a child's internal circuits, but it folds their claims into its accumulator, and the fold's error terms are committed before the challenges that weight them.
 
-The verifier does not need those products individually. The prover lays them out as low coefficients of one vector per layer, called an error vector, and the weights go in mirrored positions of a public vector. So each layer's error is itself a revdot product, as the revdot folding chapter showed. Our six claims fall into two groups of three, where the code uses seven per group.
-
-In our run, the prover commits to each layer's terms before that layer's challenges. The two errors and the weighted true targets give a target of twenty-eight for the folded pair, and the direct revdot product of the pair is also twenty-eight.
-
-The folded vectors have public parts that nobody needs to commit to, so the verifier separates what it derives from commitments and what it evaluates alone. A circuit claim's right vector contains a dilated copy of its left vector, so a committed polynomial built from the circuits' left vectors takes care of that part at a dilated point. The public parts hold the wiring restrictions, the gate terms, the masks, and the wire bindings' two public lists. The verifier obtains the committed parts from small multi-scalar multiplications over the instance's points.
-
-The split.
-
-We have three revdot claims, the folded pair and the two error claims, and nothing has yet shown that any of them is true. The split from the polynomial encoding chapter handles this. The prover combines the three ordinary products with a challenge, rho, and rewrites the result in terms of two new polynomials, p and q. A revdot product is one middle coefficient of the ordinary product, so that coefficient of the combination holds all three revdot products together, and it lands in the constant term of p. This is the one place that pays for the product polynomial and its fast Fourier transforms.
-
-The verifier then picks a point, r, and checks the identity at it, and it sets aside its required value for the constant term of p, to be opened later. In our run that required value is twenty-one. At the chosen point, the prover sends seven values, from the committed parts, the two error vectors, and p and q. The verifier adds what it can compute alone, which is the wiring restrictions, the gate term, the masks, and the two public vectors. Both sides of the split come out as thirty-four.
-
-The two sides agree, but all seven values are still only claims about commitments, which the next step settles.
-
-Batching and the argument.
-
-The reduction leaves eight opening claims, seven from the values just sent and one for the required constant term of p. The instance adds four of its own, which carry the fuse's accumulators into the check.
-
-Those last four claims are what the decider still owes from the recursion. One is the fuse's accumulated batch claim, and two pin the values of the accumulator pair at that batch point. The fourth opens the registry restriction at a fresh point. The verifier computes that expected value for itself, by evaluating the wiring of both circuits and combining the results with Lagrange weights, and this is the step that reads the whole registry.
-
-The batch from the batched openings chapter turns all twelve claims into one. The prover commits to the quotient and sends each polynomial's value at a new point. Then the verifier derives one combined commitment and one combined value. It uses powers of a challenge, beta, across the eleven distinct polynomials and powers of alpha across the twelve claims. Unlike the fuse's beta, which has to be short so that a circuit can scale points with it, this beta is an ordinary squeezed element, since no circuit runs this verifier. In our run, the prover's combined polynomial agrees on both the commitment and the value.
-
-Now the inner product argument, in the code's form, proves that the combined polynomial has that value. The argument commits to a masking polynomial and runs four rounds, because the list has sixteen entries. Each round sends two points and halves the list. At the end the prover holds one final scalar, thirty-eight. The verifier computes the folded generator with a multi-scalar multiplication over all sixteen generators, and it computes the folded power, fourteen, as a product of four factors. The final equation holds, so the verifier accepts.
-
-That finishes the run on this curve. In the code, the same three reductions run again on the nested curve with its own claims, on one continuous transcript.
-
-What the verifier pays.
-
-The chapter on the NARK named two linear costs, computing the wiring polynomial's value and computing the folded generator, and the recursion chapters set out to remove them from the circuits. They have not disappeared. No circuit pays them, which is what recursion needed, and the verifier of a compressed proof pays them once, at the root.
-
-Some of the verifier's steps cost a constant amount of work. It replays the fuse transcript with eight permutations, on the native field only, and it recomputes two small commitments on the nested curve only. Other steps grow with the size of the instance, namely computing the targets, at one Horner step per public wire, and deriving the committed parts with multi-scalar multiplications. A few steps are logarithmic. The masks and the gate term have closed forms, and the folded power and the round points take twenty-six scalar multiplications and thirteen factors.
-
-The steps that remain linear are what is left of the two original costs. Wiring appears three times. The verifier evaluates each circuit claim's restriction, across thirty-four native and twenty-eight nested circuits. It evaluates the whole registry over its domain and at eleven further points natively, to fill the wire bindings. And it evaluates the registry at a fresh point, with Lagrange weights. This last evaluation lets a whole tree of fuses rely on one restriction polynomial, since the verifier checks that polynomial against the full registry exactly once. Each of these passes grows with the wiring of the registered circuits, including the application's steps.
-
-The other linear cost is the folded generator, a multi-scalar multiplication of eight thousand one hundred ninety-two scalar multiplications. This is the deferred one from the accumulation chapter, and compression computes it in full, once per curve. None of these costs grows with the depth of the tree, so a proof that covers many leaves has the same verifier as a proof that covers two.
-
-The size of the result.
-
-We counted from the code's wire format, for the standard profile at the production rank of thirteen, with headers of four elements, the size the code's benchmarks use. The total is one hundred fifty-seven points and sixty-nine scalars across the two curves.
-
-At thirty-two bytes per point or scalar, with four bytes for the circuit index and a twenty-eight byte envelope, that comes to seven thousand two hundred sixty-four bytes. The uncompressed encoding writes eight thousand one hundred ninety-two coefficients for each of ninety-two polynomials, which is twenty-four million one hundred seventeen thousand two hundred forty-eight bytes before counting its cached points. So compression shrinks the proof by a factor of about three thousand three hundred twenty.
-
-Most of the compressed proof is the instance, with ninety-three of its one hundred fifty-seven points. The rounds of the inner product argument, the only part that grows with the circuit size, take fifty-two points. The code's comment on profiles says a few kilobytes, which agrees with this count. A header larger than four elements adds sixty-four bytes per extra element, since the proof holds the two child headers. The output header does not count, because the verifier supplies it as the statement.
-
-Why cheating fails.
-
-The chapters before this one each counted cheating at their own step. Here we look at what compression adds, which is the chance to hide a false claim in a value the verifier will never check directly. Start with a false public input.
-
-Suppose the prover claims the output eleven for the squaring circuit in place of ten, so its target rises while its vectors stay honest. At our challenges, the folded pair then misses the folded target by fourteen. Before the challenges, the prover can lower one of the cross terms by some amount, in the hope of balancing the two. The fold then balances only at one specific value of mu, set by that amount. We confirmed one such balance on the full vectors. Over all nonzero pairs of mu and nu, every nonzero amount balances for one value of mu out of forty-two.
-
-The first-layer error is a second place to try. After seeing the challenges, the prover could raise that value alone and leave its committed vector as it was. That can make the folded pair balance, but it makes the error claim false by the same amount, and rho arrives only after the error value is fixed. We tried all forty-two nonzero shifts against all forty-three values of rho, and each shift passes at exactly one value of rho.
-
-The prover could also try to change the required constant term of p directly. Suppose it wants that term too large by seven. The relevant coefficient of the split's right side is exactly that term, so whatever else the prover does, the difference from the true product is a nonzero polynomial of degree at most thirty. The prover can choose the other coefficients of p and q to give that difference as many roots as possible, and we built such a pair. It passes the split at thirty of the forty-two nonzero values of r. This is the toy field's small size at work, since the same count on the real parameters is two to the fourteen, minus two, roots out of about two to the two hundred fifty-four values.
-
-Once the split passes, every remaining claim is a statement about a commitment, and the chapters on batched openings and the inner product argument already counted those. A prover cannot avoid the registry either, since the verifier computes the registry restriction and each wiring value for itself. It cannot slip in a stray commitment, because every polynomial commitment the verifier reads gets opened through the inner product argument. The code's one exception is the nested challenge stage's partial commitment, which commits to no polynomial, and the bind challenges claims hold it in place.
-
-This argument is informal, and it rests on a few assumptions. Nobody knows a relation among the generators on either curve, so commitments bind. The two transcripts behave as random oracles, and each challenge comes after the commitments and values it tests. A false proof about a tree also has to get past the accumulation arguments of the earlier chapters. The book reports Lean proofs for some gadget contracts and says that these do not cover the protocol's overall soundness, which we do not establish here either.
-
-Rerandomization and zero knowledge.
-
-A wallet would like two things from a proof beyond soundness. The proof should hide its witness, and when it reaches someone else it should not link back to the proof that produced it. As the chapter introducing proof-carrying data recorded, neither the Ragu Book nor the code at this commit establishes either property.
-
-The code has an operation aimed at the second, called rerandomize. It fuses the input proof as the left child with a cached proof of the unit header as the right child. The internal step's output header uses the same wires as the left input, so it cannot change the header. The result verifies as the input did. Both the book and the code say that unlinkability is the intention, and the comment on that function says that it is not achieved today.
-
-One of the comment's reasons is that the fold is deterministic. Reduce the fold to one commitment, so that the output is a public weighted sum of the input and a cached seeded point. An observer who wonders which proof went in can test each candidate against that equation. We tried all forty-two points as candidates, and only the true input matches. The comment's other reason is more direct, because the output holds the input's commitments and stage polynomials in the clear as left-child data. It lists the remaining work as a randomizer in the fold and a way of hiding the child data.
-
-Hiding the witness has a similar status. The stages' random entry is there to prevent cancellation and not for hiding. The inner product argument is unblinded at this commit, and the code says that a compressed proof is not hiding, because its openings are evaluations of the witness polynomials.
-
-To see what one evaluation can tell an observer, take the stage from the staging chapter, where one wire holds the square of the other and one random entry sits in the system gate. Among all pairs of input and random entry, forty-three match the stage's commitment. Adding one value of the stage polynomial at a point leaves two pairs, the true one and one other, because the commitment and the value together give a quadratic equation in the input. On a real curve nobody can list the commitment's matches, but the value still gives one linear equation in the secret wires, which is the sense in which the proof does not hide them.
-
-This small case shows the effect of one value on one stage. A compressed proof opens combinations of polynomials at points the transcript chooses, so the leak there has a different shape, and we have not analyzed how much it reveals in practice. An uncompressed proof holds the polynomials themselves. The Tachyon book's description of stamps assumes zero knowledge, so this is an open requirement for Tachyon and not a settled property.
-
-Performance against Orchard.
-
-The sizes we just counted give a first comparison, which we can make from public formulas. ZIP two two five gives an Orchard proof two thousand seven hundred twenty bytes plus two thousand two hundred seventy-two bytes per action. That is seven thousand two hundred sixty-four bytes for two actions, and twenty-five thousand four hundred forty bytes for ten. So by our count a compressed Ragu proof with headers of four elements is about the size of an Orchard proof for two actions, and one Ragu proof can stand for many transactions. The exact match at two actions is a coincidence of these parameters.
-
-For verification time, the book's analysis chapter gives a rough model, and it states that the figures need checking against benchmarks. It puts Orchard's batch verification at about ten to fifteen milliseconds per proof on one thread, with total time scaling as roughly the number of transactions divided by its logarithm. It estimates a Ragu proof at about one hundred milliseconds at a circuit size parameter of eleven, driven mainly by a multi-scalar multiplication of two to the thirteen points.
-
-Setting the two equal gives the crossover. The book reports about fifty transactions at ten milliseconds per proof, and it does not state the base of the logarithm. So we solved the equation at both ends of the cost range and for the two natural bases, and the crossover falls between about twenty and about fifty-nine transactions.
-
-The book's figure sits inside the range the model allows, and the range is wide, as one would expect of a rough estimate. The shape of the curves is the more reliable conclusion. Batch verification of independent proofs keeps growing with the number of transactions, and verifying one aggregated proof does not. The circuit size parameter gives a trade-off that the book leaves open. A larger circuit limit raises the verifier's cost for every proof and allows a shallower tree, and a smaller limit does the reverse.
-
-The analysis chapter and the code differ in two ways. The book attributes a factor of four in its size formula to the circuit structure across multiple stages, and it describes one multi-scalar multiplication of two to the thirteen points as the main cost. In the code at the commit this site pins, the factor of four comes from the four wires of each gate, independent of stages. A compressed verifier also runs the checks on each curve, with the registry evaluations we listed earlier. We read this as more work than the book counts, which would raise the crossover, but we did not measure it. The site follows the code for the structure and quotes the book for the estimates. The code has benchmarks for compression and compressed verification, and we did not run them, so we report no timings of our own.
-
-These figures describe verification only. They leave out the prover's costs, which the sources do not quantify, and they compare with Orchard as it runs today, whereas Tachyon changes what a transaction carries. Tachyon has not activated on mainnet, its design is still changing, and it pins a different Ragu revision from the one this chapter reads.
-
-Fusing after compression.
-
-One part of this design is still moving, and later chapters depend on it. The Ragu Book calls a compressed proof terminal, while the code's profile comments foresee an aggregator profile that verifies a compressed proof in circuit, with an internal decompress step that outputs its header. The code says this has not landed, and a test pins the aggregator's shape to the standard one until it does. Such a circuit would have to run the compressed verifier with gates, which is why the design places it in extra circuits that only aggregators carry. The chapter on aggregation returns to this.
+The argument is informal, and it rests on the assumptions of the earlier chapters. Nobody knows a relation among the generators on either curve, so commitments bind. The transcript behaves as a random oracle, and each challenge comes after the bridge commitment that carries what it tests. The checks that cross the cycle rely on the endoscalar lift being injective, as the endoscalars chapter found for Pasta.
 
 Where this chapter leaves us.
 
-A fuse runs one transcript through eleven phases, each commitment coming before the challenge that tests it, and it divides the checks among many small circuits. Hashes one and hashes two share the replay, with the sponge state held in a stage and checked by the first circuit. The internal circuits expose one unified instance, and a zero suffix keeps them apart from application circuits. A parent folds three accumulators per side from each child, so a proof keeps its shape at every depth.
+A fuse divides its checks among many small circuits, which share data through stages and public inputs. Each group of commitments reaches the transcript through a bridge stage on the nested curve, and one transcript runs through eleven phases. Hashes one and hashes two share the replay, with the sponge state held in the outer error stage and checked by the first circuit.
 
-Compression replaces polynomials with commitments and values through three reductions on each curve, and a wire binding turns the decider's comparisons of stage wires into revdot claims. The compressed verifier pays the deferred linear costs once, and those costs do not depend on the tree. By our count a compressed proof takes seven thousand two hundred sixty-four bytes, against more than twenty-four million uncompressed. Rerandomization and hiding are not yet established, and the comparison with Orchard remains an estimate.
+The internal circuits expose one unified instance, with each slot owned by one circuit. A zero suffix keeps internal circuits apart from application circuits. A parent folds three accumulators per side from each child, so a proof keeps its shape at every depth.
 
-That completes Ragu as a proof system. The next part turns to what Tachyon proves with it, starting with notes, nullifiers, and tachygrams.
+That shape has a cost. Every accumulator, stage, and trace is a polynomial with two to the thirteen coefficients, and a parent needs all of them to compute its fold, so a proof that leaves the root of the tree carries every one. A verifier outside the tree wants something far smaller, and it also still owes the deferred work that the accumulators postponed. The next chapter, on compression, replaces the polynomials with commitments and a few values, and it runs the final checks on the toy curve.

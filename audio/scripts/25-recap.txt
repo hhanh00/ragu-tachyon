@@ -1,4 +1,4 @@
-Chapter twenty-four. Final Recap.
+Chapter twenty-five. Final Recap.
 
 This chapter follows one spend from a wallet's note to a block, and it names the chapter that explains each part, so that you can return to whichever one you want to hear again. It adds no protocol content. The derivations, the numbers, and the arguments about cheating all stay in the chapters we name.
 
@@ -7,6 +7,8 @@ Tachyon has not activated on mainnet, and its design is still changing. The trac
 The spend we follow.
 
 Alice holds a note from Bob, created in epoch three and spent with target epoch seven. Her bundle has one spend and one output to Carol, and the chapter on the proof tree carries it as far as a published stamp. Most of the values in those chapters come from stand-in hashes rather than real Poseidon outputs. The chapter on aggregation and bundles uses bundles of its own, and its bundle Y also has one spend and one output, so Y can stand in for Alice's bundle there.
+
+Most of this chapter follows the spend through Tachyon. One section pauses at a single node of the proof tree to go through the proof system underneath it, and a later section lists every layer with its chapter.
 
 The note reaches Alice.
 
@@ -18,7 +20,7 @@ The pool records the commitment.
 
 Bob's stamp publishes the note commitment as a tachygram, the single kind of value that covers both commitments and nullifiers. Validators will eventually forget that tachygram, yet Alice has to prove facts about it later, so the pool keeps a short reference to it.
 
-The stamp's tachygrams become the roots of a polynomial, and a Pedersen commitment shrinks that polynomial to one point. A Poseidon hash chain absorbs the point together with the block's epoch, and a boundary digest joins each epoch to the next. The chain's state is the anchor. A proof can witness history freely, because one consensus check at the far end pins every earlier state.
+The stamp's tachygrams become the roots of a polynomial, and a Pedersen commitment shrinks that polynomial to one point. A Poseidon hash chain absorbs the point together with the block's epoch, and a boundary digest joins each epoch to the next. The chain's state is the anchor, and the chapter on the proof tree lists the anchors this note lives through. A proof can witness history freely, because one consensus check at the far end pins every earlier state.
 
 What the spend has to show.
 
@@ -30,7 +32,7 @@ The sync service tests old nullifiers.
 
 Testing absence means reading whole epochs, which is the work wallets were supposed to stop doing. Alice can hand it to a service because each epoch's value is unrelated to the others. She sends explicit values and no key, and she has to keep the nullifiers for epochs seven and eight out of every request.
 
-An epoch's polynomial is too large to open directly, so a builder routes its tachygrams into buckets by quadratic-residue profile. Each bucket's seal computes the crossing, so that it covers the whole epoch. The service opens the matching bucket at the value and composes the results into a segment, an Arbitrary Unspent proof that names no note. The examples in the chapters on the proof tree and oblivious sync delegate different ranges, and a wallet may run these steps itself.
+An epoch's polynomial is too large to open directly, so a builder routes its tachygrams into buckets by quadratic-residue profile. Each bucket's seal computes the crossing, so that it covers the whole epoch. The service opens the matching bucket at the value and composes the results into a segment, an Arbitrary Unspent proof that names no note. The proof tree chapter gives the service all four epochs and uses one bucket per epoch to keep the numbers short, while the oblivious sync chapter's run delegates a narrower range. Both are choices of example, and a wallet may run these steps itself.
 
 The wallet builds the proof tree.
 
@@ -40,7 +42,7 @@ Third, QR Spendable Init consumes the test of epoch three and finds the note com
 
 Fifth, Output Bind and Output Action create Carol's note, with the same header type and two tachygrams. Sixth, Action Lift and Action Merge bring the two actions to one anchor and combine them. Seventh, Fee Fuse applies a fee chosen after signing, and it turns an actions header into a stamp exactly once. Eighth, Stamp Lift moves the stamp to a later anchor in epoch seven.
 
-The chapter on the proof tree flags this exact mix of steps as its own reconstruction. Two facts remain outside the proof. A signature under the randomized key requires the spend authorizing key, which lets a custody device hold the key while another device proves. And since no step adds up values, a binding signature shows that the bundle balances.
+The whole tree appears in chapter twenty-three, which flags its exact mix of steps as its own reconstruction. Two facts remain outside the proof. A signature under the randomized key requires the spend authorizing key, which lets a custody device hold the key while another device proves. And since no step adds up values, a binding signature shows that the bundle balances.
 
 What one fuse proves.
 
@@ -52,7 +54,7 @@ That proof leaves the verifier two linear costs, a wiring value that the site wr
 
 Accumulation turns G hat into a claim that travels with the proof and merges with others, and splitting the accumulator keeps its witness out of the circuit, so a fuse runs no inner product argument. Revdot folding carries the product claims forward in the same way. The registry replaces s of x and y with claims about one polynomial holding every circuit, so a node pays only for the step it chooses. The Pasta cycle lets each side handle the other's points natively, endoscalars carry challenges across it, and stages let circuits share data.
 
-The chapter on recursion in Ragu assembles these into many small internal circuits. Three accumulators per side pass up the tree, and each fuse replaces two of each with one, so Spend Bind's proof has the same shape as the proof at the top. A proof that leaves the tree goes through compression, which replaces its polynomials with commitments and a few values and finishes with an inner product argument on each curve. Its verifier pays the deferred linear costs once.
+Chapter eighteen, on recursion in Ragu, assembles these into many small internal circuits. Three accumulators per side pass up the tree, and each fuse replaces two of each with one, so Spend Bind's proof has the same shape as the proof at the top. A proof that leaves the tree goes through compression, which replaces its polynomials with commitments and a few values and finishes with an inner product argument on each curve. Its verifier pays the deferred linear costs once, and chapter nineteen, on compression, gives the size of the result.
 
 From the stamp to a block.
 
@@ -64,23 +66,23 @@ A miner then strips each covered bundle, so Alice's bundle keeps its body and fe
 
 The block's validators then check signatures, pointers, coverage, the tachygram count, the set commitment, and the proof. They also run the consensus rules, which look up the anchor, require its epoch to be current or preceding, check each tachygram against the window, and absorb the commitment into the chain. Finding the anchor closes the free witnesses below it. Alice's nullifiers are now in the pool, and a second spend of this note runs into either the window or the exclusion proof.
 
-This sequence is reconstructed from the code at the commit this site pins, and the authors have not confirmed it. The crate has no block validator, so the sequence combines the bundle verify method with consensus rules from the book. The chapters on aggregation and pool state both note that this is a reading of the sources, and that no source fixes the full order.
+This sequence is reconstructed from the code at the commit this site pins, and the authors have not confirmed it. The crate has no block validator, so the sequence combines the bundle verify method with consensus rules from the book. Chapter twenty-four, on aggregation, and chapter twenty-one, on pool state, both note that this is a reading of the sources, and that no source fixes the full order.
 
 The layers and their chapters.
 
-Here are the layers in the order the trace meets them. Chapter one, on scaling Zcash, gives the motivation, why state and scanning have to shrink. Chapter nineteen, on notes, nullifiers and tachygrams, gives the objects and their derivations. Chapter twenty, on pool state and anchors, gives a short reference to forgotten history. Chapter twenty-one, on oblivious sync, tests epochs through a party who does not know the note. Chapter twenty-two, on the proof tree, gives the steps from note to stamp. Chapter two, introducing proof-carrying data, puts a header and a proof at every node.
+Here are the layers in the order the trace meets them. Chapter one, on scaling Zcash, gives the motivation, why state and scanning have to shrink. Chapter twenty, on notes, nullifiers and tachygrams, gives the objects and their derivations. Chapter twenty-one, on pool state and anchors, gives a short reference to forgotten history. Chapter twenty-two, on oblivious sync, tests epochs through a party who does not know the note. Chapter twenty-three, on the proof tree, gives the steps from note to stamp. Chapter two, introducing proof-carrying data, puts a header and a proof at every node.
 
 Next come the parts of one proof. Chapter four, on arithmetization, writes a step as one equation. Chapter five, on QAP and polynomial encoding, makes that equation a polynomial test. Chapter six, on polynomial commitments, gives one point per polynomial. Chapter eight, on batched openings, gives one claim in place of many. Chapter seven, on the inner product argument, gives a short evaluation proof. Chapter three, on statements and challenges, gives small checks that stand for large ones. Chapter nine, on the complete proof, assembles the parts, with two linear costs left.
 
-Recursion follows. Chapter ten, on recursive proofs, gives a proof that its children verify. Chapters eleven and twelve, on accumulation and split accumulation, carry G hat as a claim. Chapter fourteen, on revdot folding, folds many revdot claims to one. Chapter fifteen, on wiring and the registry, allows any registered step at fixed recursive cost. Chapter thirteen, on curve cycles, handles points on the other curve. Chapter sixteen, on endoscalars, gives one short string serving both curves. Chapter seventeen, on staging, lets circuits read the same stage. Chapter eighteen, on recursion in Ragu, gives the node's circuits and compression. Finally, chapter twenty-three, on aggregation and bundles, covers fees, merging, stripping and block checks.
+Recursion follows. Chapter ten, on recursive proofs, gives a proof that its children verify. Chapters eleven and twelve, on accumulation and split accumulation, carry G hat as a claim. Chapter fourteen, on revdot folding, folds many revdot claims to one. Chapter fifteen, on wiring and the registry, allows any registered step at fixed recursive cost. Chapter thirteen, on curve cycles, handles points on the other curve. Chapter sixteen, on endoscalars, gives one short string serving both curves. Chapter seventeen, on staging, lets circuits read the same stage. Chapter eighteen, on recursion in Ragu, gives the node's circuits. Chapter nineteen, on compression in Ragu, gives the short proof that leaves the tree. Finally, chapter twenty-four, on aggregation and bundles, covers fees, merging, stripping and block checks.
 
 What exists at the pinned commits.
 
 The trace sounds like one working system, but its parts have very different status, and each chapter's warnings give the details.
 
-First, here is what we read as code. Ragu contains fuse, compress, and their verifiers, although we did not build or run it or run its benchmarks. The Tachyon crate contains the proof steps, written as native step bodies, along with the fold functions, the wire format, and a bundle verify method for one covering bundle.
+First, here is what we read as code. Ragu at the commit this site pins contains fuse, compress, and their verifiers, although we did not build or run it or run its benchmarks. The Tachyon crate contains the proof steps, written as native step bodies, along with the fold functions, the wire format, and a bundle verify method for one covering bundle.
 
-Second, here is what the sources describe and we did not find in code. There are no real Tachyon circuits, because the crate builds against a mock at the Ragu commit that Tachyon pins. That mock's fuse runs a step natively, discards the polynomial openings, and does not verify child proofs. There is no validator and no mempool, so the window, the anchor lookup, block assembly, and transaction-level balance appear only in the book, doc comments, and tests. There is no normative specification, because the shielded protocol, accumulator, syncing service, and bundle and aggregator ZIPs are empty outlines. And the crate has no wallet check for reused trapdoors.
+Second, here is what the sources describe and we did not find in code. There are no real Tachyon circuits, because the crate builds against a mock at the Ragu commit that Tachyon pins. That mock's fuse runs a step natively, discards the polynomial openings, and does not verify child proofs. There is no validator and no mempool. The window and the anchor lookup appear only in the book and in doc comments, and block assembly and transaction-level balance appear only in the book and in tests. There is no normative specification, because the shielded protocol, accumulator, syncing service, and bundle and aggregator ZIPs are empty outlines. And the crate has no wallet check for reused trapdoors.
 
 Third, here is what remains open in the design. Zero knowledge and unlinkability are not yet established, although the Tachyon book assumes them. Decompression has not landed, so a compressed proof cannot be fused today, and an aggregator's real costs are unknown. The sources differ on which anchors consensus accepts and where the crossing sits. Service privacy measures, fee levels, aggregator payment, and per-note proving delegation are unspecified or unsettled. The comparison with Orchard is an estimate, and real proof size is not settled for Tachyon.
 
@@ -88,4 +90,4 @@ Where this chapter leaves us.
 
 A note enters the pool as a tachygram, and the pool refers to it through a polynomial commitment absorbed into a hash chain. A spend proves absence for closed epochs, with help from a service that does not know the note, and it publishes a nullifier pair for the window to check. Each step of the wallet's tree is one fuse, and Ragu's accumulators keep the proof the same shape at every depth. A stamp can pass through an aggregator and a miner without disturbing what Alice signed, and validators check the result against the anchor chain. All of this is a design at fixed commits, with mock proofs on the Tachyon side and no validator, and any later commit may differ.
 
-This is the last chapter. The glossary remains as a reference.
+This is the last chapter. The glossary, the notation page, and the curves appendix remain as references.

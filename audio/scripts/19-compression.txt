@@ -1,0 +1,263 @@
+Chapter nineteen. Compression in Ragu.
+
+The last chapter ended with a proof that keeps the same shape at every depth of the tree. It carries three accumulators per side of the cycle, along with every trace and stage of its last fuse. Each of those is a polynomial of two to the thirteen coefficients. A parent needs the polynomials to compute its fold. A wallet or a node that only wants to check the proof does not need them, and it would rather not receive them.
+
+This chapter makes the proof short. We start from the checks that the final verifier still owes. Then we build the compressed proof's instance, restate those checks over commitments, and run every step on the toy curve. After the run we count what the verifier pays and how large the result is, look at what compression does not yet provide, and compare the result with Orchard.
+
+The description of compression is reconstructed from the code at the commit this site pins and from the book's compression chapter, and the authors have not confirmed it. The numeric run uses the small circuits of the staging chapter and a shortened instance, so it shows the structure of the code and not its real contents. The sizes come from our reading of the code's wire format. We did not build or run the code, and we did not run its benchmarks.
+
+Compression works on the proof that the last fuse produced, so it meets two sets of challenges, and several of them share a name. We call the values that the last fuse left the fuse's x, the fuse's y, the fuse's z, and the fuse's batch point. Compression draws every other challenge fresh, and we introduce each one where it is drawn. So a fresh y or z is never the fuse challenge of the same name.
+
+Making a large proof short.
+
+The proof at the root still owes the deferred work. The decider from the chapter on accumulation is the party that finally does that work, outside any circuit. In Ragu, the code's uncompressed verifier plays that part. It holds every polynomial of the proof and checks six things directly.
+
+It checks each revdot claim, including the accumulated pair, by computing the revdot product. It checks the accumulated batch claim, by evaluating the batch polynomial at the fuse's batch point and comparing the result with the claimed value. It checks the accumulated restriction of the registry against the registry itself. It checks the challenges, by replaying the fuse transcript over the bridge commitments. It checks the values that the query and eval stages claim, against the registry and the polynomials. And it checks every cached commitment against the polynomial it commits to.
+
+The code keeps this decider as a test oracle, because it needs the full polynomials. Compression replaces each polynomial with its commitment and a few of its values, and it restates the decider's checks so that those are enough. The chapter on the NARK ran this idea on one circuit. The book's compression chapter and the code arrange it in three reductions, which run once per curve. The first takes the instance's revdot claims, folds them, and splits them into opening claims. The second batches those opening claims into one. The third proves that one claim with the inner product argument, and the verifier accepts or rejects.
+
+The sections below run all three on the toy curve. We use the two circuits from the staging chapter, with lists of sixteen entries and the sixteen generators listed there. We choose the challenges by hand. In the code a transcript under its own tag supplies them, after absorbing the instance and the output header, with fresh challenges on each curve.
+
+Where the fuse's challenges come from.
+
+Compression checks claims that the last fuse made at its own challenges. The fuse built the accumulator pair at its y and z, the restriction uses its x and y, and the batch claim sits at its batch point. If the prover could name these values, it could choose them after building the polynomials. Every check below would then test the polynomials at points the prover picked. That is the attack Fiat-Shamir exists to prevent, as the chapter on statements and challenges explained.
+
+Inside the tree, a parent's circuits replayed the child's transcript. The root has no parent, so the verifier replays it itself. It does not need the polynomials for this, because the fuse transcript absorbs only the eight bridge commitments of the last chapter's schedule, and the instance carries all eight. So the verifier absorbs them in the fuse's order and squeezes the fuse's challenges, exactly as the last chapter's toy transcript run did.
+
+Four of those challenges matter here. Three of them, the fuse's x, its y and its batch point, enter the claims that compression checks. The fourth, the fuse's z, matters only because the fuse built the accumulator pair at it, and in our reading of the code no check of compression evaluates anything there. The prover cannot change the fuse's x without changing the bridge commitment that released it. And the inner product argument at the end of compression opens every polynomial commitment that the verifier reads, on its own curve, with one exception that the section on cheating describes.
+
+The replay fixes the challenges. Two of the stages that the fuse committed to depend on nothing except those challenges and other public data, so the verifier recomputes both and compares their commitments with the instance's. The first is the challenge stage, which holds the lifts of the challenges and the child headers. Inside the tree a parent finishes checking this stage for its child, so at the root the verifier does that job by rebuilding the stage from the challenges it just squeezed.
+
+The second is the A B bridge stage, which holds the coordinates of the accumulator pair's commitments, among other values. The verifier rebuilds it so that the pair it checks is the pair the transcript absorbed before the fuse's x. The sources do not state why the verifier rebuilds this stage, and what follows is our reading. If the verifier skipped it, a prover could fill the stage with the coordinates of some other pair, draw the fuse's x from that transcript, and only then pick the pair it puts in the instance. Rebuilding the stage from the instance's pair rules this out. The verifier also rejects the proof if the value called pre-beta lies outside the endoscalar range, as a parent's circuits would.
+
+Our toy run skips the replay. It would need a sponge, eight bridge commitments and the nested circuit behind each one. The run gains nothing from them, because the replay is the same computation that the last chapter already ran. So we fix the fuse's values by hand. The fuse's x is nine, its y is seven, its z is five, and its batch point is also nine. Compression's first fresh challenges are a y of thirty-five and a z of eleven for the circuit claims, a sigma of twenty for the wire binding, and a point of three for opening the restriction.
+
+These fuse values are not the output of the last chapter's transcript run. We built the instance from the two circuits of the staging chapter so that every vector stays short, and we chose the fuse values to suit it. The fuse's x and its batch point coincide at nine by chance.
+
+The instance and its claims.
+
+The instance has to tell the verifier everything it would otherwise read off the polynomials. For our two circuits it holds commitments to two stages. One is the stage from the staging chapter, and the other is a small query stage that holds values read from the registry. The instance also holds the final traces of the squaring and cubing circuits, and the accumulator pair with its stored revdot value of eleven. It holds the restriction of the registry, the batch claim with its value of thirty-seven, and the values of the accumulator pair at the batch point, thirty-five and fifteen, which the last fuse's eval stage claims.
+
+These numbers carry over from earlier chapters. The accumulator pair stands in for what the last fuse left, and for it we took the claim of the squaring circuit with input five, built at the fuse's y and z. The batch polynomial is the example from the chapter on polynomial commitments, opened at its point. The real instance holds a commitment for each native and nested polynomial, which makes it the largest part of the proof.
+
+The verifier now rebuilds the decider's revdot claims from what it holds, in the order of the code's claim list. Each circuit's full trace is the staging chapter's stage plus that circuit's final trace. Our run has six claims, in slots numbered zero to five.
+
+Slot zero is the accumulator pair, a raw claim taken as it is, with its stored target of eleven. Slots one and two are the circuit claims for squaring and cubing, which check a trace against its wiring as in the chapter on the NARK. Each right vector holds the dilated trace, the circuit's wiring at the fresh y, and the gate term at the fresh z.
+
+Slots three and four are masks. A mask counts as a bonding claim, because the staging chapter treats a mask as a bonding polynomial whose constraints each set one wire to zero. Each mask forces to zero every wire outside the gates it reserves. Gate zero is the exception, because every polynomial keeps its own random entry there, and no mask touches it.
+
+In our circuits the two stages occupy gate one, so the stage mask leaves gates zero and one free. The final traces occupy gates two and three, so the final mask leaves gates zero, two and three free. Slot three combines the two stages under one mask with the fresh z as a weight, as the staging chapter combined two children's stages. Slot four combines the two final traces in the same way. Slot five holds a wire binding, which is new, and the next part builds it.
+
+The targets come from the public inputs. The target of slot zero is the stored value eleven. The targets of slots one and two are the circuits' public input polynomials evaluated at the fresh y. The squaring circuit's polynomial is one plus ten times Y, which gives seven modulo forty-three. The cubing circuit's is one plus thirty-five times Y, which gives twenty-two. The three remaining claims have target zero, because masks and wire bindings carry no public inputs.
+
+Binding stage wires to the registry.
+
+The sixth claim answers one of the decider's checks. The last fuse's query stage holds registry values, such as the wiring value of each internal circuit at the fuse's challenges, and the fuse's circuits used those wires in their checks. Nothing inside the tree ties the wires to the true registry, because no circuit can afford to evaluate the registry. The decider closes the gap by reading the wires off the stage polynomial and comparing them with values it computes from the registry. A compressed verifier holds only the stage's commitment, so it needs another way to make the same comparison.
+
+The code turns each such comparison into a revdot claim. It builds one public list holding the expected values at the degrees of those wires. It builds a second public list holding powers of a fresh challenge, sigma, at the mirrored degrees. A revdot product pairs each degree of its left list with the mirrored degree of its right list. So the product of the stage minus the expected values with the second list reads the stage only at the chosen wires. It gives each wire's error, weighted by successive powers of sigma, all added together.
+
+The target is zero. That sum is a polynomial in sigma whose coefficients are the errors, so it vanishes at a random sigma only if each wire holds its expected value. The code calls this kind of claim masked, because its right list is a public mask that reads chosen wires, where an ordinary mask forbids them. The real list has five such claims natively and three on the nested side. The query stage gives one of them, and the others cover the preamble, the eval stage and two points stages.
+
+In our run the small query stage plays the role of the real one. The registry has two circuits, and their wiring at the fuse's x and y gives eleven and twelve. The stage claims those values in two wires. With sigma at twenty, the mask has a one opposite the first wire and a twenty opposite the second. So the product is the first wire's error plus twenty times the second wire's error, which is zero for an honest stage.
+
+If the stage holds a wrong value in one wire, the product is nonzero at all forty-three values of sigma. If both wires are wrong, the two errors cancel at one value of sigma out of forty-three. This small registry holds the staging chapter's two circuits, so its restriction is a different polynomial from the one the last chapter's toy committed under the same name.
+
+A real compressed proof has fifty-six native claims, namely one accumulator pair, one application circuit, thirty-three internal circuits, sixteen masks, and five wire bindings. It also has forty-six nested claims.
+
+Folding to three claims.
+
+Rather than prove the six revdot claims one at a time, the verifier folds them into one pair with random weights, as the chapter on revdot folding did. It takes the grouping of that chapter's two-layer fold. Our run uses groups of three, so the six claims form two groups, and each claim has a group number and a slot within its group. The fold draws four fresh challenges, mu and mu prime for the left vectors, and nu and nu prime for the right ones.
+
+A claim's left weight is mu prime raised to its group number, times mu raised to its slot. Its right weight is built the same way from nu prime and nu. These are the plain weights of the revdot folding chapter's section on compression. Compression's mu is the inverse of the book's mu, and compression's nu is the book's mu times the book's nu. The accumulator pair always sits in slot zero of group zero, so both of its weights are one in every proof, whatever the challenges.
+
+The folded pair adds up the left vectors with their left weights, and the right vectors with their right weights. To see what target this pair should have, expand its revdot product by bilinearity. Every pairing of one claim's left vector with some claim's right vector contributes its revdot product, times the first claim's left weight and the second claim's right weight. These terms fall into three sets, and each set behaves differently.
+
+The first set is the diagonal, where a claim's left vector meets its own right vector. That product equals the claim's target if the claim is true, so these terms give the weighted sum of the targets, which the verifier can compute. The second set holds pairs from the same group but different slots. We call their weighted sum the first-layer error.
+
+The third set holds pairs from different groups. For two fixed groups, the factor from mu prime and nu prime is common to all of those terms. By bilinearity the rest adds up to the revdot product of two group-folded vectors, one from each group. We call the weighted sum of these products the second-layer error.
+
+So the folded target is the weighted sum of targets plus the two errors. The verifier cannot compute either error, because they need the vectors. The prover computes them and sends them as two scalars, and the verifier forms the target from them. If nothing else checked the two scalars, the prover could make the target anything it liked. So compression makes each of them a revdot claim of its own, which the split tests together with the folded pair.
+
+The prover lays the first-layer terms out as the low coefficients of an error vector, in the fuse's order, group by group and row by row. A public vector holds the weight of each term in the mirrored position. A revdot product pairs exactly those two positions, so the product of the two vectors is the first-layer error. The second-layer terms and their weights go into a second pair of vectors in the same way.
+
+The order of the commitments matters. The first-layer terms depend only on the claims, so the prover commits to the first error vector before mu and nu exist. The second-layer terms depend on mu and nu, through the group-folded vectors, so the prover can only compute them afterwards. It commits to the second error vector after mu and nu, and before mu prime and nu prime. It sends the two error values once all four challenges are in the transcript. So in both layers the prover fixes the cross terms before it knows the weights that will combine them, and the section on cheating shows why that order matters.
+
+In our run, mu is nineteen, nu is thirty-eight, mu prime is two and nu prime is thirty-three. Claim four, for example, sits in group one at slot one. So its left weight is mu prime times mu, two times nineteen, which is thirty-eight.
+
+For the first layer, the prover computes the twelve in-group cross terms and commits to them before any weight exists. Once all four challenges are drawn, each term gets its weight. The pair of claims zero and one, in group zero, has the weight nu, which is thirty-eight. The pair of claims three and four, in group one, picks up the extra factor mu prime times nu prime. Its weight is two times thirty-three times thirty-eight, which is fourteen modulo forty-three. Multiplying each term by its weight and adding gives twelve for group zero and thirty-seven for group one, so the first-layer error is six.
+
+Three of group one's terms are zero, because the paired vectors never meet in mirrored positions. The wire binding's left vector keeps only the small query stage's random entry, which sits in gate zero, and no mask touches gate zero. The wire binding's mask reads only two wires of the stages, in gate one, and the final traces leave gate one empty.
+
+For the second layer, the prover forms the group-folded vectors once mu and nu are known. It computes the two cross-group terms, twenty-two and thirty, and commits to them, and only then are mu prime and nu prime drawn. Their weights are thirty-three and two, so the second-layer error is twelve modulo forty-three.
+
+The prover sends the two errors, six and twelve. The diagonal gives ten, so the verifier sets the target to ten plus six plus twelve, which is twenty-eight. The prover can check that the folded pair's revdot product is also twenty-eight. The verifier cannot compute that product, and the split is what tests it.
+
+Compression uses the form of the fold in the code's compression module. The revdot folding chapter noted that this form differs from the fuse's quotient fold, and that the sources do not say why. That chapter's reason for groups was the cost inside a circuit, where the number of cross terms grows as the square of the number of claims. Compression runs outside any circuit, so that reason does not carry over, and the sources give no reason specific to compression. The code labels its group size of seven as the fuse's and lays out the cross terms in the fuse's order. So in our reading, compression reuses the fuse's arrangement.
+
+The real claim lists show the effect. With one layer, the fifty-six native claims would need three thousand eighty cross terms. In groups of seven they form eight groups, which need three hundred thirty-six first-layer terms and fifty-six second-layer terms, or three hundred ninety-two in all. The forty-six nested claims form seven groups, with two hundred sixty-four first-layer terms and forty-two second-layer terms. Even the single layer fits in a vector of eight thousand one hundred ninety-two entries, so the vector length does not force the grouping.
+
+The folded vectors have public parts that nobody needs to commit to. So the verifier separates what it derives from commitments from what it evaluates alone. A circuit claim's right vector contains its own trace, dilated by the fresh z. One committed polynomial, the two traces weighted by their right weights, takes care of that part when it is evaluated at a dilated point. We call it T.
+
+The folded left vector splits into a committed part and a public part. The committed part combines the accumulator's left vector, the two traces, the two mask combinations and the small query stage, each with its left weight. The public part is the wire binding's expected values, scaled by minus the wire binding's left weight.
+
+The folded right vector splits into three. Its committed part is the accumulator's right vector, and the dilated T is the second part. Its public part holds the circuits' wiring and gate terms, the two masks, and the wire binding's mask, each with its right weight.
+
+The committed parts are combinations of the instance's points with known weights, so the verifier gets their commitments without any help from the prover. It obtains them from small multi-scalar multiplications over the instance's points. Because the accumulator's right weight is one in every proof, the committed right part is the accumulator's right commitment itself.
+
+The split.
+
+We have three revdot claims, which are the folded pair and the two error claims. Nothing has yet shown that any of them is true. The split from the chapter on polynomial encoding handles this. Proving three products separately would cost three splits. So the prover first combines them with a fresh challenge, rho, into one product polynomial. It adds the ordinary product of the folded pair, rho times the product for the first layer, and rho squared times the product for the second layer.
+
+Call the vector length D, which is sixteen in our run. A revdot product is the coefficient of X to the D minus one in the ordinary product. So when all three claims hold, that coefficient of the combined polynomial is the folded target, plus rho times the first error, plus rho squared times the second. To make that one coefficient checkable by an opening, the prover cuts the product, which has degree two D minus two, into a low half and a high half. The low half holds the lower D coefficients in reverse order, and the high half holds the rest.
+
+Reversing the low half moves the coefficient of X to the D minus one into its constant term. The verifier received both errors from the prover and formed the target from them. So it can compute the value that the low half's constant term must have, and it checks that value later with an opening at zero.
+
+The prover commits to both halves, and the verifier now needs to know that they really are the two halves of the product. It picks a fresh random point r, a single field element unrelated to the traces, and checks the identity at that point. One point is enough for the following reason. If the committed halves are wrong, the two sides of the identity differ by a nonzero polynomial of degree at most two D minus two.
+
+By the root count from the chapter on statements and challenges, such a polynomial vanishes at no more than two D minus two points. So the two sides agree at a random point with probability at most two D minus two over the field size, and the prover had to commit to the halves before that point was drawn. Evaluating the identity needs each committed piece at r, except that T is needed at r times the fresh z, and the low half at one over r.
+
+In our run rho is forty-one, and the prover commits to the two halves. The verifier sets aside the required constant term, twenty-eight plus forty-one times six plus four times twelve, using that rho squared is four. That comes to twenty-one. It then picks r equal to eighteen, so that r times z is twenty-six and one over r is twelve. The prover sends seven values at those points.
+
+The verifier evaluates the public parts at r itself. The public left part comes only from the wire binding, and it is twenty. The public right part combines the wiring, the gate term, the two masks and the wire binding's mask with their right weights, and it is ten. Adding the committed values gives fifteen for the folded left vector and twenty-nine for the folded right vector.
+
+The public weight vectors of the fold give fourteen and seven at r. So the left side of the split comes to thirty-four. The right side, built from the two halves, also comes to thirty-four.
+
+The split is also where the prover does work that the fuse never does. Forming the product means multiplying polynomials of D coefficients, which the prover does with fast Fourier transforms. A fuse folds a child's revdot claims into its own accumulator and leaves them unproved, so it never needs the product. Compression is where the accumulated claims finally get proved, so it is the one step that pays for the product polynomial.
+
+The two sides agree, but all seven values are still only claims about commitments, which the next step settles.
+
+Batching and the argument.
+
+The reduction leaves eight opening claims, seven from the values above and one for the required constant term at zero. The instance adds four of its own, which carry the fuse's accumulators into the check. Each claim says that a committed polynomial takes some value at some point, as in the chapter on batched openings.
+
+Those last four claims are what the decider still owes from the recursion. Claim eight opens the restriction of the registry, which is the restriction check from the chapter on wiring and the registry. Claim nine is the fuse's accumulated batch claim, which opens the batch polynomial at the fuse's batch point and expects thirty-seven.
+
+Claims ten and eleven need a word of explanation. The last fuse's eval stage holds wires that claim the values of the accumulator pair at the fuse's batch point. The fuse's circuit called compute v used those wires, with the other values in its query and eval stages, to compute the batch claim's value. No circuit checked that the wires hold the true evaluations.
+
+The code closes the gap in two steps. The eval stage's wire binding checks that the wires equal the instance's two values. Then claims ten and eleven check that those values are evaluations of the committed pair. Together they answer the decider's check of the values that the eval stage claims. Our toy has no eval stage, so in our run the two values feed only into their own openings.
+
+Claim eight opens the restriction at the fresh point three. The verifier computes the expected value for itself. It evaluates the wiring of both circuits at the fuse's x and y, which gives eleven and twelve as before. It combines them with the Lagrange weights of the domain points one and minus one, and gets ten. This is the step that reads the whole registry.
+
+The batch from the chapter on batched openings turns all twelve claims into one. It needs two counts, because several claims can be about the same polynomial. The low half appears in two claims and counts once, so our run has eleven distinct polynomials and twelve claims.
+
+The committed right part and the accumulator's right vector count as two polynomials, even though they are equal in every proof. The code keeps the reduction's openings and the instance's openings in separate lists and does not merge them, and our toy keeps the same layout. Merging the two would save one value in the batch.
+
+The batch takes three messages. After a fresh challenge alpha, the prover commits to a quotient. For each claim it takes the polynomial minus the claimed value, divides by X minus the claim's point, and adds these up weighted by powers of alpha. After a fresh point u, the prover sends each polynomial's value at u. A last challenge, beta, then weights the polynomials. From these the verifier derives one combined commitment and one combined value.
+
+Unlike the fuse's beta, which has to be short so that a circuit can scale points with it, this beta is an ordinary squeezed element, since no circuit runs this verifier. In our run alpha is seventeen, u is thirty-eight and beta is twenty. The verifier derives the quotient's value at u, which is thirty, from the prover's eleven values and the claims. The combined value comes to fourteen, and the prover's combined polynomial agrees on both the commitment and the value.
+
+Now the inner product argument, in the code's form, proves that the combined polynomial takes the combined value at u. Recall the three changes that form makes to the statement. It moves the value into the constant coefficient by subtracting the value times the first generator. It adds a fresh challenge, xi, times a committed masking polynomial that vanishes at u, and the section on zero knowledge discusses what this mask does not provide. Finally, it scales the generator U by a fresh multiplier, which the inner product chapter called z. We call it zeta here, because z already names a challenge of this chapter.
+
+In our run xi is twenty-nine and zeta is twelve. The list has sixteen entries, so the argument takes four rounds, each sending two points and halving the list. At the end the prover holds one final scalar, thirty-eight. The verifier computes the folded generator with a multi-scalar multiplication over all sixteen generators, and the folded power, fourteen, as a product of four factors. The final equation holds, so the verifier accepts.
+
+With only forty-three points on the toy curve, several points in this run repeat by chance, while the vectors behind them differ. On the real curves, with about two to the two hundred fifty-four points each, such a repeat does not happen in practice.
+
+That finishes the run on this curve. In the code, the same three reductions run again on the nested curve with its own claims, on one continuous transcript.
+
+Each of the decider's six checks now has a counterpart that works from commitments. The fold and the split handle each revdot claim, including the accumulated pair, and the batch opens their values. Claim nine checks the accumulated batch claim. Claim eight checks the restriction, with a value the verifier computes from the registry. The replay checks the challenges. The wire bindings check the values in the query and eval stages, with claims ten and eleven for the accumulator pair at the batch point. And every cached commitment enters the batch, which the inner product argument opens.
+
+What the verifier pays.
+
+The chapter on the NARK named two linear costs, computing the wiring polynomial's value and computing the folded generator. The recursion part of this site set out to remove them from the circuits. Recursion moved these costs out of every circuit without removing them, and the wiring chapter deferred the last piece to this chapter. The verifier of a compressed proof pays them once, at the root.
+
+Some of the verifier's steps cost a constant amount of work on each curve. It replays the fuse transcript with eight permutations, on the native field only, and it recomputes two small commitments, on the nested curve only. Other steps grow with the size of the instance. These are computing the targets, at one Horner step per public wire, and deriving the committed parts and the combined commitment with multi-scalar multiplications. A few steps are logarithmic. The masks and the gate term have closed forms, and the folded power and the round points take twenty-six scalar multiplications and thirteen factors.
+
+Four steps remain linear, and they are what is left of the NARK's two costs. Wiring appears in three of them, because the verifier needs wiring values for three different checks. The split needs the folded right vector at r, which contains each circuit's wiring. So the verifier evaluates the wiring of thirty-four native and twenty-eight nested circuits at r and the fresh y.
+
+The wire bindings need the expected value of each registry wire that the last fuse's query and eval stages hold. So the verifier evaluates the registry over its domain, which gives one value for each internal circuit, and at a few further points. Claim eight needs the true value of the restriction at its fresh point, so the verifier evaluates the registry there, with Lagrange weights.
+
+That last evaluation is the one the wiring chapter described. It lets a whole tree of fuses rely on one restriction polynomial, since the verifier checks that polynomial against the full registry exactly once. Each of these evaluations grows with the wiring of the registered circuits, including the application's steps.
+
+The fourth linear step is the folded generator, a multi-scalar multiplication of eight thousand one hundred ninety-two scalar multiplications. This is the deferred one from the chapter on accumulation, and compression computes it in full, once per curve. None of these costs grows with the depth of the tree, so a proof that covers many leaves has the same verifier as a proof that covers two.
+
+The size of the result.
+
+We counted from the code's wire format, for the standard profile at the production rank of thirteen and headers of four elements, which is the size the code's benchmarks use. The total is one hundred fifty-seven points and sixty-nine scalars, across the two curves.
+
+Most parts match a message of this chapter. On each curve, the revdot reduction sends four points, which are the two error vectors and the two halves. It also sends nine scalars, the two errors and the seven values of the split. The batch sends the quotient's commitment and eleven values. The inner product argument sends the masking commitment, two points for each of thirteen rounds, and the final scalar.
+
+The rest is the instance, which has no single message behind it. It has ninety-three points and nineteen scalars, plus eight scalars for the two child headers. Its points are the commitments, one for each native and nested polynomial that the proof carries. Its scalars are the stored values, among them the accumulator's revdot value, the batch value, the accumulator pair's two values at the batch point, and the blinding value of the A B bridge stage.
+
+At thirty-two bytes per point or scalar, with four bytes for the circuit index and a twenty-eight byte envelope, that comes to seven thousand two hundred sixty-four bytes. The uncompressed encoding writes eight thousand one hundred ninety-two coefficients for each of ninety-two polynomials. That is twenty-four million one hundred seventeen thousand two hundred forty-eight bytes before counting its cached points, so compression shrinks the proof by a factor of about three thousand three hundred twenty.
+
+Most of the compressed proof is the instance, with ninety-three of its one hundred fifty-seven points. The rounds of the inner product argument, the only part that grows with the circuit size, take fifty-two points. The code's comment on profiles says a few kilobytes, which agrees with this count. A header larger than four elements adds sixty-four bytes per extra element, since the proof holds the two child headers. The output header does not count, because the verifier supplies it as the statement.
+
+Why cheating fails.
+
+The chapters before this one each counted cheating at their own step. Here we look at what compression adds, which is the chance to hide a false claim in a value the verifier never checks directly. The first attempt starts from a false public input.
+
+Suppose the prover claims the output eleven for the squaring circuit in place of ten, while its vectors stay honest. The circuit's target then rises by the fresh y, which is thirty-five. The folded target rises by thirty-five times mu times nu, which is twenty-nine at our challenges. The folded pair's product stays at twenty-eight, so the pair falls short of its new target by twenty-nine.
+
+The prover sees mu and nu only after it commits to the first error vector, so any correction has to go in before them. It can lower the cross term between claims zero and one, whose weight is nu, by some amount we'll call delta. The false target adds thirty-five times mu times nu, and the lowered term removes delta times nu. So the fold balances only if mu equals delta divided by thirty-five.
+
+For a delta of five, that means a mu of thirty-seven, and we confirmed the balance there on the full vectors. Over all one thousand seven hundred sixty-four nonzero pairs of mu and nu, every nonzero delta balances exactly forty-two pairs. That is one value of mu out of forty-two.
+
+The first-layer error is a second place to try, because the verifier never sees the cross terms behind it. Take the same false public input, where the target exceeds the product by twenty-nine. After seeing all four fold challenges, the prover could shift the first-layer error alone and leave the committed vector as it was. The verifier's target moves by the same amount. So a shift of minus twenty-nine, which is fourteen modulo forty-three, makes the folded pair balance.
+
+The error claim is now false by that shift, and the split catches it. The required constant term includes rho times the shifted error, while the true coefficient of the product includes rho times the honest error. The two differ by rho times the shift, which vanishes only when rho is zero. The prover fixes the error before rho is drawn, so it cannot steer rho there.
+
+A shift that does not balance the folded pair leaves both gaps open, and they cancel at no more than one value of rho. We tried all forty-two nonzero shifts against all forty-three values of rho, and each shift passes at exactly one value of rho.
+
+A third place is the split's constant term. The verifier computes the required value itself, from the target, the two errors and rho, so the prover cannot change it. What the prover can try is to commit to halves that meet the required value even though the true product does not, and hope that the split still passes.
+
+Suppose one of the three claims is false, so that the true product's middle coefficient misses the required value by seven. The prover commits to a low half whose constant term is the required value anyway, so the opening at zero passes. The middle coefficient of the recombined halves is exactly that constant term. So whatever else the prover does, the committed halves differ from the true product by a nonzero polynomial of degree at most thirty.
+
+The prover can choose the other coefficients of the halves to give that difference as many roots as possible, and we built such a pair. It passes the split at thirty of the forty-two nonzero values of r. This is the toy field's small size at work. On the real parameters, the same count is two to the fourteen, minus two, roots out of about two to the two hundred fifty-four values.
+
+The other checks leave no comparable gap. The verifier recomputes the fuse challenges, the registry values and each circuit's wiring value itself. Once the split passes, every remaining claim is an opening, which the chapters on batched openings and the inner product argument already counted. A prover cannot slip in a stray commitment either, because every polynomial commitment the verifier reads gets opened through the inner product argument.
+
+The one exception is a point in the instance that commits to no polynomial, a partial commitment to the nested challenge stage. The code holds it in place through the bind challenges claims instead of an opening.
+
+This argument is informal, and it rests on a few assumptions. Nobody knows a relation among the generators on either curve, so commitments bind. The two transcripts behave as random oracles, and each challenge comes after the commitments and values it tests. A false proof about a tree also has to get past the accumulation arguments of the earlier chapters. The book reports Lean proofs for some gadget contracts and says that these do not cover the protocol's overall soundness, which we do not establish here either.
+
+Rerandomization and zero knowledge.
+
+A wallet would like two things from a proof beyond soundness. The proof should hide its witness, and when it reaches someone else it should not link back to the proof that produced it. As the chapter introducing proof-carrying data recorded, neither the Ragu Book nor the code at this commit establishes either property.
+
+The code has an operation aimed at the second, called rerandomize. It fuses the input proof as the left child with a cached proof of the unit header as the right child. Its internal step's output header uses the same wires as the left input, so it cannot change the header. The result verifies as the input did. Both the book and the code say that unlinkability is the intention, and the comment on that function says that it is not achieved today.
+
+One of the comment's reasons is that the fold is deterministic, which a single commitment is enough to show. Reduce the fold to one commitment. The output is then the input commitment times a public weight of sixteen, plus a cached seeded point times a public weight of twenty-two. An input at the point twenty-five, twenty-nine gives the output twenty-four, thirty.
+
+Because the weights are public, an observer can run the equation backwards. Subtract twenty-two times the seeded point from the output, then multiply by the inverse of sixteen, which is thirty-five. The result is twenty-five, twenty-nine, which is the input. So each output names exactly one input, and anyone can compute which.
+
+The comment's other reason is more direct, because the output holds the input's commitments and stage polynomials in the clear as left-child data. It lists the remaining work as a randomizer in the fold and a way of hiding the child data.
+
+Hiding the witness has a similar status. The stages' random entry is there to prevent cancellation and not for hiding. The inner product argument is unblinded at this commit. The code keeps the masking polynomial for the folded coefficients, but without Pedersen blinding it does not make the opening hiding, and the code does not claim that it does. The code also says that a compressed proof is not hiding, because its openings are evaluations of the witness polynomials.
+
+To see what one evaluation can tell an observer, take the stage from the staging chapter, where one wire holds the square of the input and one random entry sits in gate zero. Among all one thousand eight hundred forty-nine pairs of input and random entry, forty-three match the stage's commitment. Adding one value of the stage at a point leaves two pairs. One is the true pair, with input three, and the other has input twenty-four.
+
+On the toy curve we can find each generator's discrete log by search. So the commitment becomes one linear equation in the random entry, the input and its square, with known coefficients. The opened value gives a second linear equation in the same unknowns. Eliminating the random entry leaves a quadratic equation in the input, with these two roots. On a real curve nobody can list the commitment's matches, but the value still gives one linear equation in the secret wires, which is the sense in which the proof does not hide them.
+
+This small case shows the effect of one value on one stage. A compressed proof opens combinations of polynomials at points the transcript chooses, so the leak there has a different shape, and we have not analyzed how much it reveals in practice. An uncompressed proof holds the polynomials themselves. The Tachyon book's description of stamps assumes zero knowledge, so this is an open requirement for Tachyon and not a settled property, as the chapter on proof-carrying data noted.
+
+Performance against Orchard.
+
+The sizes above give a first comparison, which we can make from public formulas. ZIP two two five gives an Orchard proof two thousand seven hundred twenty bytes, plus two thousand two hundred seventy-two bytes per action. That is seven thousand two hundred sixty-four bytes for two actions, and twenty-five thousand four hundred forty bytes for ten. So by our count a compressed Ragu proof with headers of four elements is about the size of an Orchard proof for two actions, and one Ragu proof can stand for many transactions. The exact match at two actions is a coincidence of these parameters.
+
+For verification time, the book's analysis chapter gives a rough model, and it states that the figures need checking against benchmarks. It puts Orchard's batch verification at about ten to fifteen milliseconds per proof on one thread, with total time scaling as roughly the number of transactions divided by its logarithm. The model has a parameter that the book calls the recursion threshold, and a circuit has at most two to that power gates. With four wires per gate, a trace has four coefficients per gate. The book estimates a Ragu proof at about one hundred milliseconds for its preferred threshold of eleven, driven mainly by a multi-scalar multiplication over two to the thirteen points.
+
+The crossover is where batch-verifying the Orchard proofs costs the same as verifying one Ragu proof. The book reports about fifty transactions, at ten milliseconds per proof, and it does not state the base of the logarithm. So we solved the equation at both ends of the cost range and for the two natural bases. At ten milliseconds the crossover is about thirty-six transactions with the natural logarithm, and about fifty-nine with base two. At fifteen milliseconds it is about twenty and about thirty-four.
+
+The book's figure sits inside the range the model allows, and the range is wide, as one would expect of a rough estimate. The shape of the two costs is the more reliable conclusion. Batch verification of independent proofs keeps growing with the number of transactions, and verifying one aggregated proof does not.
+
+The recursion threshold gives a trade-off that the book leaves open. A larger circuit limit raises the verifier's cost for every proof and allows a shallower tree, and a smaller limit does the reverse.
+
+The analysis chapter and the code differ in two ways. The book attributes the factor of four in its size formula to the circuit structure across multiple stages, and it describes one multi-scalar multiplication of two to the thirteen points as the main cost. In the code at the commit this site pins, the number of coefficients is four per gate, and the chapter on arithmetization derives that factor from the four wires of each gate, independent of stages. A compressed verifier also runs the checks on each curve, with one multi-scalar multiplication per curve and the registry evaluations we listed earlier. We read this as more work than the book's single multi-scalar multiplication counts, which would raise the crossover, but we did not measure it.
+
+The site follows the code for the structure and quotes the book for the estimates. The code has benchmarks for compression and compressed verification, and we did not run them, so we report no timings of our own. The book lists further analysis as future work.
+
+These figures describe verification only. They leave out the prover's costs, which the sources do not quantify. They also compare with Orchard as it runs today, whereas Tachyon changes what a transaction carries. Tachyon has not activated on mainnet, its design is still changing, and it pins a different Ragu revision from the one this chapter reads.
+
+Fusing after compression.
+
+One part of this design is still moving, and later chapters depend on it. The Ragu Book calls a compressed proof terminal, meaning that it can be verified but not fused further. The code's profile comments instead foresee an aggregator profile that verifies a compressed proof in circuit, with an internal decompress step that outputs its header. The code says this has not landed, and a test pins the aggregator's shape to the standard one until it does. Such a circuit would have to run the compressed verifier with gates, which is why the design places it in extra circuits that only aggregators carry. The chapter on aggregation and bundles returns to this.
+
+Where this chapter leaves us.
+
+Let's collect the steps. The proof at the root still owes the decider's checks, and the decider needs every polynomial. Compression replaces the polynomials with commitments and a few values, and restates those checks over them. The verifier replays the last fuse's transcript over the eight bridge commitments in the instance, so the prover cannot choose the fuse's challenges. It also recomputes the challenge stage and the A B bridge stage from public data.
+
+A wire binding turns the decider's comparison of stage wires with registry values into a revdot claim that a verifier can check from commitments. Three reductions run on each curve. A fold and a split take the revdot claims to openings, a batch takes the openings to one claim, and an inner product argument proves that claim.
+
+The compressed verifier pays the deferred linear costs once, as registry evaluations and one multi-scalar multiplication per curve, and those costs do not depend on the depth of the tree. Each place where a false claim could hide, whether a target, an error term or the split's constant, is fixed before the challenge that tests it. By our count a compressed proof takes seven thousand two hundred sixty-four bytes, against more than twenty-four million uncompressed. Rerandomization and hiding are not yet established, and the comparison with Orchard remains an estimate.
+
+With compression, Ragu is complete as a succinct proof system. The section on cheating gave the informal reasons why cheating fails and the assumptions they rest on, and no source yet establishes soundness of the whole protocol. Hiding, unlinkability and further aggregation of a compressed proof remain open. A tree of fuses proves many steps at once, and one short proof carries the result to any verifier. The next part turns to what Tachyon proves with it, starting with notes, nullifiers, and tachygrams.
