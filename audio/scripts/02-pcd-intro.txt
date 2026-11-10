@@ -1,26 +1,26 @@
 Chapter two. An Introduction to Proof-Carrying Data.
 
-The previous chapter described what Tachyon needs from its proofs. Proofs from many separate wallets should collapse into one proof that a miner can check quickly, and anyone should be able to continue that combining later. This chapter states that requirement precisely, as a goal called proof-carrying data. It does not yet explain how to build it.
+The previous chapter described what Tachyon needs from its proofs. Proofs from many separate wallets should collapse into one proof that a validator can check quickly, and anyone should be able to continue that combining later. This chapter states that requirement precisely, as a goal called proof-carrying data. It does not yet explain how to build it.
 
-We treat the proof as a black box throughout, and the rest of the site opens that box. The first half of the chapter works through a small sum on a tree, with no cryptography, so that each idea has concrete numbers. The second half uses the same vocabulary to read Ragu's interface and Tachyon's aggregation.
+We treat the proof as a black box throughout, and the rest of the site opens that box. Most of the chapter works through a small sum on a tree, with no cryptography, so that each idea has concrete numbers. A short section then introduces Ragu's version of the model, and the chapter ends by mapping the same ideas onto Tachyon's aggregation.
 
 The goal of proof-carrying data.
 
 A proof system lets a prover convince a verifier that a computation was carried out correctly. The verifier receives a proof, and checking it costs much less than rerunning the computation. For this chapter we rely on two promises from the proof system. An honest prover can always produce a proof that the verifier accepts. And a prover cannot produce an accepted proof of a false claim, except with negligible probability. The chapter on statements and challenges makes these promises more precise.
 
-Now consider a miner facing thousands of shielded transactions, each built by a different wallet from its own secrets. Using a proof system once for each transaction, or once for all of them together, runs into three obstacles.
+Now consider a validator facing thousands of shielded transactions, each built by a different wallet from its own secrets. Using a proof system once for each transaction, or once for all of them together, runs into three obstacles.
 
 The first obstacle is that one prover would have to hold everything. A single proof about a thousand transactions, produced in one run, would need one party holding the secrets of a thousand wallets. No such party exists, and no wallet would hand its secrets over.
 
 The second obstacle is that finished proofs would not build on each other. If one more transaction arrives after the proof is done, the prover has to start again from the beginning.
 
-The third obstacle is that separate proofs would keep the verifier's work high. With one proof per transaction, the miner performs one check per transaction, so the cost grows with the number of transactions.
+The third obstacle is that separate proofs would keep the verifier's work high. With one proof per transaction, the validator performs one check per transaction, so the cost grows with the number of transactions.
 
 Proof-carrying data avoids all three by changing what gets proved. We split the computation into steps arranged as a tree. Each node of the tree produces a piece of data together with a proof, and that proof covers the step at this node and every step below it. The data therefore carries evidence of its whole history, which is where the name comes from.
 
 A proof-carrying data system should provide three properties, each answering one of those obstacles. The first is distributed work. The party running a node needs the data and proofs of the nodes directly below it, plus its own private input, and it does not need the private inputs of earlier nodes. The second is extension. Anyone holding a finished node can use it as an input to a new node, and nobody repeats the earlier proving work. The third is succinctness, which means the proof's size and the cost of checking it do not grow with the size of the tree.
 
-Tachyon's aggregation is our running example. In Tachyon, a wallet proves that its transaction follows the rules and publishes the result as a stamp. An aggregator combines stamps from independent wallets into a single stamp, and validators check that one stamp in place of the separate ones.
+Tachyon's aggregation is the application we have in mind, and the end of the chapter returns to it. In Tachyon, a wallet proves that its transaction follows the rules and publishes the result as a stamp. An aggregator combines stamps from independent wallets into a single stamp, and validators check that one stamp in place of the separate ones.
 
 Tachyon has not activated on mainnet and its design is still changing, so everything this chapter says about it describes the Tachyon repository at the commit this site pins. That crate builds against a mock of Ragu. So when we say that a Tachyon step checks something or that a proof fails, we mean what the design expects. At this commit the step bodies run natively, with no real circuits, and we did not find a validator in the crate.
 
@@ -28,21 +28,17 @@ A toy computation.
 
 To see what each node of a tree claims, we need a computation whose intermediate results are easy to check by hand. Adding up a list has this property, because a subtotal is meaningful on its own and two subtotals combine by addition. Our list has eight entries, which are four, eleven, three, seven, six, two, nine, and five. Their sum is forty-seven.
 
-Treat the list as fixed. A party holding a given position can read the entry there, and other parties cannot. We want to reach one short statement about the total that a verifier can accept without ever seeing the list.
+Treat the list as fixed. A party holding a given position can read the entry there, and other parties cannot. We want to reach one short statement about the total that a verifier can accept without ever seeing the list. Getting there requires deciding what each node claims and what rule a node must obey. The proof itself comes after that.
 
 Headers.
 
 We call the data at a node its header. A header has two jobs. It has to give the next node enough information to apply its rule, and it has to stay small, because it travels up the tree with the proof.
 
-The first candidate for a header is the subtotal alone. A join rule would then add two subtotals and output the result. This candidate fails in a way worth seeing. Joining the entry with value eleven to itself produces a node that claims twenty-two, and nothing in that header reveals the repeat. A prover choosing any entry for each leaf can reach seventy-one different root totals from sixteen to eighty-eight. Only forty-seven is the true sum, yet every one of these trees passes a join rule that checks only addition.
+The first candidate for a header is the subtotal alone. A rule for combining two nodes would then add their subtotals and output the result. Here is how this candidate fails. Combining the entry with value eleven with itself produces a node that claims twenty-two, and nothing in that header reveals the repeat. A prover choosing any entry for each leaf can reach seventy-one different root totals from sixteen to eighty-eight. Only forty-seven is the true sum, yet every one of these trees passes a rule that checks only addition.
 
 The trouble is that a bare subtotal does not say which entries went into it. No rule that reads only subtotals can reject a repeated entry, so the header has to record more. Adding the range of positions it covers fixes this. Our header becomes three numbers, a start position, an end position, and a sum. It claims that the entries from the start up to the end add up to that sum.
 
-The range includes its start and excludes its end, so a range ending at some position meets the next range exactly when that next range starts at the same position. The header stays at three numbers however many entries it covers, because it records only the conclusion. It forgets the individual values and the order in which they were added. So choosing a header is a decision about what to remember, and the guide is to keep exactly what later rules need to compare.
-
-A Tachyon stamp makes the same decision. Its header has three fields. The first is a commitment to the stamp's action set, which holds one digest for each action and fee the stamp covers. The second is a commitment to its tachygram set, where a tachygram is a published value that commits to the creation or destruction of a note. The third is an anchor, which names a position in the history of the Tachyon pool.
-
-The sets grow as stamps combine, but the header cannot, so it holds commitments instead of the sets themselves. A commitment is a short value that stands for a long list and cannot later be opened to a different one. The commitments play the part of our range, because they record what the stamp covers, and the anchor records where in the pool's history the stamp stands.
+The range includes its start and excludes its end, so a range ending at some position meets the next range exactly when that next range starts at the same position. The header stays at three numbers however many entries it covers, because it records only the conclusion. It forgets the individual values and the order in which they were added. So choosing a header means deciding what to remember, and a good header keeps exactly the values that later rules need to compare.
 
 Steps.
 
@@ -56,10 +52,6 @@ Before attaching any proof, we can test whether these two steps are strong enoug
 
 This is the property we need from headers and steps together, because it means every header the rules can produce is true. The property has nothing to do with cryptography. It is a fact about the rules, and the application designer is responsible for it. The proof system's job comes later, and it is limited to making sure that nobody can present a header the rules could not have produced.
 
-The Tachyon step that combines stamps is called Stamp Merge. Its declaration names one header type, the stamp, for both inputs and for the output. The step performs three checks. The two input anchors must be equal, which plays the role of our boundary check. The set polynomials in the witness must match the commitments in the input headers. Finally, each merged set polynomial must equal the product of its two inputs.
-
-That last check needs a word of explanation. Tachyon encodes a set as a polynomial whose roots are the members, so multiplying two such polynomials produces the union of the sets. This check therefore plays the role of adding our two sums. The chapter on pool state studies these polynomials.
-
 Running the tree.
 
 We can now run the computation. Eight Entry steps produce one header per position. Then Join steps combine neighbors, giving twenty-five for the left half and twenty-two for the right half. At the last join the boundary check passes, since both sides name position four, and the sum comes to forty-seven. Each node depends only on the nodes it names as inputs, because their headers already summarize everything below them.
@@ -68,19 +60,23 @@ That tree is balanced, but the rule does not require it. A list of eight entries
 
 This freedom means the work can follow whoever holds the data. Suppose Alice holds positions zero to three and Bob holds the rest. Alice runs her subtree and hands over the header for her half, with sum twenty-five, along with its proof. Bob does the same for his half, with sum twenty-two. Carol, who holds neither half of the list, checks only that the boundaries meet and that twenty-five plus twenty-two is forty-seven, and then she produces the root header. Carol needed neither Alice's values nor Bob's, which is the distributed work property in miniature.
 
-One particular shape deserves its own name. If each new node combines the previous result with one new entry, the tree becomes a chain. The chain form is incrementally verifiable computation, which Valiant introduced before the general tree form, and Chiesa and Tromer's proof-carrying data extended the idea to nodes with several inputs. A chain suits a single party working through a sequence, but it forces independent parties to wait for each other. Tachyon's wallets and aggregators work independently, so they need the tree.
+One particular shape deserves its own name. If each new node combines the previous result with one new entry, the tree becomes a chain. The chain form is incrementally verifiable computation, which Valiant introduced before the general tree form, and Chiesa and Tromer's proof-carrying data extended the idea to nodes with several inputs. A chain suits a single party working through a sequence, but it forces independent parties to wait for each other.
 
-A finished node can also feed more than one later node, because a header and its proof are ordinary data that anyone can copy. For example, the same partial result could enter two different trees. So the history of a proof can share nodes, and the literature describes it as a directed acyclic graph. Tree remains the common name, and it is accurate for the way we draw the inputs of any one node.
+Tachyon needs both shapes. The exclusion proof from the previous chapter grows by one epoch at a time, which is a chain. Aggregation combines stamps from wallets that work independently, which needs a tree.
+
+A finished node can also feed more than one later node, because a header and its proof are ordinary data that anyone can copy. For example, Alice's header, with sum twenty-five, can be joined with Bob's header to give forty-seven. The same header, with the same proof, can also be joined with a header covering positions four up to seven, with sum seventeen, to give forty-two. Nobody has to rebuild Alice's header for the second use.
+
+So the history of a proof can share nodes, and the literature describes it as a directed acyclic graph. Tree remains the common name, and it is accurate for the way we draw the inputs of any one node.
 
 Attaching a proof.
 
 So far a verifier would have to trust whoever ran the nodes, or else rerun all of them. We now attach a proof to each node, so that a node's output is the pair of a header and a proof. The proof at a node establishes the following statement. There is a witness for which the declared step accepts these input headers and produces this output header, and each input header has a valid proof.
 
-The last clause makes the statement recursive, which is the central idea of proof-carrying data. A node proves that its children's proofs verify, so a later verifier does not have to see those children. How a proof can contain a check of another proof is the subject of the chapter on recursive proofs. For now, we only note that this requires the verifier's own check to be small enough to include in a step.
+The last clause makes the statement recursive, which is the central idea of proof-carrying data. A node proves that its children's proofs verify, so a later verifier does not have to see those children. How a proof can contain a check of another proof is the subject of the chapter on recursive proofs, and the section on succinctness says what this asks of the proof system.
 
 Unwinding the statement at our root shows how much a single proof covers. The root header says that the Join rule accepted the two half headers, and that those headers have valid proofs. Following every branch to the bottom reaches eight Entry checks, each comparing one value with the list. So the root's proof stands for all fifteen checks in the tree, of which the verifier runs none.
 
-The verifier's procedure has two parts. It runs the proof system's check on the header and proof, and then it compares the header with the question it actually wants answered. The second part is easy to overlook. A header covering positions zero up to seven, with sum forty-two, is also true and has a valid proof. A verifier who accepted it without confirming the range would conclude that the total is forty-two.
+The verifier's procedure has two parts. It runs the proof system's check on the header and proof, and then it compares the header with the question it actually wants answered. The second part matters even when every proof is valid. A header covering positions zero up to seven, with sum forty-two, is also true and has a valid proof. A verifier who accepted it without confirming the range would conclude that the total is forty-two.
 
 Why a false header has no proof.
 
@@ -92,113 +88,91 @@ This descent is informal in one respect. Soundness makes accepted proofs of fals
 
 Here is what each natural attempt to cheat runs into on the toy tree. A prover who claims that position two holds four fails at the Entry check, because that position holds three. A prover who joins four and eleven and claims sixteen fails at the addition in Join. Repeated entries, overlapping ranges, and skipped entries all fail the boundary check. In each case the prover cannot obtain a proof for the node where the falsehood first appears, so no later node can use it as an input.
 
-The third assumption matters in Tachyon, because some of its steps leave a value unconstrained at the start. For instance, the anchor is a free witness in the Fee Seed step, so the proof does not by itself show that the anchor belongs to the real chain. Validators close this gap by confirming the anchor against the consensus chain.
-
 Succinctness.
 
 The node's statement could be met in a wasteful way, by having each node attach its children's proofs to its own. The pile of proofs would grow with the tree, and the verifier would check each one. With one thousand twenty-four entries that means two thousand forty-seven proofs. With proof-carrying data, the verifier checks one proof in every case.
 
-The tree offers another benefit. With enough workers, each layer of a balanced tree can run at the same time, so the number of rounds grows with the logarithm of the number of entries. One thousand twenty-four entries take eleven layers.
+A tree also saves time. A balanced tree over one thousand twenty-four entries has eleven layers. With enough workers, all the nodes of one layer can run at the same time, so the number of rounds grows with the logarithm of the number of entries.
 
 Succinctness is not only a convenience for the final verifier. Each node has to check its children's proofs as part of its own statement. If checking a proof grew with the size of the history behind it, every level of the tree would cost more to prove than the one below, and the recursion would soon become impractical. So a proof system usable for proof-carrying data needs a check that stays small no matter how much history the proof covers. Most of the machinery on this site exists to meet this requirement, and much of the difficulty lies in making that check cheap enough to run inside another proof.
 
-Headers obey the same constraint. Ragu fixes a maximum header size for each application, through a parameter in its interface. This is the practical reason that the stamp header holds commitments in place of its growing sets.
+Headers face the same limit. That is why, near the end of the chapter, we will find commitments where a stamp's growing sets might have been.
 
-Fusion in Ragu.
+Proof-carrying data in Ragu.
 
-Ragu provides this model through a small set of concepts, described in the Ragu Book's chapter on proof-carrying data. A header defines the form of a node's data. A step declares a left input header, a right input header, an output header, and a witness. The operation that runs a step on two inputs and produces a new node is called fuse.
+So far we have described proof-carrying data in general. Ragu, the proof system this site studies, implements this model, and two of its choices matter before the rest of the site opens the box.
 
-A note on terminology helps here. The Ragu Book chose the word fuse so as to avoid the overloaded word folding, while the Tachyon book uses merge for what its aggregators do. This site uses fuse for Ragu's operation, and merge only for particular Tachyon steps such as Stamp Merge and what they do to stamps.
+The first is its vocabulary. In Ragu, a header type defines the form of a node's data, and a step declares a left input header, a right input header, an output header, and a witness. Ragu calls the operation that runs a step on two input nodes and produces a new header with its proof fuse.
 
-Telling header types apart.
+The Ragu Book chose the word fuse to avoid the word folding, which names a different operation in later chapters. The Tachyon book says merge for what its aggregators do. This site says fuse for Ragu's operation, and it keeps merge for particular Tachyon steps, such as Stamp Merge, and for what those steps do to stamps.
 
-A header type also has a suffix, a label that distinguishes it from other header types even when their contents look the same. To see why this is needed, extend the toy example. Suppose a final step called Charge adds a flat fee of two. It consumes the root header with sum forty-seven and outputs a header with sum forty-nine. If Charge accepted its own output, a prover could apply it again to reach fifty-one, even though the fee is meant to apply once.
+Every Ragu step has exactly two inputs. A step that needs fewer, such as Entry, fills the unused ones with the unit header, which carries no data. The chapter on recursive proofs explains this choice and how the first nodes of a tree get started.
 
-The input and output contain three numbers of the same form, so the numbers cannot tell the two states apart. Giving the input and output different type labels, say Tally and Charged, solves this, because Charge accepts only a Tally.
+Proof size and hiding.
 
-Tachyon uses suffixes in the same way. Its Actions and Stamp headers contain identical fields, and Actions even reuses the encoding of Stamp, so only the suffix differs. The first represents actions before a fee is applied, and the second represents them afterward. So a step that requires a stamp cannot receive an unfinished set of actions by mistake.
+The second choice concerns size. Ragu meets the size requirement in two forms. The proof a node holds while fusing has a fixed size however large the tree behind it, but it is large, because it still contains data that a parent needs for its own work. Later chapters describe that data.
 
-Choosing among many steps.
+When a proof leaves the tree for a party that only wants to check it, Ragu's compress operation turns it into a proof that a code comment puts at a few kilobytes. At the commit we read, a compressed proof cannot be fused any further. The sources disagree about how an aggregator will fuse proofs that arrive compressed, and the chapters on recursion in Ragu and on aggregation set out each position.
 
-The original proof-carrying data model has a single rule, applied at every node. An application with many kinds of transition must then fit them all into that one rule, and every node pays for the whole of it. Ragu instead lets the prover choose any registered step at each node and pay only for the chosen one. The chapter on wiring and the registry explains how the protocol supports this. Our toy application uses two steps, and Tachyon's table of steps lists a few dozen.
+Everything in this chapter concerns correctness, and nothing so far has required a proof to hide its inputs. The Tachyon book describes the stamp as a recursive zero-knowledge proof. The Ragu Book states that the current construction does not yet establish zero knowledge, and the code at the commit this site pins agrees.
 
-Every node has two inputs.
+This site follows the Ragu code and treats hiding as a goal that has not yet been met, which the chapter on recursion in Ragu examines. When we say that a node does not need its children's witnesses, we mean only that it can do its work without them.
 
-Supporting chains, leaves, and joins as separate cases would mean building separate mechanisms for them in the protocol. Ragu avoids this by giving every node exactly two inputs, which makes every computation a binary tree that may be unbalanced. Join fits this form directly. To fit the others, Ragu has a unit header, which carries no data. A chain step such as append one entry declares the unit header as its right input, and Entry declares it for both inputs.
+Aggregation as proof-carrying data.
 
-An unused input still has to be filled with something that has a valid proof, because the unit header gets no exemption from the check on its children. So a question remains about what sits at the bottom of the recursion.
+We can now map the toy onto Tachyon's aggregation. Each wallet builds a stamp for its own transaction. From an aggregator's point of view that stamp is a leaf, although the wallet's own steps form a tree beneath it. Only the wallet can build that stamp, because only the wallet holds the secrets those steps need. An aggregator then combines stamps without any secrets, because a merge reads only its children's headers and proofs.
 
-The base case.
+Our example has three transactions, which we'll call X, Y, and Z. In the book's model, an aggregator always merges onto a bundle of its own, so we let the aggregator be the party that built X. It merges the stamps of Y and Z, which other wallets have sent to the mempool, onto its own stamp.
 
-A node's statement says that each input has a valid proof, but the first node has no earlier proofs to point to. Some node must skip that part of the statement, and a skipped check could be an opening for forgery, so Ragu confines it tightly.
+The stamp header.
 
-Ragu performs the skip in exactly one internal step, called the bootstrap step. That step declares a private header type named Dummy for both inputs, and this type is what selects the base case. It takes two synthesized proofs that would not verify on their own, skips their claims, and outputs a valid proof of a unit header that attests nothing. Application code cannot declare Dummy, so no application step can skip its children's checks. The seed operation then starts a leaf by fusing a step with this bootstrap proof as both children, and it enforces those children's claims in the ordinary way.
+The previous chapter divided a transaction's Tachyon bundle into a body and a stamp. The body holds, for each action, a value commitment and a randomized signing key, which together form the action's descriptor. It also holds the maximum fee commitment and the fee, which form the bundle's fee descriptor, together with the signatures. The stamp holds the tachygrams, the anchor, and the proof.
 
-The next point is reconstructed from the code at the commit this site pins, and the authors have not confirmed it. The Tachyon book says a step accepts up to two inputs, and its table of steps marks some inputs as empty. The Ragu Book says every node has exactly two. The Tachyon code shows that these descriptions refer to the same thing. For example, the step called Fee Fuse declares the unit header as its right input, and the call that proves it passes the bootstrap proof as the right child.
+Hashing an action's descriptor gives its action digest, and hashing the fee descriptor gives the bundle's fee digest. A wallet signs a maximum fee once and picks the actual fee later, when the transaction goes out, so the signatures do not fix the fee. Putting the fee digest among the digests lets the proof fix it instead.
 
-This site says that every node has two inputs, and it treats an empty slot in the Tachyon table as a unit input. The Tachyon crate also pins a different Ragu revision, whose interfaces differ in detail.
+The header of a stamp's proof has three fields. The first is a commitment to the action set, which holds the stamp's action digests and fee digests. The second is a commitment to the tachygram set, where a tachygram is a published value that records the creation or destruction of a note. The third is an anchor, which names a state of the Tachyon pool that the stamp's spends refer to.
 
-Uncompressed and compressed proofs.
+The sets grow as stamps combine, but succinctness requires the header to stay small, so the header holds commitments in place of the sets. A commitment is a short value that stands for a long list and cannot later be opened to a different one. The chapter on aggregation and bundles gives the exact hashes and commitments.
 
-We asked for proofs whose size does not depend on the tree, and Ragu's proofs meet this in two different ways. The proof a node holds during fusing has a fixed shape, but the Ragu Book describes it as large, since it is not yet in succinct form. Ragu calls this the uncompressed mode. With additional work, the compress operation produces a compressed proof that the book describes as orders of magnitude smaller, and a code comment gives its size as a few kilobytes. The extra work makes compression worth doing only where a proof leaves the tree and goes to a third party. The chapter on recursion in Ragu explains how it works.
+In our example, all three wallets built their stamps against the same anchor. X has one action, so its stamp covers two digests and three tachygrams. Y has two actions, three digests, and five tachygrams. Z has one action, two digests, and three tachygrams. Each action publishes two tachygrams, and each bundle adds one more for its fee change note.
 
-The two modes raise two questions on which the sources do not yet agree. The first concerns what can happen to a compressed proof afterward, and four sources give different pictures. The Ragu Book says compression is terminal, so a compressed proof can be verified but not fused further. The Tachyon book says aggregators decompress a broadcast proof into a mutable format, merge, and recompress before broadcasting.
+Merging stamps.
 
-The Ragu code at the pinned commit describes an intended design in its profile comments. An aggregator's circuits would verify a wallet's compressed proof inside the circuit, and an internal decompress step would output its header. Those circuits have not landed yet.
+The Tachyon step that combines two stamps is called Stamp Merge, and each part of it has a counterpart in the toy. A stamp's header, with its two committed sets and its anchor, plays the part of the three-number header. A wallet's finished stamp plays the part of a leaf from Entry.
 
-The Tachyon code at its pinned commit merges stamps by fusing proofs from the mock of Ragu, and we found no proof compression in the crate. This site follows the Ragu code. A compressed proof cannot be fused today, decompression is planned, and our examples merge stamps while they are uncompressed.
+The check that the two anchors are equal takes the place of the boundary check, because a merged stamp has a single anchor field and has to make all of its claims about one state of the pool. Unlike the boundary check, it does not stop an input from being counted twice, and we come back to that shortly. Stamps built against different anchors must first be moved to a common one, which the chapter on pool state explains.
 
-The second question concerns privacy. Everything in this chapter has been about correctness, and nothing has required the proof to hide its inputs. The Tachyon book calls the stamp a recursive zero-knowledge proof, and it says Ragu's rerandomization conceals the private proof inputs. The Ragu Book states that the current construction does not yet establish zero knowledge or unlinkability, because a proof still exposes child data and lacks a fold-level randomizer for the accumulator. The code comment on rerandomization says the same and calls the remaining work future work.
+In place of adding two sums, the merge combines two sets. Tachyon encodes each set as a polynomial whose roots are its members, and the step checks that each output polynomial equals the product of the two input polynomials. A product has the roots of both factors, so it encodes a multiset union, in which a member held by both inputs would appear twice. Honest inputs share no members, and for them this is the ordinary union.
 
-This site follows the Ragu code, and it treats hiding as a goal that has not yet been met. When we say that a node does not need its children's witnesses, we mean only that it can do its work without them. We do not mean that the proof it receives conceals them.
+The aggregator merges X with Y, and then merges the result with Z. The first merge passes the anchor check and gives a stamp covering five digests and eight tachygrams. The second gives seven digests and eleven tachygrams. The merged stamp stays on the bundle that supplied the left input, so the aggregator puts its own bundle X on the left. Its header is still two commitments and an anchor, the same size as before.
 
-Aggregation in Tachyon.
-
-With this vocabulary we can follow one aggregate from start to finish. The Tachyon book on aggregation uses three names for the states a transaction's Tachyon bundle can be in. An autonome comes from a wallet and carries a complete stamp. An aggregate comes from an aggregator and carries a merged stamp that needs inputs from other transactions. An adjunct has had its stamp stripped and points to the aggregate that covers it.
-
-Our example has three autonomes, which we'll call X, Y, and Z, plus an aggregator's own bundle, which we'll call A. A real tachygram is a field element and a real anchor is a hash value, so the site's example uses small stand-ins, and it names each anchor by its position.
-
-Bundle X has one action, three tachygrams, and an anchor at position twelve. Bundle Y has two actions, five tachygrams, and an anchor at position fourteen. Bundle Z has one action, three tachygrams, and an anchor at position fifteen. Each of these holds one digest per action plus a fee digest. Those sizes follow the book's rule. Each action publishes two tachygrams, and each bundle adds one more for its fee change note.
-
-Bundle A has no actions of its own, only a fee digest and one tachygram, with an anchor at position fifteen. The book calls this an innocent aggregate. Its stamp comes from Fee Seed, a step with unit inputs, and that step proves A's zero fee.
-
-The merge tree.
-
-The wallets chose their anchors independently, and Stamp Merge requires equal anchors because its output has a single anchor field. So the aggregator first lifts the older stamps to a common position. The step that does this, Stamp Lift, shows that a step's two inputs need not have the same header type. Its left input is a stamp and its right input is an anchor span, which is a separate proof-carrying data item attesting to a run of anchors. The step moves the stamp from the span's start, or from any anchor the span lists as a member, to the span's end.
-
-Here the span runs from position twelve to position fifteen. One lift moves X up from twelve, the span's start. Another moves Y up from fourteen, a member of the span. The same span serves both lifts, which is the node sharing we described earlier.
-
-Now the merges run. Merging A with lifted X gives a stamp with three action digests and four tachygrams. Merging in lifted Y gives six digests and nine tachygrams. Merging in Z, which already sits at position fifteen, gives eight digests and twelve tachygrams. Merging A with an unlifted X would fail, because fifteen does not equal twelve.
-
-The merged stamp stays on the receiving bundle, A, and keeps A's fee. Literal sets would make the last header far larger than the first, so the real header has only commitments, which have the same size at every step.
+The next point is reconstructed from the code at the commit this site pins, and the authors have not confirmed it. Our toy Join rejected a repeated entry through its range check. In Stamp Merge we found only the product check, and no constraint that the inputs are disjoint. The Tachyon book lists the merged sets as exclusive, and the protection against repeats appears to come from the validator's checks on the published tachygrams. The chapter on aggregation and bundles works through those checks.
 
 The block.
 
-A miner who wants to use this aggregate must include every bundle it covers, and it strips the stamps from the covered ones. So A remains the aggregate, carrying the merged stamp, while X, Y, and Z become adjuncts that point to A. All four keep their action and fee descriptors.
+A merged stamp replaces the proofs of the transactions it covers, but the transactions themselves still go into the block, each with its own body. The Tachyon book names three states that a bundle can be in. An autonome comes from a wallet and carries a stamp whose proof covers only that bundle. An aggregate comes from an aggregator and carries a merged stamp that covers it and others. An adjunct has had its stamp stripped by a miner, and it points to the aggregate that covers it instead.
 
-The block carries one proof where the four separate transactions carried four. It still carries all twelve tachygrams and all eight action and fee digests, because the verifier needs them. A validator collects the digests from the four transactions, takes the tachygrams and anchor from A's stamp, and checks the one proof against the header those values produce. If a miner leaves Z out of the block, the rebuilt action set has six digests instead of eight. The header no longer matches the one the proof was made for, so the proof fails.
+An aggregator sends its aggregate to the mempool as an ordinary transaction. A miner who includes it in a block also includes Y and Z, strips their stamps, and points them at X. Their signatures do not cover their stamps, so stripping leaves those signatures valid. Y and Z start as autonomes and end as adjuncts, which exist only on chain.
 
-This shows how a verifier uses the header in practice. The stamp carries no proof header, so the verifier builds it from the published data, as the verification code does. The validator also checks the anchor against the chain, which is the verifier's comparison we required earlier. So the part that aggregation removes is the proofs, while the public descriptors and tachygrams all remain on chain.
+The block carries one proof where the three separate transactions carried three. It still carries all eleven tachygrams, inside the stamp on X, and every action and fee descriptor, inside the bodies.
 
-The next point is again reconstructed from the code at the commit this site pins, and the authors have not confirmed it. Our toy Join rejected a repeated entry through its range check, but Stamp Merge has no comparable check. Its product check establishes a multiset union, and we did not find a disjointness constraint in the step.
+To check the one proof, a validator needs its header. The stamp on X carries its tachygrams and its anchor, but no commitment to its action set. So the validator rebuilds that set. It hashes the descriptors in the bodies of X and of every adjunct that points to X, and it checks the proof against the header those values produce.
 
-The Tachyon book lists the merged sets as exclusive, and the protection against repeats appears to come from outside the proof. Aggregators choose a disjoint set of inputs, and consensus rejects a stamp that repeats a tachygram already published within a two-epoch window. This is another instance of the verifier's comparison.
+In our block the rebuilt set has seven members, which matches the merged stamp, so the proof verifies. If a miner leaves Z out of the block, the rebuilt set has five members instead of seven. If a miner instead adds a one-action bundle that the stamp never covered and points it at X, the rebuilt set has nine members. In both cases the rebuilt header differs from the one the proof was made for, so the proof fails.
 
-Removing a contributor.
+This rebuild is the verifier's comparison at work. In the toy, a verifier who wanted the whole sum had to confirm that the range ran from zero to eight. Here the validator confirms that the proof covers exactly the bundles in the block. This is why a miner who includes an aggregate must include every bundle it covers.
 
-A step does not have to make its header cover more. Blocks keep arriving while an aggregator works, and the aggregator's guide describes how it recovers when some of its inputs get mined first. Suppose a block includes X on its own while the aggregator is still working. The merged stamp holds twelve tachygrams, and publishing it now would repeat those of X.
+The validator also checks the anchor against the chain. The step that starts a stamp takes its anchor as a free witness, meaning a witness value that no check constrains, so the proof alone cannot show that the anchor is real. That check is the third assumption of the soundness argument, in Tachyon's setting.
 
-A step called Stamp Unmerge takes the merged stamp and a stamp of X lifted to the same anchor, and it produces a stamp with nine tachygrams and six action digests, which covers A, Y, and Z. Its header states less than its input did. That is permitted, because a step only has to establish the relation it declares between its inputs and its output. The chapter on aggregation and bundles covers fees, stripping, and the wire format in detail.
+The chapter on aggregation and bundles covers what this section leaves out. That includes fees, aggregates whose own bundle has no actions, what an aggregator does when some of its inputs are mined first, and the wire format.
 
-The rest of Tachyon's proof tree.
+The rest of the proof tree.
 
-Stamps sit at the top of a larger tree, and different parties run the nodes below them, which is the distributed work property at full scale. Let's trace one spend, in an epoch after its note's creation, up to an aggregate. We simplify by leaving out the steps that feed the sync service, the variants of some steps, and merging with other actions.
+Stamps sit at the top of a larger tree, and different parties run its nodes, which is the distributed work property at full scale. A wallet's own steps build its stamp from its notes and keys. An untrusted sync service supplies evidence that the note being spent was not spent in earlier epochs, and it does this without seeing the note or its commitment.
 
-The wallet starts with Note Seed and Nullifier Derive, which produce the note's secret and its nullifiers. The sync service contributes headers through steps such as Q R Unspent Init and Q R Bucket Seal. The wallet runs Unspent Bind twice, and each pass connects a Q R Unspent Init header to its nullifiers. The first pass's result and the Q R Bucket Seal header enter Q R Spendable Init, which produces a spendable header. The second pass's result and that spendable header then enter Spendable Lift.
+In outline, one spend reaches an aggregate like this. The sync service's evidence feeds the wallet's steps for the note, its nullifiers, and the spend. Those steps produce a header covering the bundle's actions. A last wallet step called Fee Fuse turns that header into a stamp by applying the fee chosen after signing. The stamp then enters Stamp Merge at the aggregator, alongside other wallets' stamps.
 
-Then Spend Bind brings the note's secret back in, Spend Action produces an Actions header, and Fee Fuse produces a stamp. That stamp finally enters Stamp Merge at the aggregator.
-
-Three things from this chapter appear in that path. The header type changes from step to step, so the suffixes keep each state separate. The note's secret feeds two later steps, so the history shares nodes. And the sync service builds its segments without holding the note or its commitment, and only the wallet's Unspent Bind step connects those segments to a note. The chapter on the proof tree walks through each of these steps.
+The chapter on the proof tree walks through every step in this picture. Before that, the chapters on notes and nullifiers, on pool state, and on oblivious sync build the objects those steps handle.
 
 Where this leaves us.
 
@@ -206,6 +180,6 @@ Let's collect what we've built. Proof-carrying data arranges a computation as a 
 
 A node's proof states that its step accepted its inputs and that those inputs have valid proofs. This recursion lets one proof stand for the whole tree, provided the verifier also compares the final header with what it wants to know. Each node has to run the proof check on its children, so that check has to stay small.
 
-Ragu gives every node two inputs, confines the base case to one internal step, and separates large uncompressed proofs from small compressed ones that cannot currently be fused further. Tachyon's aggregation applies this model to stamps, removing proofs from the chain while keeping every descriptor and tachygram public.
+Ragu runs each step through an operation called fuse, with two inputs at every node. Its proofs keep a fixed size while fusing and shrink when compressed, and they do not yet hide their inputs. Tachyon's aggregation applies this model to stamps. A validator rebuilds the merged stamp's header from the block, so aggregation removes proofs from the chain while keeping every descriptor and tachygram.
 
 Everything here assumed a proof system that can prove a step's check and verify another proof inside a step. The rest of the site builds that system. The next chapter, Statements and Challenges, starts with what it means to prove a statement and how random challenges make a large check small.
