@@ -95,10 +95,11 @@ frag['census'] = '\n'.join([
     f'which is the count [the code records](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/profile.rs#L2364-L2379). '
     f'The other ${2 * len(EPHEMERAL)}$ serve only the fuse that made them. Their values at the fuse\'s points sit in the query and eval stages, '
     'and the fuse folds the polynomials themselves into its new batch polynomial $p$, so a parent that holds $p$ never needs them again. '
-    'The code [marks them as ephemeral](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/_03_s_prime.rs#L23-L24).', '',
+    'The code [marks them as ephemeral](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/_03_s_prime.rs#L23-L24).'])
+frag['census-claims'] = '\n'.join([
     f'The claims follow the same split. The native side folds ${NATIVE_CLAIMS}$ revdot claims, a count that [chapter 17 derived](./staging.md#_15-staging-in-ragu). '
     f'Its ${NATIVE_MASKS}$ mask claims are one for each of the $11$ stages and one for each of the ${len(NATIVE_FINAL_MASKS)}$ final masks, '
-    f'and those ${len(NATIVE_FINAL_MASKS)}$ are exactly the distinct entries of the "Final mask" column above, namely '
+    f'and those ${len(NATIVE_FINAL_MASKS)}$ are exactly the distinct entries of the "Final mask" column in the stage table of this section, namely '
     + ', '.join(m.lower() for m in NATIVE_FINAL_MASKS[:-1]) + f' and {NATIVE_FINAL_MASKS[-1].lower()}. '
     f'The nested side folds ${NESTED_CLAIMS_TOTAL}$, which are $2$ raw claims (one per child), ${2 * NESTED_CIRCUITS}$ circuit claims (${NESTED_CIRCUITS}$ per child) '
     f'and ${NESTED_BONDINGS}$ mask claims, one for each of its ${NESTED_STAGES}$ stages and ${NESTED_BONDINGS - NESTED_STAGES}$ for final masks.'])
@@ -264,6 +265,10 @@ for s_ in (3, 4, 5):
             same_with_nonzero += hits == Q - 1
 assert same_with_zero_suffix == Q and same_with_nonzero == 0 and worst == 2
 frag['substitution'] = (
+    f'Take a toy internal circuit with two output wires and its zero, and a toy application circuit with a one-entry header and its suffix, and compare their $k(Y)$ over $\\F_{{{Q}}}$. '
+    f'If an application could use the suffix $0$, then ${same_with_zero_suffix}$ of the ${n(Q ** 3)}$ possible choices of wires would make the two polynomials identical, and for those the swap would pass at every $y$. '
+    f'With the suffixes $3$, $4$ and $5$ we tried every choice and found none that makes them identical, and the two values agree at no more than ${worst}$ of the $42$ nonzero values of $y$.')
+frag['substitution-detail'] = (
     f'Let an internal circuit expose wires $(a, b)$ and its zero suffix, so that $k_{{\\text{{int}}}}(Y) = aY^3 + bY^2 + 0 \\cdot Y + 1$, and let an application circuit expose a header $(d, s)$, so that $k_{{\\text{{app}}}}(Y) = dY^2 + sY + 1$. '
     f'Their difference is $aY^3 + (b - d)Y^2 - sY$. '
     f'If an application could use the suffix $s = 0$, the difference would vanish whenever $a = 0$ and $b = d$. That happens for ${same_with_zero_suffix}$ of the ${n(Q ** 3)}$ triples $(a, b, d)$, and for those the swap would pass at every $y$. '
@@ -326,8 +331,9 @@ frag['shape'] = table(['Accumulator', 'Left child', 'Right child', 'Parent leave
     ('$(A, B, c)$', inst_ab(ab_left), inst_ab(ab_right), inst_ab(ab_new)),
     ('$(P, u, v)$', inst_pv(pv_left), inst_pv(pv_right), inst_pv(pv_new)),
     ('Restriction', inst_m(m_left, wr.X0, wr.Y0), inst_m(m_right, wr.X1, wr.Y1), inst_m(m_new, wr.X, wr.Y)),
-]) + (
-    f'\n\nIn the first row the children\'s pairs are the first two proof claims of chapter 14. The parent folds them with one layer of [that chapter\'s quotient fold](./revdot-folding.md#_10-the-quotient-fold-in-ragu-s-fuse), the fold the schedule runs in phases 4 and 5. '
+])
+frag['shape-detail'] = (
+    f'In the first row the children\'s pairs are the first two proof claims of chapter 14. The parent folds them with one layer of [that chapter\'s quotient fold](./revdot-folding.md#_10-the-quotient-fold-in-ragu-s-fuse), the fold the schedule runs in phases 4 and 5. '
     f'For two claims the quotient has the single coefficient ${ab_q["q"][0]}$, and at $\\tau = {TAU}$, the challenge of chapter 14\'s run, the weights are $({ab_fold["lam"][0]}, {ab_fold["lam"][1]})$ and the new value is '
     f'$c^* = {ab_fold["k"]} + {ab_fold["z"]} \\cdot {ab_fold["q"]} = {ab_fold["c"]}$. The folded vectors satisfy $\\revdot{{\\v{{a}}}}{{\\v{{b}}}} = {ab_new.c}$.\n\n'
     f'In the second row the left child holds the first accumulator of [chapter 12\'s run](./split-accumulation.md#_6-a-run-on-the-toy-curve) and the right child holds a fresh one. The parent batches the two claims $p_L({pv_left.u}) = {pv_left.v}$ and $p_R({pv_right.u}) = {pv_right.v}$ with $\\alpha = {PV_CH["alpha"]}$, $u = {PV_CH["u"]}$ and $\\beta = {PV_CH["beta"]}$, and the new $p$ evaluates to ${pv_new.v}$ at ${pv_new.u}$.\n\n'

@@ -89,7 +89,7 @@ Take the claim from chapter 07 and the point $x = 29$. The two factors of $g_{\v
 
 <!-- /worked:spot-one -->
 
-The test catches a false claim for the reason given in [chapter 03](./statements-and-challenges.md#_5-testing-polynomials-at-a-random-point). Suppose $\hat{G}$ actually commits to some other polynomial $h$ of degree below $n$ (a point with a hidden multiple of $U$ is a separate case, which Sections 5 and 8 handle). The difference $h - g_{\v{u}}$ is then a nonzero polynomial with at most $n - 1$ roots, so the opened value matches at no more than $n - 1$ points out of $q$, provided the prover fixes $\hat{G}$ before it learns $x$.
+The test catches a false claim for the reason given in [chapter 03](./statements-and-challenges.md#testing-at-a-random-point). Suppose $\hat{G}$ actually commits to some other polynomial $h$ of degree below $n$ (a point with a hidden multiple of $U$ is a separate case, which Sections 5 and 8 handle). The difference $h - g_{\v{u}}$ is then a nonzero polynomial with at most $n - 1$ roots, so the opened value matches at no more than $n - 1$ points out of $q$, provided the prover fixes $\hat{G}$ before it learns $x$.
 
 <!-- worked:spot-count -->
 
@@ -103,11 +103,21 @@ Second, this opening is itself an inner product argument, so its verifier faces 
 
 ## 5. Merging two claims
 
-Suppose we hold two claims $(\hat{G}_1, \v{u}_1)$ and $(\hat{G}_2, \v{u}_2)$, and write $g_1$ and $g_2$ for their polynomials. We would like one opening to test both. A random linear combination from [chapter 03](./statements-and-challenges.md#_7-random-linear-combinations) can do this, so take a challenge $\alpha$ and combine the points:
+Suppose we hold two claims $(\hat{G}_1, \v{u}_1)$ and $(\hat{G}_2, \v{u}_2)$, and write $g_1$ and $g_2$ for their polynomials. We would like one opening to test both. [Section 6](#_6-a-complete-merge-on-the-toy-curve) runs every step below on two toy claims, so you can read the two sections side by side.
+
+A random linear combination from [chapter 03](./statements-and-challenges.md#_6-random-linear-combinations) lets one test cover two claims, so take a challenge $\alpha$ and combine the points:
 
 $$C_M = \hat{G}_1 + \alpha \cdot \hat{G}_2.$$
 
-If both claims are true, homomorphism tells us what this point commits to:
+If both claims are true, the commitment's homomorphism means that $C_M$ commits to the polynomial $g_1(X) + \alpha\,g_2(X)$. The prover knows the coefficients of that polynomial, because it can compute them from the public challenges, and we call that coefficient vector the witness $\v{a}_M = \v{g}_1 + \alpha\v{g}_2$. Opening $C_M$ at a random point $x_M$ should then give
+
+$$v_M = g_1(x_M) + \alpha\,g_2(x_M).$$
+
+The verifier holds both sets of challenges, so it can compute $v_M$ through the product forms, with logarithmic work. The statement to prove is now an ordinary evaluation claim, that $C_M$ opens at $x_M$ to $v_M$, with witness $\v{a}_M$, and the verifier computed every part of that statement from the two input claims.
+
+::: details Why $C_M$ opens to $v_M$
+
+If both claims are true, homomorphism tells us what $C_M$ commits to:
 
 $$
 \begin{aligned}
@@ -116,24 +126,16 @@ C_M &= \dot{\v{g}_1}{\v{G}} + \alpha \cdot \dot{\v{g}_2}{\v{G}} \\
 \end{aligned}
 $$
 
-which is the commitment to the polynomial $g_1(X) + \alpha\,g_2(X)$. We want to open this commitment at a random point $x_M$, so we need the opening in the form that chapter 07 proves, an inner product of the committed vector with the power vector $\v{x_M^n} = (1, x_M, x_M^2, \ldots, x_M^{n-1})$. The committed vector is the witness
-
-$$\v{a}_M = \v{g}_1 + \alpha\v{g}_2,$$
-
-and the prover can compute it from the public challenges. Its inner product with the powers splits along the sum, and each piece is a polynomial evaluated at $x_M$:
+which is the commitment to the polynomial $g_1(X) + \alpha\,g_2(X)$. We want to open this commitment at $x_M$, so we need the opening in the form that chapter 07 proves, an inner product of the committed vector with the power vector $\v{x_M^n} = (1, x_M, x_M^2, \ldots, x_M^{n-1})$. The committed vector is $\v{a}_M = \v{g}_1 + \alpha\v{g}_2$. Its inner product with the powers splits along the sum, and each piece is a polynomial evaluated at $x_M$:
 
 $$
 \begin{aligned}
 \dot{\v{a}_M}{\v{x_M^n}} &= \dot{\v{g}_1}{\v{x_M^n}} + \alpha\,\dot{\v{g}_2}{\v{x_M^n}} \\
-&= g_1(x_M) + \alpha\,g_2(x_M).
+&= g_1(x_M) + \alpha\,g_2(x_M) = v_M.
 \end{aligned}
 $$
 
-The verifier holds both sets of challenges, so it can compute the right side through the product forms, with logarithmic work. We call that value
-
-$$v_M = g_1(x_M) + \alpha\,g_2(x_M).$$
-
-The statement to prove is now an ordinary evaluation claim, that $C_M$ opens at $x_M$ to $v_M$, with witness $\v{a}_M$. The verifier computed every part of that statement from the two input claims.
+:::
 
 Each challenge has a separate job. The point $x_M$ exposes a wrong polynomial, as in Section 4. The weight $\alpha$ stops two wrong polynomials from cancelling each other. Without it, a prover could make $g_1$ too large by some polynomial and $g_2$ too small by the same polynomial, and the sum would be correct at every point.
 
@@ -141,9 +143,17 @@ The argument needs one more ingredient, which [chapter 07](./inner-product-argum
 
 $$P_M = C_M + (\tau v_M) \cdot U.$$
 
-The prover now runs the inner product argument of chapter 07 on $\v{a}_M$ with fresh round challenges $\v{u}_M$, and the verifier splits off the final check as in Section 2. We shorten $g_{\v{u}_M}$ to $g_M$. With the supplied point $\hat{G}_M$ and $\hat{b}_M = g_M(x_M)$, that check reads
+The prover now runs the inner product argument of chapter 07 on $\v{a}_M$ with fresh round challenges $\v{u}_M$, and the verifier splits off the final check as in Section 2, with $\tau \cdot U$ in place of $U$. We shorten $g_{\v{u}_M}$ to $g_M$, and the verifier evaluates $\hat{b}_M = g_M(x_M)$ through its product form.
+
+::: details The merge's final check
+
+With the supplied point $\hat{G}_M$ and the final scalar $\hat{a}_M$, the split final check reads
 
 $$P_M + \sum_{j=1}^{k} \left(u_j^{-2} \cdot L_j + u_j^{2} \cdot R_j\right) = \hat{a}_M \cdot \left(\hat{G}_M + (\tau \hat{b}_M) \cdot U\right).$$
+
+This is the check of Section 2 with $\tau \cdot U$ as the value generator.
+
+:::
 
 The result of all this is one claim, $(\hat{G}_M, \v{u}_M)$, with the same form as each input. The order of messages keeps the prover from choosing anything after it sees the challenge that tests it:
 
@@ -212,6 +222,10 @@ The verifier then sends $\tau = 22$. Both sides form the statement point $P_M = 
 
 <!-- /worked:merge-start -->
 
+The prover then runs two rounds of the inner product argument on $\v{a}_M$, and the verifier updates the statement point after each round. The box lists the cross terms and the folded point of each round, and the last folded point is the left side of the final check below.
+
+::: details The two rounds of the merge
+
 The rest is the inner product argument with $\v{a}_M$ as the folded vector, even though nothing about it is secret here. The prover folds, and the verifier updates the statement point after each round:
 
 <!-- worked:merge-rounds -->
@@ -224,6 +238,8 @@ The rest is the inner product argument with $\v{a}_M$ as the folded vector, even
 <!-- /worked:merge-rounds -->
 
 Some points in this table repeat points from earlier tables. For example, $L_1$ equals $\hat{G}_1$, and the two $R_j$ are equal. The toy group has only 43 elements, so such repeats happen by chance and mean nothing.
+
+:::
 
 <!-- worked:merge-final -->
 
@@ -306,9 +322,15 @@ The verifier's side of a merge is now small, and the prover takes on the linear 
 
 <!-- /worked:costs -->
 
+The verifier's rows grow with $k$, the number of rounds, while the prover's rows grow with $n$. The box below explains how the rows are counted.
+
+::: details How the counts add up
+
 The verifier rows add up to 29 scalar multiplications only if the verifier never forms $P_M$ as a separate point. Instead it moves the term $(\tau v_M) \cdot U$ to the right side of the final check, where it combines with $(\hat{a}_M \tau \hat{b}_M) \cdot U$ into one multiple of $U$, so the final check costs one multiplication of $\hat{G}_M$ and one of $U$.
 
 The prover's count comes from the rounds. A round on a vector of length $m$ takes $m$ scalar multiplications for $L$ and $R$ and another $m$ for the two weights on each entry of the folded $\v{G}$, and the lengths halve from $n$ down to 2.
+
+:::
 
 <!-- worked:total -->
 
@@ -338,7 +360,13 @@ We start with something the accumulation verifier cannot do. The merge ends in a
 
 The counts below measure that luck. When we say that a merge **passes**, we mean that it passes with the honest output point, the one that the prover gets by folding $\v{G}$, so that the output claim is true. Every other way through the final check leaves a false output claim for the decider.
 
-The counts also need a model of a real curve. On the toy curve every point is a known multiple of every other, so a cheater could solve for a forgery at almost any challenge, as [chapter 07 showed](./inner-product-argument.md#why-the-generators-must-have-no-known-relation), and a count of passing challenges would say nothing about a real curve. The script therefore also runs the protocol in a formal group, where each point is a list of its coefficients on $G_0, \ldots, G_3$ and $U$, and where two points are equal only if the lists are. It also repeats the first count below on the toy curve at a sample of weights, with the same result.
+The counts below come from a model of a real curve rather than from the toy curve alone, because on the toy curve a cheater could forge at almost any challenge. The box explains the model.
+
+::: details How the script models a real curve
+
+On the toy curve every point is a known multiple of every other, so a cheater could solve for a forgery at almost any challenge, as [chapter 07 showed](./inner-product-argument.md#why-the-generators-must-have-no-known-relation), and a count of passing challenges would say nothing about a real curve. The script therefore also runs the protocol in a formal group, where each point is a list of its coefficients on $G_0, \ldots, G_3$ and $U$, and where two points are equal only if the lists are. It also repeats the first count below on the toy curve at a sample of weights, with the same result.
+
+:::
 
 ### A false claim moves forward
 
@@ -366,7 +394,7 @@ With two false inputs there is a chance that the errors cancel, which is the cas
 
 <!-- worked:count-two -->
 
-Now make claim 2 false as well, with $h_2 - g_2$ having the coefficients $(1, 40, 0, 2)$. A pair $(x_M, \alpha)$ passes when $(h_1 - g_1)(x_M) + \alpha (h_2 - g_2)(x_M) = 0$. Running all 1,806 pairs gives 39 that pass, against the bound of $4 \cdot 43 = 172$ from the [multivariate root count](./statements-and-challenges.md#_6-polynomials-in-several-variables), since the expression has total degree at most 4. To see what $\alpha$ prevents, let the second error be the exact negative of the first. With $\alpha$ fixed at 1 the errors cancel, and all 43 values of $x_M$ pass. With $\alpha$ random, the 166 passing pairs are those 43 pairs with $\alpha = 1$ and the pairs at the three roots.
+Now make claim 2 false as well, with $h_2 - g_2$ having the coefficients $(1, 40, 0, 2)$. A pair $(x_M, \alpha)$ passes when $(h_1 - g_1)(x_M) + \alpha (h_2 - g_2)(x_M) = 0$. Running all 1,806 pairs gives 39 that pass, against the bound of $4 \cdot 43 = 172$ from the [multivariate root count](./statements-and-challenges.md#_5-polynomials-in-several-variables), since the expression has total degree at most 4. To see what $\alpha$ prevents, let the second error be the exact negative of the first. With $\alpha$ fixed at 1 the errors cancel, and all 43 values of $x_M$ pass. With $\alpha$ random, the 166 passing pairs are those 43 pairs with $\alpha = 1$ and the pairs at the three roots.
 
 <!-- /worked:count-two -->
 
@@ -388,7 +416,7 @@ Suppose the prover learns $x_M = 29$ before it fixes its point. It picks $h = g_
 
 <!-- /worked:late -->
 
-In a non-interactive proof, this means that the transcript has to absorb both input claims in full before it produces $x_M$, $\alpha$ and $\tau$, for the reason given in [chapter 03](./statements-and-challenges.md#_9-omitting-data-from-the-transcript). The challenges $\v{u}$ belong to the claim as much as the point does, because a prover who could change them after $x_M$ was fixed could change the polynomial that the check compares against.
+In a non-interactive proof, this means that the transcript has to absorb both input claims in full before it produces $x_M$, $\alpha$ and $\tau$, for the reason given in [chapter 03](./statements-and-challenges.md#_8-omitting-data-from-the-transcript). The challenges $\v{u}$ belong to the claim as much as the point does, because a prover who could change them after $x_M$ was fixed could change the polynomial that the check compares against.
 
 ### The weight on U
 
@@ -400,7 +428,13 @@ Take the point $\hat{G}_1 + 6 \cdot G_0 + 6 \cdot U = (27,\,1)$, so that the pro
 
 <!-- /worked:hidden -->
 
-The merge has to reject this point whatever produced it. The chain's guarantee is that a passing merge implies true inputs, so the merge must catch every false input, including one whose hidden $U$ part offsets its $G$ part. The inner product argument alone cannot do this, for the reason [chapter 07](./inner-product-argument.md#why-the-generators-must-have-no-known-relation) gives. Its gap argument proves that the statement point has the form $\dot{\v{a}}{\v{G}} + \dot{\v{a}}{\v{b}} \cdot U$ for some $\v{a}$, and that relation matches the evaluation claim only when the commitment has no $U$ component. Here $C_M$ carries whatever $U$ part the input points carry. The random weight $\tau$ closes this gap in the same way as chapter 07's $z$, at the cost of one more challenge.
+The merge has to reject this point whatever produced it. The chain's guarantee is that a passing merge implies true inputs, so the merge must catch every false input, including one whose hidden $U$ part offsets its $G$ part. The inner product argument alone cannot do this, and the random weight $\tau$ closes the gap in the same way as chapter 07's $z$, at the cost of one more challenge.
+
+::: details Why the inner product argument alone misses a hidden $U$
+
+[Chapter 07](./inner-product-argument.md#why-the-generators-must-have-no-known-relation) gives the reason. Its gap argument proves that the statement point has the form $\dot{\v{a}}{\v{G}} + \dot{\v{a}}{\v{b}} \cdot U$ for some $\v{a}$, and that relation matches the evaluation claim only when the commitment has no $U$ component. Here $C_M$ carries whatever $U$ part the input points carry, so the argument by itself would accept a commitment whose hidden $U$ part pays for a wrong value.
+
+:::
 
 ### Assumptions
 
@@ -463,7 +497,13 @@ The field `g` is our $\hat{G}$, and `u` holds our $\v{u}$, in the one-sided conv
 This site follows the code. The book's general statement that [Ragu's scheme descends from Halo's](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/appendix/related.md?plain=1#L13-L18) is consistent with both, since the next chapter builds directly on these ideas.
 :::
 
-Names differ across sources as well. The book's [Halo passage](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L162-L168) writes the claim as $(G, \v{u})$ with polynomial $g_{\v{u}}$, its IPA section writes $G_0$, and the code writes $G'_0$, while this site writes $\hat{G}$. The Halo 2 book's recursion page uses factors of the form $u_i + u_i^{-1} X^{2^{i-1}}$, so compare the placement of the inverse and the order of the rounds before you move a formula between sources.
+Names and conventions also differ across sources, so check them before you move a formula from one source to another. The box lists the differences we found.
+
+::: details Notation in the book, the code and the Halo 2 book
+
+The book's [Halo passage](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L162-L168) writes the claim as $(G, \v{u})$ with polynomial $g_{\v{u}}$, its IPA section writes $G_0$, and the code writes $G'_0$, while this site writes $\hat{G}$. The Halo 2 book's recursion page uses factors of the form $u_i + u_i^{-1} X^{2^{i-1}}$, so compare the placement of the inverse and the order of the rounds before you move a formula between sources.
+
+:::
 
 ## 12. Where this chapter leaves us
 

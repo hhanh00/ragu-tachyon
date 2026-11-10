@@ -199,7 +199,11 @@ With $\alpha = 11$, the powers are $\alpha^3 = 41$, $\alpha^2 = 35$, $\alpha = 1
 
 <!-- /worked:alpha -->
 
-The verifier sends a new point $u$, the prover sends one value per polynomial, and the verifier derives $f(u)$ from those values and the original claims:
+The verifier sends a new point $u$, and the prover sends the value of each of the four polynomials there. The verifier never sees $f$, but it can still work out $f(u)$, because each quotient at $u$ follows from the value of its polynomial at $u$ and from the original claim. The first box below shows that computation for our run.
+
+::: details How the verifier derives f(u)
+
+Each quotient satisfies $q_i(u) = (p_i(u) - y_i)/(u - x_i)$, so the weighted sum gives
 
 $$f(u) = \sum_{i=0}^{3} \alpha^{3-i}\, \frac{p_i(u) - y_i}{u - x_i}.$$
 
@@ -218,7 +222,11 @@ The last column sums to $f(17) = 24$, and the prover gets the same number by eva
 
 <!-- /worked:derive-f -->
 
-Finally the verifier sends $\beta$, and both parties combine the five inputs. The verifier computes $\bar{P}$ and $v$ from public data, while the prover computes the polynomial $p$ and its blinding factor:
+:::
+
+Finally the verifier sends $\beta$, and both parties combine the five inputs $\bar{F}$, $\bar{A}$, $\bar{B}$, $S$ and $K$, giving each a power of $\beta$ as its weight. The verifier applies the weights to the commitments and to the values at $u$, which gives one commitment $\bar{P}$ and one value $v$. The prover applies the same weights to the polynomials and to their blinding factors, which gives the polynomial $p$ behind $\bar{P}$ and its blinding factor $\gamma$. The second box writes out the three formulas.
+
+::: details The combination formulas
 
 $$
 \begin{aligned}
@@ -229,6 +237,8 @@ v &= \beta^4 f(u) + \beta^3 a(u) + \beta^2 b(u) + \beta\, s(u, y) + k(u), \\
 $$
 
 The polynomials $s$ and $k$ have no blinding factor, so they contribute nothing to $\gamma$.
+
+:::
 
 <!-- worked:beta -->
 
@@ -334,7 +344,7 @@ We ran the whole protocol for all $43^2 = 1849$ pairs $(z, y)$ at two values of 
 
 ## 11. Removing the interaction
 
-The N in NARK means non-interactive, and the book treats this step as [a direct replacement of each challenge with a hash](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L205-L206). The [Fiat–Shamir section of chapter 03](./statements-and-challenges.md#_8-removing-the-verifier-with-fiat–shamir) explains the transform, and the only thing this protocol adds is the list of what goes into the transcript. Each challenge must depend on every message that it tests, so the list follows the table above. The vectors $\v{s}$, $\v{a}$, $\v{b}$ and $\v{p}$ do not need to be absorbed, because the commitments already fix them, and $\bar{A}$ does not either, because it must equal the absorbed $\bar{R}$.
+The N in NARK means non-interactive, and the book treats this step as [a direct replacement of each challenge with a hash](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/nark.md?plain=1#L205-L206). The [Fiat–Shamir section of chapter 03](./statements-and-challenges.md#_7-removing-the-verifier-with-fiat–shamir) explains the transform, and the only thing this protocol adds is the list of what goes into the transcript. Each challenge must depend on every message that it tests, so the list follows the table above. The vectors $\v{s}$, $\v{a}$, $\v{b}$ and $\v{p}$ do not need to be absorbed, because the commitments already fix them, and $\bar{A}$ does not either, because it must equal the absorbed $\bar{R}$.
 
 Here is a full run using the toy Poseidon sponge from [chapter 03](./statements-and-challenges.md#a-toy-poseidon), starting from the tag $(7, 29)$. The same witness and blinding factors now produce different challenges, so all the later values change:
 
@@ -353,7 +363,7 @@ The verifier replays the same absorptions from the proof, obtains the same six c
 
 <!-- /worked:fs-run -->
 
-[Repeated trials](./statements-and-challenges.md#_10-repeated-trials) still apply, since a cheater can try many blinding factors privately and look for a lucky set of challenges. The toy field's 43 outputs make that easy, and a 255-bit field does not.
+[Repeated trials](./statements-and-challenges.md#_9-repeated-trials) still apply, since a cheater can try many blinding factors privately and look for a lucky set of challenges. The toy field's 43 outputs make that easy, and a 255-bit field does not.
 
 ## 12. The proof's two parts
 
@@ -379,7 +389,13 @@ Collecting the prover's messages, the book [divides the proof](https://github.co
 
 The challenges do not appear, because the verifier replays them from the transcript. The point $u$ is a challenge too, but it appears in the instance because $(\bar{P}, u, v)$ is one evaluation claim, and a later verifier that receives the claim needs all three parts of it.
 
+The table places $\bar{F}$ and the values at $u$ in the witness even though they are small, following the book. The box gives our reading of that choice.
+
+::: details Why F and the values at u sit in the witness
+
 This division can look odd, because $\bar{F}$ is a single point and the values at $u$ are four scalars, yet both sit in the witness, while $\bar{P}$, which is computed from $\bar{F}$, sits in the instance. The book places them there and describes them only as the prover's messages from the batching step, without giving a reason. Our reading is that the instance carries the reduced claim $(\bar{P}, u, v)$ directly, so a later verifier that takes the claim as given needs nothing else from the batching step. The point $\bar{F}$ and the values at $u$ are the inputs from which $\bar{P}$ and $v$ were derived, and only a check that derives them again reads those inputs, so they travel with the vectors that the same postponed check reads.
+
+:::
 
 The sizes of the two parts are very different:
 
@@ -467,7 +483,7 @@ Suppose the prover knows $z = 5$ and $y = 7$ before it sends $\bar{R}$. Starting
 
 <!-- /worked:cheat-early -->
 
-This is the reason each challenge has to depend on the commitments before it, and [chapter 03](./statements-and-challenges.md#_9-omitting-data-from-the-transcript) shows what happens if a transcript leaves them out.
+This is the reason each challenge has to depend on the commitments before it, and [chapter 03](./statements-and-challenges.md#_8-omitting-data-from-the-transcript) shows what happens if a transcript leaves them out.
 
 ### The prover knows a relation among the generators
 
@@ -486,6 +502,10 @@ On a real curve this requires solving discrete log, and the toy curve's small si
 The runs so far used four claims, while the book's list has six. The two extra claims, about $a(0)$ and $k(0)$, concern a wire that our two-gate circuit does not have, and this section adds it so that we can run the book's list as written. The cheating analysis above does not depend on it.
 
 Our toy circuit moved its constant 5 into the instance, so that the output constraint read $a_0 + c_1 = 30$. A real circuit needs constants inside its constraints, and the arithmetization chapter [mentioned](./arithmetization.md#_13-the-arithmetization-in-ragu) how Ragu provides them, with a wire $d_0$ that holds the value 1. A constraint can then use $5 d_0$ wherever it needs the constant 5. The wire lives in an extra gate at position 0, the system gate, so the other two gates move up by one and $n$ becomes 3.
+
+Adding the system gate rewrites the constraints and the trace, and it adds the two new claims. One says that the trace has constant coefficient $r(0) = 0$, and the other says that the instance has $k_0 = 1$, the value of the constant wire. The book writes the first claim with the value 1, and the box explains why we follow the code instead. The box builds the three-gate circuit, lists the six claims, and runs them through the batching of Section 8 with the same challenges as before. The revealed $\v{p}$ matches the derived $\bar{P}$ and $v$, and the verifier accepts.
+
+:::: details Building the three-gate circuit and its six claims
 
 The constraints change too. We put the two constraints that involve the instance first, so that $k(Y)$ has its nonzero coefficients at the lowest powers of $Y$.
 
@@ -528,6 +548,8 @@ The claims list now has the six entries of chapter 08's preview, on four polynom
 
 With the same challenges as before, the batching of Section 8 reduces these six claims to one claim, the revealed $\v{p}$ matches the derived $\bar{P}$ and $v$, and the verifier accepts.
 
+::::
+
 The claim $k(0) = 1$ matters only for a verifier that takes $K$ from the prover without comparing it with the statement, which is how the book's list of steps reads. The wire $d_0$ is constrained only to equal $k_0$, so if nothing checks $k_0$, a prover can give the constant a different value and change the meaning of every constraint that uses it:
 
 <!-- worked:one-attack -->
@@ -566,7 +588,11 @@ Now we can go through the verifier's work, one step at a time. The next table gi
 
 <!-- /worked:costs -->
 
-The value $t(x, z)$ can be computed quickly because the sums in its definition are geometric. To see this, start from the definition and split it into two sums:
+The value $t(x, z)$ costs only a logarithmic number of multiplications, because its definition consists of two geometric sums. Each geometric sum has a closed form, which repeated squaring evaluates in $O(\log n)$ multiplications. The box derives that form and checks it on our run.
+
+::: details The closed form of t(x, z)
+
+Start from the definition and split it into two sums:
 
 $$-t(x, z) = \sum_{i=0}^{n-1} z^{2n-1-i} x^{4n-1-i} + \sum_{i=0}^{n-1} z^{2n+i} x^{4n-1-i}.$$
 
@@ -574,13 +600,15 @@ Substituting $k = n - 1 - i$ turns the exponents into $2n - 1 - i = n + k$, $2n 
 
 $$-t(x, z) = x^{3n} z^{n} \sum_{k=0}^{n-1} (xz)^k + x^{3n} z^{3n-1} \sum_{k=0}^{n-1} (x/z)^k,$$
 
-which matches the [book's form](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/local/arithmetization.md?plain=1#L170-L172) for nonzero $z$. Each geometric sum has a closed form that takes $O(\log n)$ multiplications, by repeated squaring.
+which matches the [book's form](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/local/arithmetization.md?plain=1#L170-L172) for nonzero $z$.
 
 <!-- worked:t-closed -->
 
 At $x = 9$, $z = 5$ and $n = 2$, the first sum is $1 + xz = 3$ and the second is $1 + x/z = 20$. The formula gives $-t = 40$, so $t(9, 5) = 3$, which matches the direct sum over the entries of $\v{t}$.
 
 <!-- /worked:t-closed -->
+
+:::
 
 The wiring vector has no comparable shortcut, since its entries come from an arbitrary circuit:
 
@@ -634,7 +662,9 @@ Step 7 of the next table evaluates each side of it separately:
 
 <!-- /worked:short-commit -->
 
-The prover now has to prove the claim $(P, u, v)$ without revealing $p$:
+The prover now has to prove the claim $(P, u, v)$ without revealing $p$, and the inner product argument of [chapter 07](./inner-product-argument.md) proves such a claim. For 8 coefficients it runs three rounds. In each round the prover sends two points and both sides halve the problem, and at the end the prover sends a single scalar. The verifier then performs one MSM over all eight generators and accepts. The box shows every round of our run.
+
+::: details The inner product argument, round by round
 
 <!-- worked:short-p -->
 
@@ -665,6 +695,8 @@ The prover sends the final scalar $\hat{a} = 6$. The verifier computes the coeff
 The last folded point and the left side of the final check are the same point by construction, because the verifier computes both from the statement point and the same $L_j$ and $R_j$. Several other points repeat points named earlier in the chapter. Among the points of the argument, $R_1$ equals the statement point $P + v \cdot U$, $L_2$ equals $P$, $R_2$ equals $F$, $R_3$ equals $G_5$, the folded point of round 3 equals the cheater's $K$ from Section 4, and $\hat{G}$ equals the unblinded trace commitment $R$. These matches have no meaning. The toy group has only 43 points and this chapter names a few dozen, so repeats are unavoidable, as [chapter 08](./batched-openings.md#_5-alpha-batching) noted for one of its commitments. On a curve with about $2^{255}$ points they would not occur.
 
 <!-- /worked:short-repeats -->
+
+:::
 
 The proof is now short:
 

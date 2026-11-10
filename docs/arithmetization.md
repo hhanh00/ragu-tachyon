@@ -116,19 +116,21 @@ On a field of about $2^{255}$ elements, this probability is negligible. We have 
 
 ## 6. Reducing the constraints to one equation
 
-The constraints collapse in the same way, using a second random value $y$. Multiplying constraint $j$ by $y^j$ and adding gives
+The constraints collapse in the same way, using a second random value $y$. We multiply constraint $j$ by $y^j$ and add all of them. Because inner products are linear, the powers of $y$ can move inside the inner products and attach to the coefficient vectors, which turns the weighted sum into one linear equation in the witness:
+
+$$\dot{\v{u}(y)}{\v{a}} + \dot{\v{v}(y)}{\v{b}} + \dot{\v{w}(y)}{\v{c}} = \dot{\v{k}}{\v{y^{m}}}.$$
+
+Here $\v{u}(y) = \sum_j y^j \v{u}_j$, and $\v{v}(y)$ and $\v{w}(y)$ are built the same way from the $\v{v}_j$ and $\v{w}_j$. The vector $\v{y^{m}} = (1, y, \ldots, y^{m-1})$ holds the weights. The combined vectors are public once $y$ is known. Our circuit has $m = 4$ real rows, and any zero rows added later contribute nothing to either side.
+
+::: details The weighted sum before rearranging
+
+Multiplying constraint $j$ by $y^j$ and adding gives
 
 $$\sum_{j=0}^{m-1} y^j \Big( \dot{\v{u}_j}{\v{a}} + \dot{\v{v}_j}{\v{b}} + \dot{\v{w}_j}{\v{c}} \Big) = \sum_{j=0}^{m-1} y^j k_j.$$
 
-Inner products are linear, so we can move the powers of $y$ inside. Define the combined vectors
+Linearity gives $\sum_j y^j \dot{\v{u}_j}{\v{a}} = \dot{\sum_j y^j \v{u}_j}{\v{a}} = \dot{\v{u}(y)}{\v{a}}$, and the same holds for the $\v{b}$ and $\v{c}$ terms. The right side is $\dot{\v{k}}{\v{y^{m}}}$ by the definition of the inner product.
 
-$$\v{u}(y) = \sum_j y^j \v{u}_j, \qquad \v{v}(y) = \sum_j y^j \v{v}_j, \qquad \v{w}(y) = \sum_j y^j \v{w}_j.$$
-
-The equation becomes
-
-$$\dot{\v{u}(y)}{\v{a}} + \dot{\v{v}(y)}{\v{b}} + \dot{\v{w}(y)}{\v{c}} = \dot{\v{k}}{\v{y^{m}}},$$
-
-where $\v{y^{m}} = (1, y, \ldots, y^{m-1})$. The combined vectors are public once $y$ is known, so this is one linear equation in the witness. Our circuit has $m = 4$ real rows, and any zero rows added later contribute nothing to either side.
+:::
 
 <!-- worked:constraint-sum -->
 
@@ -172,7 +174,13 @@ With $n = 2$, the arrangement $\v{c} \| \rv{a} \| \v{b}$ gives the six entries $
 
 <!-- /worked:three-blocks -->
 
-Rearranging the three blocks does not help. The $\v{a}$ and $\v{b}$ blocks must be mirrors of each other, and together they fill $2n$ positions placed symmetrically about the center. Partnering is symmetric, so once the $\v{a}$ and $\v{b}$ entries pair with each other, the $n$ entries of $\v{c}$ can only pair among themselves, and the revdot product picks up products $c_i c_j$ that no gate asked for. These terms are quadratic in the witness. The public vectors of Sections 10 and 11 can only add terms that are linear in the witness, so nothing later can cancel them.
+Rearranging the three blocks does not help either. Whatever the order, the $\v{c}$ entries end up paired with each other and add products $c_i c_j$ that no gate asked for, and nothing later in the chapter can cancel them. The box below gives the argument.
+
+::: details Why no order of three blocks works
+
+The $\v{a}$ and $\v{b}$ blocks must be mirrors of each other, and together they fill $2n$ positions placed symmetrically about the center. Partnering is symmetric, so once the $\v{a}$ and $\v{b}$ entries pair with each other, the $n$ entries of $\v{c}$ can only pair among themselves, and the revdot product picks up products $c_i c_j$ that no gate asked for. These terms are quadratic in the witness. The public vectors of Sections 10 and 11 can only add terms that are linear in the witness, so nothing later can cancel them.
+
+:::
 
 A fourth block of $n$ entries solves this, because it gives each $c_i$ a partner that the honest prover sets to zero. Call this block $\v{d}$. The vector has length $4n$ and four blocks of length $n$:
 
@@ -211,7 +219,13 @@ For our witness, $\v{r} = (9, 27, 9, 3, 3, 3, 0, 0)$. Multiplying each entry by 
 
 <!-- /worked:plain-revdot -->
 
-Now that $\v{r}$ exists, we can fix the number of constraint rows. Nothing in this chapter forces a particular value of $m$, so the padding length is a convention. Every vector we build from here on has length $4n$, and later chapters turn each one into a polynomial with $4n$ coefficients. The [chapter on wiring and the registry](./wiring-and-registry.md) shows that the constraint weights $y^j$ must also fit within $4n$ terms, because the wiring is committed with the same $4n$ generators as the witness. So we set $m = 4n$ and pad the constraint list with zero rows up to that length. Our circuit has four real rows, so it gets four rows of zeros, and $\v{k}$ gets four zero entries after $k_3$. A circuit that needs more than $4n$ constraints does not fit, and Section 13 records that Ragu imposes this limit. From here on we write $\v{y^{4n}}$ for $\v{y^{m}}$.
+Now that $\v{r}$ exists, we can fix the number of constraint rows. We set $m = 4n$, the length of $\v{r}$, and pad the constraint list with zero rows up to that length. Our circuit has four real rows, so it gets four rows of zeros, and $\v{k}$ gets four zero entries after $k_3$. From here on we write $\v{y^{4n}}$ for $\v{y^{m}}$.
+
+::: details Why the padding length is 4n
+
+Nothing in this chapter forces a particular value of $m$, so the padding length is a convention. Every vector we build from here on has length $4n$, and later chapters turn each one into a polynomial with $4n$ coefficients. The [chapter on wiring and the registry](./wiring-and-registry.md) shows that the constraint weights $y^j$ must also fit within $4n$ terms, because the wiring is committed with the same $4n$ generators as the witness. A circuit that needs more than $4n$ constraints therefore does not fit, and Section 13 records that Ragu imposes this limit.
+
+:::
 
 ::: warning The Ragu Book's chapters arrange the witness differently
 The Ragu Book's [core arithmetization chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/arithmetization.md) uses $\v{c} \| \rv{b} \| \v{a} \| \v{0}$, which swaps the roles of $\v{a}$ and $\v{b}$. Its [local arithmetization chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/local/arithmetization.md) uses the arrangement above, and the [wiring code](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/wiring/mod.rs#L13-L22) at commit `3219e08` matches it. The two arrangements give the same products, because $a_i b_i = b_i a_i$. This site uses the arrangement from the code.
@@ -221,19 +235,31 @@ The Ragu Book's [core arithmetization chapter](https://github.com/tachyon-zcash/
 
 The sum $2\sum_i a_i b_i$ has lost track of which product belongs to which gate, so it cannot check the gates individually. Section 5 solved the same problem by giving each gate its own power of $z$, and we can build this weighting into the revdot product.
 
-Multiply entry $\ell$ of the second vector by $z^\ell$. This operation is called **dilation**, and the result is $\v{r} \circ \v{z^{4n}}$, where $\v{z^{4n}} = (1, z, \ldots, z^{4n-1})$. The revdot product becomes
-
-$$\revdot{\v{r}}{\v{r} \circ \v{z^{4n}}} = \sum_{\ell=0}^{4n-1} r_\ell\, r_{4n-1-\ell}\, z^{4n-1-\ell}.$$
-
-Now we group the terms by gate. The wires $a_i$ and $b_i$ occupy positions $2n - 1 - i$ and $2n + i$. Taking $\ell = 2n - 1 - i$ produces $a_i b_i z^{2n + i}$, and taking $\ell = 2n + i$ produces $b_i a_i z^{2n - 1 - i}$. The pair of wires $c_i, d_i$ contributes in the same way at positions $i$ and $4n - 1 - i$. The result is
+Multiply entry $\ell$ of the second vector by $z^\ell$. This operation is called **dilation**, and the result is $\v{r} \circ \v{z^{4n}}$, where $\v{z^{4n}} = (1, z, \ldots, z^{4n-1})$. Each product in the revdot sum now picks up a power of $z$ that depends on where its pair of partners sits in $\v{r}$. Since each gate's wires $a_i$ and $b_i$ sit at their own pair of positions, each gate picks up its own weight. Collecting the terms by gate gives
 
 $$\revdot{\v{r}}{\v{r} \circ \v{z^{4n}}} = \sum_{i=0}^{n-1} a_i b_i \big( z^{2n-1-i} + z^{2n+i} \big) + \sum_{i=0}^{n-1} c_i d_i \big( z^{i} + z^{4n-1-i} \big).$$
 
-Each gate now has its own weight, built from powers of $z$ that no other gate uses. For an honest prover, $\v{d} = \v{0}$ and the second sum vanishes.
+Gate $i$ is weighted by $z^{2n-1-i} + z^{2n+i}$, and no other gate uses either of those powers. The second sum comes from the pairs $c_i, d_i$, and for an honest prover it vanishes because $\v{d} = \v{0}$.
 
 <!-- worked:dilation -->
 
-At $z = 5$ the powers are $(1, 5, 25, 39, 23, 29, 16, 37)$, so $\v{r} \circ \v{z^{8}} = (9, 6, 10, 31, 26, 1, 0, 0)$.
+At $z = 5$, gate 0 gets the weight $z^3 + z^4 = 19$ and gate 1 gets $z^2 + z^5 = 11$. The products are $a_0 b_0 = 9$ and $a_1 b_1 = 27$, so the dilated revdot product is $9 \cdot 19 + 27 \cdot 11 = 38$ modulo 43.
+
+<!-- /worked:dilation -->
+
+::: details Grouping the terms by gate, with a term-by-term check
+
+Writing out the dilated revdot product position by position gives
+
+$$\revdot{\v{r}}{\v{r} \circ \v{z^{4n}}} = \sum_{\ell=0}^{4n-1} r_\ell\, r_{4n-1-\ell}\, z^{4n-1-\ell}.$$
+
+Now we group the terms by gate. The wires $a_i$ and $b_i$ occupy positions $2n - 1 - i$ and $2n + i$. Taking $\ell = 2n - 1 - i$ produces $a_i b_i z^{2n + i}$, and taking $\ell = 2n + i$ produces $b_i a_i z^{2n - 1 - i}$. The pair of wires $c_i, d_i$ contributes in the same way at positions $i$ and $4n - 1 - i$, which gives the second sum with the weight $z^{i} + z^{4n-1-i}$.
+
+The table computes the same value for our witness directly from the definition.
+
+<!-- worked:dilation-table -->
+
+At $z = 5$ the powers are $(1, 5, 25, 39, 23, 29, 16, 37)$, so $\v{r} \circ \v{z^{8}} = (9, 6, 10, 31, 26, 1, 0, 0)$. The table multiplies each entry of $\v{r}$ by its partner and by the power of $z$ at the partner position.
 
 | $\ell$ | $r_\ell$ | $r_{7-\ell}$ | $z^{7-\ell}$ | Term |
 | --- | --- | --- | --- | --- |
@@ -246,9 +272,11 @@ At $z = 5$ the powers are $(1, 5, 25, 39, 23, 29, 16, 37)$, so $\v{r} \circ \v{z
 | 6 | 0 | 27 | 5 | 0 |
 | 7 | 0 | 9 | 1 | 0 |
 
-The last column sums to 38. The formula above gives the same value. Its weights are $z^3 + z^4 = 19$ and $z^2 + z^5 = 11$, and $9 \cdot 19 + 27 \cdot 11 = 38$ modulo 43.
+The last column sums to 38, the same value as the gate-by-gate formula.
 
-<!-- /worked:dilation -->
+<!-- /worked:dilation-table -->
+
+:::
 
 ## 10. Subtracting the gate outputs
 
@@ -308,13 +336,11 @@ At $z = 5$ and $y = 7$, the combined right vector is $\v{r} \circ \v{z^{8}} + \v
 
 ### Why a false witness fails
 
-The argument has to cover every vector $\v{r}$ a prover might choose, including one with a nonzero $\v{d}$ block. Section 10 dropped the products $c_i d_i$ from the dilated term by assuming $\v{d} = \v{0}$, so we now restore them. Subtracting the right side from the left side splits the equation into three parts:
+The argument has to cover every vector $\v{r}$ a prover might choose, including one with a nonzero $\v{d}$ block. Subtract the right side from the left side and treat the difference as a polynomial in the two variables $z$ and $y$. It has three parts, and each kind of error lands in its own set of monomials:
 
-$$\underbrace{\sum_{i=0}^{n-1} (a_i b_i - c_i) \big( z^{2n-1-i} + z^{2n+i} \big)}_{E_g(z)} + \underbrace{\sum_{i=0}^{n-1} c_i d_i \big( z^{i} + z^{4n-1-i} \big)}_{E_d(z)} + \underbrace{\Big( \revdot{\v{r}}{\v{s}} - \dot{\v{k}}{\v{y^{4n}}} \Big)}_{E_c(y)} = 0.$$
-
-The first part combines the dilated gate products with $\revdot{\v{r}}{\v{t}}$, as in Section 10. The last part is the constraint check of Section 6 written as $\sum_j y^j \epsilon_j$, where $\epsilon_j$ is the error of constraint $j$, its left side minus $k_j$. The vector $\v{d}$ appears only in the middle part, because $\v{t}$ and $\v{s}$ have zeros at the partner positions of $\v{d}$.
-
-Treat the left side as one polynomial in the two variables $z$ and $y$, and look at which monomials each part can contain. The gate part uses the powers $z^{n}$ through $z^{3n-1}$, since $2n - 1 - i$ runs from $2n - 1$ down to $n$ and $2n + i$ runs from $2n$ up to $3n - 1$. The $\v{d}$ part uses $z^0$ through $z^{n-1}$ and $z^{3n}$ through $z^{4n-1}$. The constraint part contains only powers of $y$.
+- the gate errors $a_i b_i - c_i$ appear with the middle powers of $z$, from $z^{n}$ through $z^{3n-1}$;
+- the products $c_i d_i$, which Section 10 set aside by assuming $\v{d} = \v{0}$, appear with the outer powers $z^0$ through $z^{n-1}$ and $z^{3n}$ through $z^{4n-1}$;
+- the constraint errors appear with powers of $y$ alone.
 
 <!-- worked:exponents -->
 
@@ -322,11 +348,25 @@ For our circuit with $n = 2$, the gate part uses the powers $z^{2}$ through $z^{
 
 <!-- /worked:exponents -->
 
+Because the parts occupy different monomials, an error in one part cannot cancel an error in another. They overlap only in the constant term, and the box below shows that this overlap does no harm. So a witness with any failing gate, any nonzero product $c_i d_i$, or any failing constraint leaves a nonzero polynomial. That polynomial has total degree at most $4n - 1$. The verifier draws $z$ and $y$ independently and uniformly from $\F_q$, and the prover has to fix $\v{r}$ before seeing them, so a random pair passes with probability at most $(4n - 1)/|\F_q|$. This bound is the two-variable [Schwartz–Zippel lemma](./statements-and-challenges.md#_5-polynomials-in-several-variables) from the previous chapter.
+
+::: details The three parts and why they cannot cancel
+
+Restoring the products $c_i d_i$ in the dilated term and subtracting the right side from the left side splits the equation into three parts:
+
+$$\underbrace{\sum_{i=0}^{n-1} (a_i b_i - c_i) \big( z^{2n-1-i} + z^{2n+i} \big)}_{E_g(z)} + \underbrace{\sum_{i=0}^{n-1} c_i d_i \big( z^{i} + z^{4n-1-i} \big)}_{E_d(z)} + \underbrace{\Big( \revdot{\v{r}}{\v{s}} - \dot{\v{k}}{\v{y^{4n}}} \Big)}_{E_c(y)} = 0.$$
+
+The first part combines the dilated gate products with $\revdot{\v{r}}{\v{t}}$, as in Section 10. The last part is the constraint check of Section 6 written as $\sum_j y^j \epsilon_j$, where $\epsilon_j$ is the error of constraint $j$, its left side minus $k_j$. The vector $\v{d}$ appears only in the middle part, because $\v{t}$ and $\v{s}$ have zeros at the partner positions of $\v{d}$.
+
+The gate part uses the powers $z^{n}$ through $z^{3n-1}$, since $2n - 1 - i$ runs from $2n - 1$ down to $n$ and $2n + i$ runs from $2n$ up to $3n - 1$. The $\v{d}$ part uses $z^0$ through $z^{n-1}$ (from $z^i$) and $z^{3n}$ through $z^{4n-1}$ (from $z^{4n-1-i}$). The constraint part contains only powers of $y$.
+
 The gate part therefore shares no monomial with either of the others. The $\v{d}$ part and the constraint part share exactly one, the constant term $z^0 y^0$. The $\v{d}$ part contains it through the term $c_0 d_0 z^0$, and the constraint part contains it through $\epsilon_0$.
 
-Suppose the whole left side is the zero polynomial. Then every monomial has coefficient zero. The coefficient of $z^{2n+i}$ is the gate error $a_i b_i - c_i$, so every gate holds. The coefficient of $z^{4n-1-i}$ is $c_i d_i$, so every product $c_i d_i$ is zero, and this includes $c_0 d_0$, the one product that also reaches the constant. With the first two parts gone, $E_c(y)$ must be the zero polynomial, so every constraint error $\epsilon_j$ is zero. An error of any kind therefore leaves a nonzero polynomial. An error in one part cannot cancel an error in another, because cancellation would have to happen monomial by monomial, and the parts have no monomial in common apart from the constant.
+Suppose the whole left side is the zero polynomial. Then every monomial has coefficient zero. The coefficient of $z^{2n+i}$ is the gate error $a_i b_i - c_i$, so every gate holds. The coefficient of $z^{4n-1-i}$ is $c_i d_i$, so every product $c_i d_i$ is zero, and this includes $c_0 d_0$, the one product that also reaches the constant. With the first two parts gone, $E_c(y)$ must be the zero polynomial, so every constraint error $\epsilon_j$ is zero. An error of any kind therefore leaves a nonzero polynomial.
 
-That nonzero polynomial has total degree at most $4n - 1$ in $(z, y)$, because its highest power of $z$ is $z^{4n-1}$, its highest power of $y$ is $y^{4n-1}$, and no monomial contains both variables. The verifier draws $z$ and $y$ independently and uniformly from $\F_q$, and the prover has to fix $\v{r}$ before seeing them, so a random pair passes with probability at most $(4n - 1)/|\F_q|$. This bound is the two-variable [Schwartz–Zippel lemma](./statements-and-challenges.md#_6-polynomials-in-several-variables) from the previous chapter.
+That nonzero polynomial has total degree at most $4n - 1$ in $(z, y)$, because its highest power of $z$ is $z^{4n-1}$, its highest power of $y$ is $y^{4n-1}$, and no monomial contains both variables.
+
+:::
 
 On the toy field we can count the exact number of passing challenges for several dishonest witnesses. The last one leaves the gates and constraints honest and puts a nonzero value in $\v{d}$:
 
@@ -339,7 +379,7 @@ On the toy field we can count the exact number of passing challenges for several
 | Both fail | $(4, 8)$ | $(4, 4)$ | $(8, 21)$ | $(0, 0)$ | 40 of 1849 | 0.022 |
 | Honest $\v{a}, \v{b}, \v{c}$, nonzero $\v{d}$ | $(3, 9)$ | $(3, 3)$ | $(9, 27)$ | $(1, 0)$ | 301 of 1849 | 0.163 |
 
-The bound for this circuit is $(4n - 1)/|\F_q| = 7/43 \approx 0.163$, and no row exceeds it. The second row also follows from the exponent structure. Its gates hold and $\v{d} = \v{0}$, so only the constraint part survives, and constraint 3 is the only one that fails, with error $\epsilon_3 = -5$. So $E_c(y) = -5y^3$, which is zero only at $y = 0$, and that one value of $y$ passes with all 43 values of $z$. The last row keeps the honest gates and constraints and sets $d_0 = 1$. Only the term $c_0 d_0 (1 + z^{7}) = 9(1 + z^7)$ survives, and it vanishes at the 7 values of $z$ with $z^7 = -1$, for any $y$. That gives $7 \cdot 43 = 301$ passing pairs, which reaches the bound exactly.
+The bound for this circuit is $(4n - 1)/|\F_q| = 7/43 \approx 0.163$, and no row exceeds it. Two of the counts can be predicted by hand. In the second row the gates hold and $\v{d} = \v{0}$, so only the constraint check can fail, and constraint 3 is the only one that fails, with error $-5$. The combined constraint check is then $-5y^3$, which is zero only at $y = 0$, and that one value of $y$ passes with all 43 values of $z$. The last row keeps the honest gates and constraints and sets $d_0 = 1$. Only the term $c_0 d_0 (1 + z^{7}) = 9(1 + z^7)$ survives, and it vanishes at the 7 values of $z$ with $z^7 = -1$, for any $y$. That gives $7 \cdot 43 = 301$ passing pairs, which reaches the bound exactly.
 
 <!-- /worked:cheats -->
 
@@ -384,7 +424,15 @@ The products are $A\v{w} = (3, 9, 35)$ and $B\v{w} = (3, 3, 1)$. Their entrywise
 
 <!-- /worked:r1cs -->
 
-R1CS and Ragu's system have the same expressive power, and each can be converted to the other with a linear increase in size. An R1CS row becomes one gate plus three linear constraints that set $a_i$, $b_i$ and $c_i$ equal to the row's three linear combinations. In the other direction, a gate becomes an R1CS row whose three combinations each select one wire, and a linear constraint becomes a row that multiplies its linear combination by the constant 1. R1CS merges the wiring into its multiplication rows, while Ragu's system keeps gates and linear constraints apart. The Ragu Book's [core arithmetization chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/arithmetization.md?plain=1#L22-L26) at commit `3219e08` calls this system Bootle16, after the [2016 paper by Bootle, Cerulli, Chaidos, Groth and Petit](https://eprint.iacr.org/2016/263) that introduced it. The separation is what gives the revdot form above its shape. The gates become one fixed revdot product of $\v{r}$ with its own dilation, the same for every circuit of size $n$, and all the circuit-specific wiring moves into the single public vector $\v{s}$.
+R1CS and Ragu's system have the same expressive power, and each can be converted to the other with a linear increase in size.
+
+::: details Converting between R1CS and Ragu's system
+
+An R1CS row becomes one gate plus three linear constraints that set $a_i$, $b_i$ and $c_i$ equal to the row's three linear combinations. In the other direction, a gate becomes an R1CS row whose three combinations each select one wire, and a linear constraint becomes a row that multiplies its linear combination by the constant 1.
+
+:::
+
+R1CS merges the wiring into its multiplication rows, while Ragu's system keeps gates and linear constraints apart. The Ragu Book's [core arithmetization chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/arithmetization.md?plain=1#L22-L26) at commit `3219e08` calls this system Bootle16, after the [2016 paper by Bootle, Cerulli, Chaidos, Groth and Petit](https://eprint.iacr.org/2016/263) that introduced it. The separation is what gives the revdot form above its shape. The gates become one fixed revdot product of $\v{r}$ with its own dilation, the same for every circuit of size $n$, and all the circuit-specific wiring moves into the single public vector $\v{s}$.
 
 **PLONK** uses gates with selectable coefficients, of the form $q_L a + q_R b + q_O c + q_M ab + q_C = 0$, and adds separate copy constraints to connect wires. Later variants add custom gates and lookup tables that reduce the number of gates for certain operations. Ragu [deliberately avoids these features](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md). It uses a simple circuit model and splits large computations into many small circuits that communicate along the PCD tree.
 

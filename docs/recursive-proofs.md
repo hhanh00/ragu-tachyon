@@ -82,11 +82,17 @@ With $4n = 8$, $x = 9$ and $z = 5$, the run had $r(x) = 5$, $r(xz) = 9$, $s(x, y
 
 <!-- /worked:split-recap -->
 
+The third gate in the next table computes the inner proof's public input $k(y)$ from the wire that holds $z_1$, and it costs one gate. The box explains why $k(y)$ has the form shown in the table.
+
+::: details Where the public-input gate comes from
+
 <!-- worked:k-gate -->
 
-The third gate in the table below computes the inner proof's public input, and its form comes from Chapter 09. The short proof uses Chapter 09's circuit without the constant wire. Its last constraint, the one weighted by $Y^3$, reads $z_0 + z_0^3 = z_1 - 5$, because the constant 5 of the step moves to the public side. Chapter 09 wrote the start value as $x$, but here $x$ names a challenge, so we use the chain's $z_0$ instead. The instance is therefore $k(Y) = (z_1 - 5)\,Y^3$, which for $z_1 = 35$ is the $30Y^3$ of that chapter. The circuit computes $y^3$ with 2 gates and multiplies it by $z_1 - 5$. Forming $z_1 - 5$ from the wire $z_1$ is a linear operation and costs nothing, so the product costs the one gate shown.
+The form of this gate comes from Chapter 09. The short proof uses Chapter 09's circuit without the constant wire. Its last constraint, the one weighted by $Y^3$, reads $z_0 + z_0^3 = z_1 - 5$, because the constant 5 of the step moves to the public side. Chapter 09 wrote the start value as $x$, but here $x$ names a challenge, so we use the chain's $z_0$ instead. The instance is therefore $k(Y) = (z_1 - 5)\,Y^3$, which for $z_1 = 35$ is the $30Y^3$ of that chapter. The circuit computes $y^3$ with 2 gates and multiplies it by $z_1 - 5$. Forming $z_1 - 5$ from the wire $z_1$ is a linear operation and costs nothing, so the product costs the one gate shown.
 
 <!-- /worked:k-gate -->
+
+:::
 
 Here are some of the level-1 circuit's gates, with the wires holding these values. The wires use Chapter 09's hand-picked challenges. A real level-1 circuit would derive them with the hash gates priced later in this section.
 
@@ -115,13 +121,21 @@ The level-1 circuit is our own teaching construction and not a Ragu circuit. We 
 
 ### Point operations
 
-The verifier also adds and scales points, and those operations reduce to gates in the same way. Adding $(x_1, y_1)$ and $(x_2, y_2)$ uses a slope $\lambda$, which the prover supplies as a witness, and three gates that check it and build the result:
+The verifier also adds and scales points, and those operations reduce to gates in the same way. Adding two points takes three gates, because the prover supplies the slope of the line through them as a witness and the circuit only has to check it and build the result. Doubling a point takes a fourth gate, because the tangent slope needs the square of a coordinate. The box gives the three gates.
+
+::: details The gates for adding two points
+
+Adding $(x_1, y_1)$ and $(x_2, y_2)$ uses a slope $\lambda$, which the prover supplies as a witness, and three gates that check it and build the result:
 
 $$
 \lambda \cdot (x_2 - x_1) = y_2 - y_1, \qquad \lambda \cdot \lambda = x_3 + x_1 + x_2, \qquad \lambda \cdot (x_1 - x_3) = y_3 + y_1.
 $$
 
-These formulas assume $x_1 \neq x_2$, and a circuit must deal with that case separately. Doubling takes a fourth gate, because it computes $x^2$ for the tangent slope. Ragu's [point gadget](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/point.rs#L198-L259) uses these same formulas. A scalar multiplication repeats these operations once per bit of the scalar. In the plainest form each lower bit doubles the running point, adds the base point, and selects one of the two results according to the bit, which costs one gate per coordinate. Each bit also needs one gate to show that it is 0 or 1.
+These formulas assume $x_1 \neq x_2$, and a circuit must deal with that case separately. Doubling computes $x_1^2$ for the tangent slope, which is the fourth gate.
+
+:::
+
+Ragu's [point gadget](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/point.rs#L198-L259) uses the same formulas. A scalar multiplication repeats these operations once per bit of the scalar. In the plainest form each lower bit doubles the running point, adds the base point, and selects one of the two results according to the bit, which costs one gate per coordinate. Each bit also needs one gate to show that it is 0 or 1.
 
 ::: warning The toy curve's fields do not line up here
 The polynomials in our proof have coefficients in $\F_{43}$, so its circuit has wires in $\F_{43}$. The commitments are points on $E$, whose coordinates lie in $\F_{31}$, and a wire in $\F_{43}$ cannot directly do arithmetic modulo 31. The verifier's group operations therefore do not fit in this circuit as written. Emulating the other field is possible but costs far more than the gate counts below. We set this aside until the [curve cycles chapter](./curve-cycles.md), which removes the mismatch. To count gates at their native cost, the next example runs on the partner curve $E'$, whose coordinates do lie in $\F_{43}$.
@@ -129,17 +143,27 @@ The polynomials in our proof have coefficients in $\F_{43}$, so its circuit has 
 
 <!-- worked:scalar-mul -->
 
-The toy proof's scalars are elements of $\F_{43}$, which have 6 bits. The curve $E$ cannot run inside this circuit, so we measure the cost per bit on $E'$ and apply it to 6-bit scalars. Take the point $P' = (12,\,31)$ on $E'$ and the scalar $23$, written in binary as $10111$. The circuit spends 5 gates to show that the digits are bits, 16 on doublings, 12 on additions and 8 on selecting by each bit, for a total of 41 gates. Its output wires hold $(20,\,40)$, which equals $23 \cdot P'$ computed outside the circuit. For a scalar of $b$ bits whose top bit is 1, the circuit starts the running point at $P'$, so the top bit needs no doubling, addition or selection. Each of the other $b - 1$ bits costs 4 gates for the doubling, 3 for the addition and 2 for the selection, and every one of the $b$ bits costs 1 gate for its bit check. So the scalar costs $b + (4 + 3 + 2)(b - 1) = 10b - 9$ gates here, which is $2,541$ gates for a 255-bit scalar. For the toy proof's 6-bit scalars that gives $10 \cdot 6 - 9 = 51$ gates, which is the stand-in price we use for each of its scalar multiplications. The stand-in is needed because the scalars of $E'$ itself have only 5 bits, since $E'$ has 31 points.
+The toy proof's scalars are elements of $\F_{43}$, which have 6 bits. The curve $E$ cannot run inside this circuit, so we measure the cost per bit on $E'$ and apply it to 6-bit scalars. Take the point $P' = (12,\,31)$ on $E'$ and the scalar $23$, written in binary as $10111$. The circuit spends 5 gates to show that the digits are bits, 16 on doublings, 12 on additions and 8 on selecting by each bit, for a total of 41 gates. Its output wires hold $(20,\,40)$, which equals $23 \cdot P'$ computed outside the circuit. Counting gates bit by bit gives $10b - 9$ gates for a scalar of $b$ bits, which is $2,541$ gates for a 255-bit scalar and $51$ gates for the toy proof's 6-bit scalars. We use $51$ as the stand-in price for each of the toy proof's scalar multiplications. The stand-in is needed because the scalars of $E'$ itself have only 5 bits, since $E'$ has 31 points.
 
 <!-- /worked:scalar-mul -->
 
+::: details Counting the gates per bit
+
+<!-- worked:scalar-mul-count -->
+
+For a scalar of $b$ bits whose top bit is 1, the circuit starts the running point at $P'$, so the top bit needs no doubling, addition or selection. Each of the other $b - 1$ bits costs 4 gates for the doubling, 3 for the addition and 2 for the selection, and every one of the $b$ bits costs 1 gate for its bit check. So the scalar costs $b + (4 + 3 + 2)(b - 1) = 10b - 9$ gates here. For the toy proof's 6-bit scalars that gives $10 \cdot 6 - 9 = 51$, and for a 255-bit scalar it gives $2,541$.
+
+<!-- /worked:scalar-mul-count -->
+
 A scalar whose top bit may be 0 needs a few extra gates to handle that case, which does not change how the cost grows with $b$.
+
+:::
 
 This count describes our plain construction and not an optimized one. Real circuits lower the cost per scalar multiplication, and the [endoscalars chapter](./endoscalars.md) covers Ragu's main technique. Sections 4 and 6 show that this kind of saving does not change the conclusion.
 
 ### The hash
 
-A non-interactive verifier [gets its challenges by hashing the transcript](./statements-and-challenges.md#_8-removing-the-verifier-with-fiat–shamir), so the level-1 circuit has to do the hashing too. It may look tempting to save those gates by giving the circuit its challenges as inputs and leaving the hash to whoever verifies the outer proof. The trouble is that the outer verifier does not hold the inner transcript, and the prover fills in every witness wire:
+A non-interactive verifier [gets its challenges by hashing the transcript](./statements-and-challenges.md#_7-removing-the-verifier-with-fiat–shamir), so the level-1 circuit has to do the hashing too. It may look tempting to save those gates by giving the circuit its challenges as inputs and leaving the hash to whoever verifies the outer proof. The trouble is that the outer verifier does not hold the inner transcript, and the prover fills in every witness wire:
 
 <!-- worked:free-challenge -->
 
@@ -185,7 +209,9 @@ The step itself took 2 gates, and verifying the proof of that same step takes $2
 
 The table prices each row as if it computed its own powers. A real circuit would share them, since $y^3$ appears in both the $s(x, y)$ row and the $k(y)$ row, and $x^{4n-1}$ appears in both the $s(x, y)$ row and the split row. Sharing would save a handful of gates and would not change how any row grows.
 
-The three bold rows decide how the verifier grows, so it is worth seeing where their counts come from before we change the size.
+The three bold rows decide how the verifier grows. Computing $s(x, y)$ takes a gate for each power of $x$ and $y$ and for each wiring term, each coefficient of $g$ takes one gate, and $\hat{G}$ takes one scalar multiplication per generator. The box traces the toy counts to these gates.
+
+::: details Where the three bold counts come from
 
 <!-- worked:linear-rows -->
 
@@ -197,7 +223,11 @@ The point $\hat{G}$ is a sum of 8 generators, each scaled by one coefficient of 
 
 <!-- /worked:linear-rows -->
 
-At this tiny size the fixed costs dominate, so the table says little about growth. To see the growth, we move to the size that Ragu uses. Its [production rank](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/polynomials/mod.rs#L123-L127) gives polynomials $2^{13}$ coefficients and circuits at most $2^{11}$ gates. We keep the same plain gadgets with 255-bit scalars, and we assume that a larger circuit has the same density of wiring as our toy. Both choices are ours and not Ragu's. Under that assumption the counts above become formulas in $n$:
+:::
+
+At this tiny size the fixed costs dominate, so the table says little about growth. To see the growth, we move to the size that Ragu uses. Its [production rank](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/polynomials/mod.rs#L123-L127) gives polynomials $2^{13}$ coefficients and circuits at most $2^{11}$ gates. We keep the same plain gadgets with 255-bit scalars, and we assume that a larger circuit has the same density of wiring as our toy. Both choices are ours and not Ragu's. Under that assumption the counts above become formulas in $n$. The bold rows grow in proportion to $n$, and the other rows grow only with $k = \log_2 4n$, the number of rounds of the inner product argument. The box derives each formula.
+
+::: details Counting each row at any size
 
 <!-- worked:linear-general -->
 
@@ -209,9 +239,11 @@ The same counting works for any $n$. The powers of $x$ take $4n - 2$ gates. If a
 
 The other rows depend on $n$ only through $k = \log_2 4n$, the number of rounds of the inner product argument. Two of them, the scalar multiplications and the transcript replay, hold almost all of their gates, and Section 6 relies on both, so we derive their counts. The scalar multiplications come from three places. Forming $P$ takes 3 multiplications by $\beta$, one for each of the three commitments folded into the running point, and $v \cdot U$ takes one more, which makes the 4 that Chapter 09's cost table lists. Each of the $k$ rounds of the inner product argument scales $L_j$ by $u_j^{-2}$ and $R_j$ by $u_j^2$, which makes $2k$. The final equation scales $\hat{G}$ by $\hat{a}$ and $U$ by $\hat{a}\hat{b}$, which makes 2. The total is $4 + 2k + 2 = 2k + 6$, or 32 at $k = 13$.
 
-For the hash, recall that the toy sponge holds 2 field elements of input at a time and [permutes only when it has to](./statements-and-challenges.md#_11-poseidon-and-the-random-oracle-assumption), which happens when a third element arrives or when a challenge is requested. A squeeze after new input yields 2 challenges. So a group of $e$ absorbed elements followed by a squeeze costs $\lceil e / 2 \rceil$ permutations in all, the last of which is the squeeze. The transcript has five such groups before the inner product argument. Of these, the 3 elements of the domain tag and the 2 coordinates of $R$ take 3, the 4 coordinates of $C_1$ and $C_2$ take 2, the 5 evaluations take 3, the 2 coordinates of $F$ take 1, and the 3 values at $u$ take 2, which makes 11. Each round of the argument then absorbs the 4 coordinates of $L_j$ and $R_j$ and squeezes $u_j$, which takes 2. The total is $2k + 11$ permutations.
+For the hash, recall that the toy sponge holds 2 field elements of input at a time and [permutes only when it has to](./statements-and-challenges.md#_10-poseidon-and-the-random-oracle-assumption), which happens when a third element arrives or when a challenge is requested. A squeeze after new input yields 2 challenges. So a group of $e$ absorbed elements followed by a squeeze costs $\lceil e / 2 \rceil$ permutations in all, the last of which is the squeeze. The transcript has five such groups before the inner product argument. Of these, the 3 elements of the domain tag and the 2 coordinates of $R$ take 3, the 4 coordinates of $C_1$ and $C_2$ take 2, the 5 evaluations take 3, the 2 coordinates of $F$ take 1, and the 3 values at $u$ take 2, which makes 11. Each round of the argument then absorbs the 4 coordinates of $L_j$ and $R_j$ and squeezes $u_j$, which takes 2. The total is $2k + 11$ permutations.
 
 <!-- /worked:log-rows -->
+
+:::
 
 <!-- worked:other-field -->
 
@@ -295,7 +327,9 @@ So far we have priced one level of recursion. Now let $n_i$ be the number of gat
 
 $$n_{i+1} = f + V(n_i).$$
 
-Suppose first that the verifier is linear, with $V(n) = c \cdot n$ for some constant $c$. Expanding the first few levels shows the pattern:
+Suppose first that the verifier is linear, with $V(n) = c \cdot n$ for some constant $c$. Each level multiplies the previous size by $c$ and adds $f$, so after $i$ levels the start has been multiplied by $c^i$ and each earlier copy of $f$ by a smaller power of $c$. The box writes out the first few levels.
+
+::: details Expanding the recurrence
 
 $$
 \begin{aligned}
@@ -305,7 +339,9 @@ n_i &= c^i n_0 + f\,(1 + c + c^2 + \cdots + c^{i-1}).
 \end{aligned}
 $$
 
-If $c < 1$, the sum converges and the size settles near $f / (1 - c)$. If $c \geq 1$, the size grows without limit, and for $c > 1$ it grows exponentially with the level. Our rows give the value of $c$:
+:::
+
+If $c < 1$, those powers of $c$ shrink, their sum converges, and the size settles near $f / (1 - c)$. If $c \geq 1$, the size grows without limit, and for $c > 1$ it grows exponentially with the level. Our rows give the value of $c$:
 
 <!-- worked:slope -->
 

@@ -170,8 +170,9 @@ frag['forged-claim'] = (
     f'The prover keeps entries 1 to 3 of the honest vector, $a_1 = {f[1]}$, $a_2 = {f[2]}$ and $a_3 = {f[3]}$. '
     f'Their terms add up to ${weights[1]} \\cdot {f[1]} + {weights[2]} \\cdot {f[2]} + {weights[3]} \\cdot {f[3]} = {known}$ modulo 43, '
     f'so ${weights[0]}a_0 \\equiv {target} - {known} = {(target - known) % Q}$, and dividing by ${weights[0]}$ gives $a_0 = {fake[0]}$. '
-    f'The next table checks the forged vector against the false statement point.\n\n'
-    + '\n'.join([
+    f'The forged vector is therefore $({", ".join(map(str, fake))})$.')
+frag['forged-claim-check'] = (
+    '\n'.join([
         '| Quantity | Value |', '| --- | --- |',
         f'| Forged vector $\\v{{a}}\'$ | $({", ".join(map(str, fake))})$ |',
         f'| Inner product $\\dot{{\\v{{a}}\'}}{{\\v{{x^n}}}}$ | ${inner}$ |',
@@ -179,7 +180,7 @@ frag['forged-claim'] = (
         f'| False statement point $C + {wrong} \\cdot U$ | ${show(statement)}$ |',
     ])
     + f'\n\nThe last two rows agree, so the check passes, although the forged vector does not open $C$ and its inner product is ${inner}$ rather than ${wrong}$.\n\n'
-    f'The honest vector gives a second opening $(\\v{{a}},\\ {wrong})$ of the same point, as in the derivation above. Subtracting the forged opening from it leaves the relation '
+    f'The honest vector gives a second opening $(\\v{{a}},\\ {wrong})$ of the same point, as in the derivation of the combined statement. Subtracting the forged opening from it leaves the relation '
     f'$({f[0]} - {fake[0]}) \\cdot G_0 + ({wrong} - {inner}) \\cdot U = {gap_a} \\cdot G_0 + {gap_y} \\cdot U = \\mathcal{{O}}$. '
     f'The prover can cancel these two terms only because it knows $U = {u} \\cdot G_0$, which turns ${gap_y} \\cdot U$ into ${gap_y * u % Q} \\cdot G_0$.')
 

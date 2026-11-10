@@ -193,11 +193,7 @@ A timing problem forces one more detail. A transaction built for epoch $e$ may s
 
 Suppose the owner of this note tries to spend it twice, and call the spend that the chain accepts first the first spend. The proof pins each published nullifier to the note and the epoch, so the owner cannot disguise the second spend by publishing fresh values. The owner can only choose the second spend's target epoch and when to submit it.
 
-The argument depends on what the pair of nullifiers guarantees. A spend lands in its target epoch or the next one, and it publishes the nullifiers of both, so it always publishes the nullifier of the epoch that accepts it. Let $a$ be the epoch that accepts the first spend, which means $\mathsf{nf}_a$ now sits in epoch $a$'s data. The second spend's target is either later than $a$ or not, and each case fails for a different reason.
-
-If the target is later than $a$, the exclusion proof must cover epoch $a$, because it covers every closed epoch before the target. The proof would have to show that $\mathsf{nf}_a$ is absent from epoch $a$'s data, which is false, so the owner cannot produce it.
-
-If the target is not later than $a$, the exclusion proof stops short of epoch $a$, so the validators have to catch the spend. The second spend lands in epoch $a$ or later, and a spend lands at most one epoch after its target, so its target is $a - 1$ or $a$. Both targets give a pair that includes $\mathsf{nf}_a$. The spend also lands in epoch $a$ or $a + 1$, and validators still retain epoch $a$ at either point, so they find the repeated value and reject the spend.
+The argument depends on what the pair of nullifiers guarantees. A spend lands in its target epoch or the next one, and it publishes the nullifiers of both, so it always publishes the nullifier of the epoch that accepts it. Let $a$ be the epoch that accepts the first spend, which means $\mathsf{nf}_a$ now sits in epoch $a$'s data.
 
 <!-- worked:double-spend-walk -->
 
@@ -212,6 +208,18 @@ Take the note in the figure, and suppose its first spend targets epoch 7 and lan
 | 9 | 10 | $\mathsf{nf}_{9}$, $\mathsf{nf}_{10}$ | the exclusion proof, which would have to show $\mathsf{nf}_{8}$ absent from epoch 8 |
 
 <!-- /worked:double-spend-walk -->
+
+The rows follow a pattern that holds for any note. A second spend that targets an epoch later than $a$ fails because its exclusion proof would have to cover epoch $a$, where $\mathsf{nf}_a$ is present. A second spend that targets $a$ or earlier still publishes $\mathsf{nf}_a$, and it lands while validators retain epoch $a$, so they see the repeat. The box below checks both cases in general.
+
+::: details Why every second spend fails
+
+The second spend's target is either later than $a$ or not, and each case fails for a different reason.
+
+If the target is later than $a$, the exclusion proof must cover epoch $a$, because it covers every closed epoch before the target. The proof would have to show that $\mathsf{nf}_a$ is absent from epoch $a$'s data, which is false, so the owner cannot produce it.
+
+If the target is not later than $a$, the exclusion proof stops short of epoch $a$, so the validators have to catch the spend. The second spend lands in epoch $a$ or later, and a spend lands at most one epoch after its target, so its target is $a - 1$ or $a$. Both targets give a pair that includes $\mathsf{nf}_a$. The spend also lands in epoch $a$ or $a + 1$, and validators still retain epoch $a$ at either point, so they find the repeated value and reject the spend.
+
+:::
 
 This argument assumes that the proofs cannot be forged and that $\mathsf{PRF}$ behaves as a pseudorandom function. [Chapter 20](./notes-and-nullifiers.md#_10-why-a-spend-publishes-two-nullifiers) builds on this argument with an attack that a single nullifier would allow, the reason the window spans two epochs, and a numeric check of every case on a running note. [Chapter 21](./pool-state.md) shows how a proof can refer to history that validators no longer hold.
 

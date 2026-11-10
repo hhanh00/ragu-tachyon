@@ -38,7 +38,18 @@ The cube roots of 1 in $\F_{31}$ are $1$, $5$ and $25$, since $5^3 = 125 = 4 \cd
 
 <!-- /worked:endo-map -->
 
-To be useful for scalar multiplication, the map has to respect addition. We can check this on the addition formula. For points with $x_1 \neq x_2$, the sum has slope $s = (y_2 - y_1) / (x_2 - x_1)$, with $x_3 = s^2 - x_1 - x_2$ and $y_3 = s (x_1 - x_3) - y_1$. Apply $\phi$ to both inputs. The new slope is
+To be useful for scalar multiplication, the map has to respect addition, meaning that $\phi(A) + \phi(B) = \phi(A + B)$ for any two points. Here is a check on one pair:
+
+<!-- worked:endo-hom -->
+
+Take $A = (27,\,30)$ and $B = (6,\,23)$ from [Chapter 8](./batched-openings.md#_8-the-complete-protocol). Their sum is $(5,\,29)$, which maps to $(25,\,29)$. Mapping first gives $\phi(A) = (11,\,30)$ and $\phi(B) = (30,\,23)$, and these add to $(25,\,29)$. We confirmed the identity on all $1,764$ ordered pairs of affine points of $E$.
+
+<!-- /worked:endo-hom -->
+
+The reason it holds in general is that scaling both $x$-coordinates by $\zeta$ divides the slope of the chord by $\zeta$, and the formulas for the sum then put the factor $\zeta$ back on the new $x$ and leave $y$ alone. The box carries out this algebra for addition and for doubling. A map from a group to itself that respects the operation is called an **endomorphism**.
+
+::: details Why the map respects addition
+For points with $x_1 \neq x_2$, the sum has slope $s = (y_2 - y_1) / (x_2 - x_1)$, with $x_3 = s^2 - x_1 - x_2$ and $y_3 = s (x_1 - x_3) - y_1$. Apply $\phi$ to both inputs. The new slope is
 
 $$s' = \frac{y_2 - y_1}{\zeta x_2 - \zeta x_1} = \frac{s}{\zeta}.$$
 
@@ -50,21 +61,10 @@ The new $y$-coordinate is
 
 $$\frac{s}{\zeta} (\zeta x_1 - \zeta x_3) - y_1 = s (x_1 - x_3) - y_1 = y_3.$$
 
-So $\phi(A) + \phi(B) = (\zeta x_3, y_3) = \phi(A + B)$. The tangent slope for doubling becomes $3 \zeta^2 x^2 / (2y) = s / \zeta$ too, because $\zeta^2 = 1 / \zeta$, and the same two lines then cover doubling. A map from a group to itself that respects the operation is called an **endomorphism**.
+So $\phi(A) + \phi(B) = (\zeta x_3, y_3) = \phi(A + B)$. The tangent slope for doubling becomes $3 \zeta^2 x^2 / (2y) = s / \zeta$ too, because $\zeta^2 = 1 / \zeta$, and the same two lines then cover doubling.
+:::
 
-<!-- worked:endo-hom -->
-
-Take $A = (27,\,30)$ and $B = (6,\,23)$ from [Chapter 8](./batched-openings.md#_8-the-complete-protocol). Their sum is $(5,\,29)$, which maps to $(25,\,29)$. Mapping first gives $\phi(A) = (11,\,30)$ and $\phi(B) = (30,\,23)$, and these add to $(25,\,29)$. We confirmed the identity on all $1,764$ ordered pairs of affine points of $E$.
-
-<!-- /worked:endo-hom -->
-
-Now we use the fact that our curves have prime order. Every point is a multiple of one generator $T_0$, and $\phi(T_0)$ is some multiple $\lambda \cdot T_0$. For any other point $a \cdot T_0$, respecting addition gives
-
-$$\phi(a \cdot T_0) = a \cdot \phi(T_0) = a \lambda \cdot T_0 = \lambda \cdot (a \cdot T_0).$$
-
-So $\phi$ multiplies every point by one scalar $\lambda$, which we call its **eigenvalue**. (This $\lambda$ has nothing to do with the fold weight $\lambda$ of the [revdot chapter](./revdot-folding.md#_4-two-challenges-and-the-error-matrix).) Applying $\phi$ three times multiplies $x$ by $\zeta^3 = 1$, so $\lambda^3 = 1$ in the scalar field. Since $\phi$ is not the identity map, $\lambda \neq 1$, and dividing $\lambda^3 - 1 = (\lambda - 1)(\lambda^2 + \lambda + 1)$ by the first factor leaves
-
-$$\lambda^2 + \lambda + 1 = 0.$$
+Because our curves have prime order, a map that respects addition can only act in one way, which is as multiplication by a fixed scalar. We can see this by asking, for several points $T$, which multiple of $T$ the image $\phi(T)$ is:
 
 <!-- worked:endo-eigen -->
 
@@ -76,6 +76,18 @@ $$\lambda^2 + \lambda + 1 = 0.$$
 | $G_3 = (17,\,7)$ | $(23,\,7)$ | $6$ |
 
 <!-- /worked:endo-eigen -->
+
+In general, $\phi$ multiplies every point by one scalar $\lambda$, which we call its **eigenvalue**. (This $\lambda$ has nothing to do with the fold weight $\lambda$ of the [revdot chapter](./revdot-folding.md#_4-two-challenges-and-the-error-matrix).) Applying $\phi$ three times returns every point to itself, and $\phi$ is not the identity, so $\lambda$ is a cube root of 1 other than 1, which means
+
+$$\lambda^2 + \lambda + 1 = 0.$$
+
+::: details Why $\phi$ acts as one scalar, and why $\lambda^2 + \lambda + 1 = 0$
+Every point is a multiple of one generator $T_0$, and $\phi(T_0)$ is some multiple $\lambda \cdot T_0$. For any other point $a \cdot T_0$, respecting addition gives
+
+$$\phi(a \cdot T_0) = a \cdot \phi(T_0) = a \lambda \cdot T_0 = \lambda \cdot (a \cdot T_0).$$
+
+Applying $\phi$ three times multiplies $x$ by $\zeta^3 = 1$, so $\lambda^3 = 1$ in the scalar field. Since $\phi$ is not the identity map, $\lambda \neq 1$, and dividing $\lambda^3 - 1 = (\lambda - 1)(\lambda^2 + \lambda + 1)$ by the first factor leaves $\lambda^2 + \lambda + 1 = 0$.
+:::
 
 <!-- worked:endo-eigen-check -->
 
@@ -172,11 +184,13 @@ $$N(a + b\lambda) = a^2 - ab + b^2.$$
 
 It equals the squared absolute value of $a + b\lambda$ when we read $\lambda$ as the complex number $e^{2\pi i/3}$, so it is never negative, it is zero only for the zero element, and the triangle inequality applies to its square root.
 
+The norm controls zero images through one rule: an element can map to zero in $\F_q$ only if $q$ divides its norm. The box substitutes the zero image into the norm to show this. In particular, a nonzero element whose norm is below $q$ cannot map to zero:
+
+::: details Why a zero image forces $q$ to divide the norm
 Suppose $a + b\lambda$ maps to zero modulo a prime $q$, where $\lambda$ now stands for a root in $\F_q$. Then $a \equiv -b\lambda$, and substituting into the norm gives
 
 $$N(a + b\lambda) \equiv b^2\lambda^2 + b^2\lambda + b^2 = b^2 (\lambda^2 + \lambda + 1) \equiv 0 \pmod q.$$
-
-So the image can be zero only if $q$ divides the norm. In particular, a nonzero element whose norm is below $q$ cannot map to zero:
+:::
 
 <!-- worked:ring-zero -->
 
@@ -209,13 +223,18 @@ For decoding it is enough that the digits lie in distinct classes, and we also l
 
 <!-- /worked:digits -->
 
-The last two rows are not free multiples, but Section 7 shows that they still cost little. Halo's original walk [uses doubling](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/extensions/endoscalar.md?plain=1#L49-L56), with the digits $\pm 1, \pm\lambda$, which gives two bits for each doubling. A doubling walk cannot also use $\pm\lambda^2$, but the residue test above does not explain why. That test is sufficient for decoding and not necessary. Modulo 2 there are only four classes, and Halo's own digits already share them in pairs, because $1 \equiv -1$ and $\lambda \equiv -\lambda$ modulo 2. Halo therefore has to tell the two members of a pair apart in some other way, much as an integer walk with digits $\pm 1$ in radix 2 can be decoded by looking modulo 4 in place of modulo 2. Once $\pm\lambda^2$ is added, no argument of this kind can work, because two strings then reach exactly the same element:
+The last two rows are not free multiples, but Section 7 shows that they still cost little. Halo's original walk [uses doubling](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/extensions/endoscalar.md?plain=1#L49-L56), with the digits $\pm 1, \pm\lambda$, which gives two bits for each doubling. A doubling walk cannot add $\pm\lambda^2$ as a third pair, because two strings would then reach the same element, so tripling is what lets the walk use all six free multiples. The box explains this and gives a clash.
+
+::: details Why a doubling walk cannot use $\pm\lambda^2$
+The residue test above does not explain why a doubling walk is limited to four digits. That test is sufficient for decoding and not necessary. Modulo 2 there are only four classes, and Halo's own digits already share them in pairs, because $1 \equiv -1$ and $\lambda \equiv -\lambda$ modulo 2. Halo therefore has to tell the two members of a pair apart in some other way, much as an integer walk with digits $\pm 1$ in radix 2 can be decoded by looking modulo 4 in place of modulo 2. Once $\pm\lambda^2$ is added, no argument of this kind can work, because two strings then reach exactly the same element:
 
 <!-- worked:radix2-clash -->
 
 For instance, $2 \cdot 1 + \lambda$ and $2 \cdot (-\lambda^2) + (-\lambda)$ are both $2 + \lambda$, because $-\lambda^2 = 1 + \lambda$.
 
 <!-- /worked:radix2-clash -->
+
+:::
 
 The layout in [`group_scale`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/endoscalar.rs#L478-L494) then reads as follows. Bits 0 and 1 are $(s_0, e_0)$, and each later group of three bits is one digit $(s, e_1, e_2)$ from the table. On a base point $T$, with $n$ digits, the walk sets the running point $A_i$ by
 
@@ -333,11 +352,15 @@ Now we count, using the gates from the [recursive proofs chapter](./recursive-pr
 
 ### Tripling and adding
 
-Done naively, $3 \cdot A + D = ((A + D) + A) + A$ is three additions at three gates each, or nine gates. Two of those gates compute $y$-coordinates of intermediate points that are never kept, so we try to remove them. Write $A = (x, y)$. The first addition has slope $t_1$, with $x_1 = t_1^2 - x - x_D$ and $y_1 = t_1 (x - x_1) - y$. The second addition has slope
+Done naively, $3 \cdot A + D = ((A + D) + A) + A$ is three additions at three gates each, or nine gates. Two of those gates compute $y$-coordinates of intermediate points that are never kept, so we try to remove them. Each addition needs the $y$-coordinate of its input only to form its slope, and the slope of the next addition can be written in terms of the previous slope and the coordinates of $A$, so the intermediate $y$-coordinates drop out. The [code](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/endoscalar.rs#L886-L905) ends up with seven gates, which the worked run at the end of this section lists one by one.
+
+::: details Removing the intermediate $y$-coordinates
+Write $A = (x, y)$. The first addition has slope $t_1$, with $x_1 = t_1^2 - x - x_D$ and $y_1 = t_1 (x - x_1) - y$. The second addition has slope
 
 $$t_2 = \frac{y_1 - y}{x_1 - x} = \frac{t_1 (x - x_1) - 2y}{x_1 - x} = -t_1 - \frac{2y}{x_1 - x}.$$
 
-So $y_1$ has disappeared, and the slope equation becomes $(t_1 + t_2)(x_1 - x) = -2y$. The third addition follows in the same way, and only its output needs a $y$-coordinate. The [code](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/endoscalar.rs#L886-L905) ends up with seven gates.
+So $y_1$ has disappeared, and the slope equation becomes $(t_1 + t_2)(x_1 - x) = -2y$. The third addition follows in the same way, and only its output needs a $y$-coordinate.
+:::
 
 ### Picking the digit
 
@@ -382,8 +405,11 @@ where the last step uses $-2\zeta^2 - 1 = 2 + 2\zeta - 1 = 1 + 2\zeta$ and $\zet
 
 <!-- /worked:digit-coords -->
 
-Each coordinate in the table is $r$ times a constant, plus a constant, and only the constants depend on the bits. If the circuit can turn the bits into the right constants with additions alone, then a selection needs only one product with $r$ per coordinate. Let $s$ be the digit's sign bit from the table in Section 5, which negates $y$. We build the combinations from the table one row at a time.
+Each coordinate in the table is $r$ times a constant, plus a constant, and only the constants depend on the bits. If the circuit can turn the bits into the right constants with additions alone, then a selection needs only one product with $r$ per coordinate. Let $s$ be the digit's sign bit from the table in Section 5, which negates $y$.
 
+Interpolating the table row by row gives such a formula. The first three rows differ only in the multiplier of $r$, so they need no products at all. The last row needs a correction that must switch on only when $e_1 = e_2 = 1$, so the circuit multiplies it by the bit product $\pi = e_1 e_2$, and the sign of that correction brings in a second bit product, $\pi_s = e_1 e_2 s$. With $\pi$ and $\pi_s$ as wires, this form costs four gates per digit, one for each bit product and one for each product with $r$. The first box below builds it.
+
+::: details Building the selector by interpolation
 Start with $x$. The row $(0, 0)$ has $x = r$, which is the base. Moving to the row $(1, 0)$ changes the multiplier of $r$ from $1$ to $\zeta$, so we add $(\zeta - 1) e_1 r$. Moving to $(0, 1)$ changes it from $1$ to $\zeta^2$, so we add $(\zeta^2 - 1) e_2 r$. These two terms reproduce the first three rows. In the row $(1, 1)$ both are switched on, and together with the base they give $r(1 + \zeta - 1 + \zeta^2 - 1) = (\zeta + \zeta^2 - 1) r = -2r$, using $\zeta + \zeta^2 = -1$. The table asks for $\zeta^2 r - \tfrac{4}{3}\zeta^2$ in that row, so the last row needs the correction
 
 $$\zeta^2 r - \tfrac{4}{3}\zeta^2 - (-2r) = (\zeta^2 + 2) r - \tfrac{4}{3}\zeta^2 = (1 - \zeta) r - \tfrac{4}{3}\zeta^2,$$
@@ -404,9 +430,11 @@ y_D &= r \big((1 - 2s) + 2\zeta (\pi - 2\pi_s)\big) - \tfrac{8}{9} (1 + 2\zeta)(
 $$
 
 Once $\pi$ and $\pi_s$ are wires, each bracket is a sum of bits times constants, and each line has a single product with $r$. This form therefore costs four gates per digit, one each for $\pi$ and $\pi_s$ and one for each product with $r$.
+:::
 
-The code's unhoisted gadget, which we call the plain selector, [refactors this interpolation](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/endoscalar.rs#L563-L586) to save one gate, and our toy run below uses it:
+The code's unhoisted gadget, which we call the plain selector, [refactors this interpolation](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/endoscalar.rs#L563-L586) to save one gate, so it costs three gates per digit. It isolates the last row with one product $j$ that plays the role of $\pi$, and a single product then applies the sign and brings in $r$ together, which removes the gate for $\pi_s$. Our toy run below uses it, and its table lists the formulas. The second box states them in full and checks them against the table of digit coordinates.
 
+::: details The plain selector's formulas and the four-case check
 $$
 \begin{aligned}
 h &= \Big(r + \tfrac{4}{9}(\zeta - 1) e_1\Big)\Big((\zeta - 1) e_1 + (\zeta^2 - 1) e_2\Big), \\
@@ -418,7 +446,6 @@ $$
 
 The products $h$, $j$ and $y_D$ take one gate each. Here $j$ is nonzero only when $e_1 = e_2 = 1$, so it plays the role of $\pi$, and the single product in $y_D$ applies the sign and brings in $r$ together, which saves the gate that the interpolation spent on $\pi_s$.
 
-::: details Checking the four cases of the plain selector
 The checks use $(\zeta - 1)^2 = -3\zeta$, $\zeta + \zeta^2 = -1$ and $(\zeta - 1)(\zeta + 2) = \zeta^2 + \zeta - 2 = -3$.
 
 - For $(e_1, e_2) = (0, 0)$, $h = j = 0$, so $x_D = r$ and $y_D = (1 - 2s) r$.
@@ -508,8 +535,13 @@ The hoisted count fits the [limit of four endoscalings per circuit](https://gith
 
 ## 8. Why distinct strings stay distinct
 
-Section 5 showed that strings name distinct elements of the ring, but the circuits work in the fields, and a nonzero ring element can have image zero there. Section 4 tells us when this can happen, so we bound the norm of a difference.
+Section 5 showed that strings name distinct elements of the ring, but the circuits work in the fields, and a nonzero ring element can have image zero there. Section 4 tells us when this can happen, so we bound the norm of a difference. Two strings of $n$ digits differ in their initial unit and in each digit, and each of those differences is small in absolute value, so the difference of the two elements is at most a geometric sum in powers of 3. Squaring that bound gives the [book's bound](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/extensions/endoscalar.md?plain=1#L71-L76) on the norm,
 
+$$N(k - k') \leq 3 (5 \cdot 3^n - 1)^2.$$
+
+If the bound is below the field size, the difference cannot have image zero, because of the divisibility rule in Section 4. The book states the bound without steps, and the box gives our derivation.
+
+::: details Deriving the norm bound
 Take two strings and subtract their elements:
 
 $$k - k' = 2 \cdot 3^n (u - u') + \sum_{i=0}^{n-1} 3^{\,n-1-i} (d_i - d_i'),$$
@@ -518,7 +550,8 @@ where $u$ and $u'$ are the initial units. Units have absolute value 1, so $2 |u 
 
 $$|k - k'| \leq 4\sqrt{3} \cdot 3^n + 2\sqrt{3} \cdot \frac{3^n - 1}{2} = \sqrt{3}\,(5 \cdot 3^n - 1).$$
 
-Squaring gives the [book's bound](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/extensions/endoscalar.md?plain=1#L71-L76) on the norm, $N(k - k') \leq 3 (5 \cdot 3^n - 1)^2$. The book states the bound without these steps, so the derivation is ours. If the bound is below the field size, the difference cannot have image zero, because of the divisibility rule in Section 4.
+Squaring gives $N(k - k') \leq 3 (5 \cdot 3^n - 1)^2$. The book states the bound without these steps, so the derivation is ours.
+:::
 
 <!-- worked:real-bound -->
 
@@ -542,11 +575,15 @@ The 32 strings reach $21$ different scalars in $\F_{43}$ and $21$ in $\F_{31}$. 
 
 There is also a second use of the norm. The walk uses [incomplete additions](./recursive-proofs.md#point-operations), which divide by a difference of $x$-coordinates and so fail if the two inputs are equal or opposite. Let the running point have index $a$ and the digit have index $d$. The three additions need $a \neq \pm d$, then $2a + d \neq 0$ and $d \neq 0$, and then $3a + d \neq 0$ and $a + d \neq 0$.
 
-All of these follow from one inequality, $|a| > \sqrt{3} \geq |d|$, so we first show that the running point always satisfies it. The first running point is twice a unit, so $|A_0| = 2 > \sqrt{3}$. If $|a| > \sqrt{3}$, the next running point has $|3a + d| \geq 3|a| - \sqrt{3} > 3\sqrt{3} - \sqrt{3} > \sqrt{3}$, so the inequality carries from each step to the next. Now each condition follows:
+All of these follow from one inequality, $|a| > \sqrt{3} \geq |d|$. In words, the running point is always larger in absolute value than any digit, because it starts at twice a unit and grows roughly threefold at each step, while the digits stay fixed in size. Then $a$ can never cancel against a small multiple of $d$. The box checks that the inequality holds at every step and derives each condition from it.
+
+::: details Why no addition in the walk is exceptional
+The first running point is twice a unit, so $|A_0| = 2 > \sqrt{3}$. If $|a| > \sqrt{3}$, the next running point has $|3a + d| \geq 3|a| - \sqrt{3} > 3\sqrt{3} - \sqrt{3} > \sqrt{3}$, so the inequality carries from each step to the next. Now each condition follows:
 
 - $a + d$ and $a - d$ have absolute value at least $|a| - |d| > 0$, so $a \neq \pm d$;
 - $|2a + d| \geq 2|a| - |d| > 0$ and $|3a + d| \geq 3|a| - |d| > 0$;
 - $d \neq 0$ because every digit is a nonzero element of norm 1 or 3.
+:::
 
 So [none of these combinations is zero in the ring](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/extensions/endoscalar.md?plain=1#L162-L167). Their norms are again below the Pasta group orders, so none has image zero, and the circuit does not need to check these denominators at all. The walk relies on this, because its [addition gadget skips the check](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/endoscalar.rs#L850-L858) that the denominators are nonzero. On the toy curves the argument does not apply, and we can watch it fail:
 
@@ -731,9 +768,13 @@ The argument rests on these assumptions, and it is informal. Discrete log has to
 
 A circuit does at most four endoscalings, so walking many points by one string takes several step circuits. These step circuits have traces, and those traces have commitments, and the other side then has to fold those commitments too. Adding circuits on one side therefore adds work on the other side, and we need to know whether this settles at a finite number. The book [treats this as a convergence problem](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/extensions/endoscalar.md?plain=1#L254-L264).
 
-Let $M$ and $N$ be the base number of endoscalings on each curve, and let $k$ be the capacity of one circuit, in endoscalings. We count step circuits, and we write $M_{\text{total}}$ for the number of step circuits that end up walking points of the first curve. The book's model says that each circuit adds one endoscaling on the other curve. The first round needs $M/k$ circuits on the first curve. They add $M/k$ endoscalings on the other curve, or $M/k^2$ circuits there, and those add $M/k^2$ endoscalings back on the first curve, or $M/k^3$ circuits, and so on. A round trip multiplies the count by $1/k^2$. The other curve's own $N$ endoscalings take $N/k$ circuits, which reach the first curve after one hop as $N/k^2$ circuits and then follow the same round trips. Collecting the terms on the first curve gives two geometric series with ratio $1/k^2$:
+Let $M$ and $N$ be the base number of endoscalings on each curve, and let $k$ be the capacity of one circuit, in endoscalings. We count step circuits, and we write $M_{\text{total}}$ for the number of step circuits that end up walking points of the first curve. The book's model says that each circuit adds one endoscaling on the other curve. Each hop to the other curve divides the count by $k$, so a round trip multiplies it by $1/k^2$. The total on the first curve is then a sum of two geometric series with ratio $1/k^2$. One starts from the first curve's own $M/k$ circuits, and the other starts from the circuits that the other curve's $N$ endoscalings send over. The box writes out the rounds.
+
+::: details The rounds in the book's model
+The first round needs $M/k$ circuits on the first curve. They add $M/k$ endoscalings on the other curve, or $M/k^2$ circuits there, and those add $M/k^2$ endoscalings back on the first curve, or $M/k^3$ circuits, and so on. The other curve's own $N$ endoscalings take $N/k$ circuits, which reach the first curve after one hop as $N/k^2$ circuits and then follow the same round trips. Collecting the terms on the first curve gives two geometric series with ratio $1/k^2$:
 
 $$M_{\text{total}} = \frac{M}{k}\Big(1 + \frac{1}{k^2} + \cdots\Big) + \frac{N}{k^2}\Big(1 + \frac{1}{k^2} + \cdots\Big).$$
+:::
 
 <!-- worked:book-series -->
 
@@ -741,9 +782,13 @@ With $k = 4$ each series sums to $1/(1 - 1/16) = 16/15$, so for $M = N$ the tota
 
 <!-- /worked:book-series -->
 
-The code counts differently. A fuse folds the commitments of both children, so one more step circuit on one side puts two more points into the walk on the other side, where the book's model has one. The [code's point count](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/nested/mod.rs#L46-L52) has this factor of two. We rerun the same bookkeeping with it. The $M/k$ circuits of the first round now add $2M/k$ endoscalings on the other curve, or $2M/k^2$ circuits there. Those add $4M/k^2$ endoscalings back on the first curve, or $4M/k^3$ circuits, so a round trip multiplies the count by $(2/k)^2$ in place of $1/k^2$. The $N/k$ circuits of the other curve reach the first curve after one hop as $2N/k^2$ circuits. The two-series form becomes
+The code counts differently. A fuse folds the commitments of both children, so one more step circuit on one side puts two more points into the walk on the other side, where the book's model has one. The [code's point count](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/nested/mod.rs#L46-L52) has this factor of two. Each hop now doubles the count before dividing by $k$, so a round trip multiplies it by $(2/k)^2$ in place of $1/k^2$, and the total keeps the two-series form with that ratio. The box reruns the rounds.
+
+::: details The rounds with the code's count
+The $M/k$ circuits of the first round now add $2M/k$ endoscalings on the other curve, or $2M/k^2$ circuits there. Those add $4M/k^2$ endoscalings back on the first curve, or $4M/k^3$ circuits. The $N/k$ circuits of the other curve reach the first curve after one hop as $2N/k^2$ circuits. The two-series form becomes
 
 $$M_{\text{total}} = \frac{M}{k}\Big(1 + \frac{4}{k^2} + \cdots\Big) + \frac{2N}{k^2}\Big(1 + \frac{4}{k^2} + \cdots\Big).$$
+:::
 
 <!-- worked:code-series -->
 

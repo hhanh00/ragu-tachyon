@@ -17,7 +17,7 @@ The trace layout, the masks and their closed form below follow the code, and so 
 
 Two situations in a recursive step call for committing to only part of a trace.
 
-The first is a challenge in the middle of a circuit. Suppose a circuit holds many wires and would like to check something about them with a [random linear combination](./statements-and-challenges.md#_7-random-linear-combinations). The challenge must depend on those wires, or the prover could pick the wires to suit the challenge. So the circuit has to hash them, and hashing inside a circuit is expensive. A commitment offers a cheaper route, since it binds all the wires under the same assumption as any Pedersen commitment and takes only two coordinates to hash. Those coordinates lie in the other field of the cycle, so the saving comes at the price of a nested commitment and a second circuit, as [chapter 13](./curve-cycles.md#_7-committing-to-coordinates) found and Section 11 shows on our example. The hashing itself costs this much:
+The first is a challenge in the middle of a circuit. Suppose a circuit holds many wires and would like to check something about them with a [random linear combination](./statements-and-challenges.md#_6-random-linear-combinations). The challenge must depend on those wires, or the prover could pick the wires to suit the challenge. So the circuit has to hash them, and hashing inside a circuit is expensive. A commitment offers a cheaper route, since it binds all the wires under the same assumption as any Pedersen commitment and takes only two coordinates to hash. Those coordinates lie in the other field of the cycle, so the saving comes at the price of a nested commitment and a second circuit, as [chapter 13](./curve-cycles.md#_7-committing-to-coordinates) found and Section 11 shows on our example. The hashing itself costs this much:
 
 <!-- worked:hash-cost -->
 
@@ -126,9 +126,13 @@ The requirement is linear in the polynomial's entries. A stage must be zero at e
 
 $$\sum_{p \in F} a_p\, y^{4n-1-p} = 0$$
 
-at a random $y$. Any distinct power of $y$ per position would do here. We use the mirrored exponent $4n - 1 - p$ in place of $p$ because it matches the revdot pairing below. If all the forbidden entries are zero, this holds for every $y$. If any of them is nonzero, the left side is a nonzero polynomial in $y$ of degree at most $4n - 1$, which has few roots.
+at a random $y$. If all the forbidden entries are zero, this holds for every $y$. If any of them is nonzero, the left side is a nonzero polynomial in $y$ of degree at most $4n - 1$, which has few roots.
 
-This combination can be written as a revdot product, and that matters because revdot products are the claims that [Ragu's accumulators fold](./revdot-folding.md). The revdot product pairs position $p$ with position $4n - 1 - p$, so we define a public vector $\v{s}$ with
+Ragu writes this combination as a revdot product $\revdot{\v{a}}{\v{s}}$ with a public vector $\v{s}$, and that matters because revdot products are the claims that [Ragu's accumulators fold](./revdot-folding.md). The vector $\v{s}$ holds a power of $y$ opposite each forbidden position and zeros everywhere else, so the revdot pairing multiplies each forbidden entry by its power of $y$ and ignores the allowed ones. Ragu calls this $\v{s}$ the **stage mask**. The challenge $z$ of [chapter 13's toy mask](./curve-cycles.md#_8-deferred-operations) plays the role of $y$ here. The mask is also an ordinary wiring polynomial $s(X, Y)$, for a circuit whose constraints each say that one forbidden wire is zero. The box below writes out both views.
+
+::: details Writing the mask as a revdot product and as a wiring polynomial
+
+Any distinct power of $y$ per position would do in the combination above. We use the mirrored exponent $4n - 1 - p$ in place of $p$ because it matches the revdot pairing. The revdot product pairs position $p$ with position $4n - 1 - p$, so we define a public vector $\v{s}$ with
 
 $$s_k = \begin{cases} y^k & \text{if } 4n - 1 - k \in F, \\ 0 & \text{otherwise.} \end{cases}$$
 
@@ -136,7 +140,7 @@ Then
 
 $$\revdot{\v{a}}{\v{s}} = \sum_{p=0}^{4n-1} a_p\, s_{4n-1-p} = \sum_{p \in F} a_p\, y^{4n-1-p},$$
 
-which is the combination we wanted. Ragu calls this $\v{s}$ the **stage mask**. The challenge $z$ of [chapter 13's toy mask](./curve-cycles.md#_8-deferred-operations) plays the role of $y$ here.
+which is the combination we wanted.
 
 The mask is an ordinary wiring polynomial, for a circuit with an unusual shape. Take one constraint per forbidden wire, saying that the wire is zero. [Section 11 of chapter 04](./arithmetization.md#_11-encoding-the-constraints) places each coefficient at the wire's partner position and weights row $j$ by $y^j$. We are free to choose the order of the constraints, and one order makes the mask cheap to evaluate. If row $k$ is the constraint whose partner position is $k$, then every term has the form $X^kY^k$, and Section 6 turns a sum of such terms into a short closed form. The [code's test version of this circuit](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/staging/mask.rs#L306-L311) uses this numbering. One row shows what it does:
 
@@ -149,6 +153,8 @@ Take the constraint $a_2 = 0$. The wire $a_2$ sits at position $5$ of the trace,
 Adding these terms over all forbidden wires gives
 
 $$s(X, Y) = \sum_{k \,:\, 4n-1-k \in F} X^k Y^k.$$
+
+:::
 
 Notice what is missing compared with the consolidated equation. A stage polynomial does not satisfy gates or the circuit's constraints on its own, so the claim has no dilation and no $\v{t}$, and it has no public inputs, so its target is 0. The full claim is $\revdot{\v{a}}{\v{s}} = 0$, in place of the consolidated equation $\revdot{\v{r}}{\v{r} \circ \v{z^{4n}} + \v{t} + \v{s}} = k(y)$, where $\v{s}$ is the circuit's own wiring polynomial and not a mask.
 
@@ -207,9 +213,13 @@ This site follows the code, and it reads "nonzero" in the book as a slip for "ze
 
 ## 6. A closed form for the mask
 
-So far we tested a mask only at $y$, as a vector. The verifier of [chapter 09](./nark.md#_16-what-the-verifier-pays) does more than that. It evaluates the wiring polynomial $s(X, Y)$ at the random opening point $x$ as well as at $y$, and for an arbitrary circuit that evaluation was one of its two linear costs, because such a circuit has no structure to exploit. A mask does have structure, because it depends only on the product $t = XY$, and that makes it far cheaper. We derive the form the [code uses](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/staging/mask.rs#L184-L209).
+So far we tested a mask only at $y$, as a vector. The verifier of [chapter 09](./nark.md#_16-what-the-verifier-pays) does more than that. It evaluates the wiring polynomial $s(X, Y)$ at the random opening point $x$ as well as at $y$, and for an arbitrary circuit that evaluation was one of its two linear costs, because such a circuit has no structure to exploit. A mask does have structure, because every term of it has the form $X^kY^k$, so it depends only on the product $t = XY$, and that makes it far cheaper. We describe the form the [code uses](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/staging/mask.rs#L184-L209).
 
-Start from all $4n$ degrees and remove the ones that are not forbidden. Let the stage reserve the $m$ gates starting at gate $g$. The partner degrees of the wires of gate $j$ are $j$ for $d_j$, $2n - 1 - j$ for $b_j$, $2n + j$ for $a_j$, and $4n - 1 - j$ for $c_j$.
+The mask is a sum of powers of $t$, one for each forbidden wire. Rather than add those powers one at a time, start from the sum of all $4n$ powers $t^0, \ldots, t^{4n-1}$ and subtract the powers that the mask leaves out. Those are the four powers that belong to the system gate and the powers that belong to the stage's reserved gates, which are the $m$ gates starting at gate $g$. Each of the three pieces is a geometric sum or a product of geometric sums. The first two pieces do not depend on the stage, and the code calls them the [global mask](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/staging/mask.rs#L9-L40). The last piece is the **notch** for this stage. Each geometric sum has a closed form that takes $O(\log n)$ multiplications, as in [chapter 09](./nark.md#_16-what-the-verifier-pays). The box carries out the subtraction.
+
+::: details Deriving the closed form
+
+Let the stage reserve the $m$ gates starting at gate $g$. The partner degrees of the wires of gate $j$ are $j$ for $d_j$, $2n - 1 - j$ for $b_j$, $2n + j$ for $a_j$, and $4n - 1 - j$ for $c_j$.
 
 For the system gate, $j = 0$ gives the degrees $0$, $2n - 1$, $2n$ and $4n - 1$, whose powers of $t$ sum to
 
@@ -225,7 +235,9 @@ where the second line substitutes $i = g + m - 1 - j$. Subtracting both groups f
 
 $$s(x, y) = \sum_{i=0}^{4n-1} t^i \;-\; (1 + t^{2n})(1 + t^{2n-1}) \;-\; (1 + t^{2n})\big(t^{g} + t^{2n-g-m}\big) \sum_{i=0}^{m-1} t^i.$$
 
-The first two terms do not depend on the stage, and the code calls them the [global mask](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/staging/mask.rs#L9-L40). The last term is the **notch** for this stage. Each geometric sum has a closed form that takes $O(\log n)$ multiplications, as in [chapter 09](./nark.md#_16-what-the-verifier-pays).
+The first two terms are the global mask, and the last term is the notch.
+
+:::
 
 <!-- worked:closed-run -->
 
@@ -260,7 +272,15 @@ Stages also stack. A stage names its parent, and it [starts where the parent end
 
 ![Four rows and four columns. Stage a uses gate 1, stage b uses gate 2, the final trace after a uses gates 2 and 3, the final trace after b uses gate 3. Gate 0 holds each polynomial's own alpha in every row, and all other cells are zero.](./manim/staging-slots.png)
 
-The system gate column is outside every mask, which is why each polynomial can have its own $a_0$. A polynomial could also put values in $b_0$, $c_0$ or $d_0$, and that does no harm. The circuit's row for the constant wire, with $k_0 = 1$, pins the sum's $d_0$ to 1, and once $d_0 = 1$ the gate equation $c_0 \cdot d_0 = 0$ forces $c_0 = 0$, which in turn forces $a_0 b_0 = 0$. The stage values fill only reserved gates, and [the builder](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/staging/builder.rs#L238-L249) writes zeros in those slots of the final trace, so that the sum places each value in one spot.
+The system gate column is outside every mask, which is why each polynomial can have its own $a_0$. A polynomial could also put values in $b_0$, $c_0$ or $d_0$, and that does no harm, because the circuit's constraints on the sum still pin those wires down, as the box shows.
+
+::: details Why stray values in the system gate do no harm
+
+The circuit's row for the constant wire, with $k_0 = 1$, pins the sum's $d_0$ to 1, and once $d_0 = 1$ the gate equation $c_0 \cdot d_0 = 0$ forces $c_0 = 0$, which in turn forces $a_0 b_0 = 0$.
+
+:::
+
+The stage values fill only reserved gates, and [the builder](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/staging/builder.rs#L238-L249) writes zeros in those slots of the final trace, so that the sum places each value in one spot.
 
 A mask leaves all four wires of its reserved gates free, so a stage could in principle put values in its $b_i$ and $c_i$. That gains nothing, because the gate equations on the sum still apply to that gate, and circuits read stage data only from the $a$ and $d$ wires.
 
@@ -300,11 +320,17 @@ Put a stray $11$ in gate 3 of the right stage. Among all $1,849$ pairs $(\rho, y
 
 <!-- /worked:fold-catch -->
 
-The same step does not work for a circuit's own claim, because $\v{r}$ appears twice in that equation. Substituting $\v{r} = \rho\,\v{r}_1 + \v{r}_2$ into the quadratic part gives
+The same step does not work for a circuit's own claim, because $\v{r}$ appears twice in that equation. Substituting a weighted sum of two traces into the quadratic part produces a cross term between the two traces, weighted by $\rho$, and the target side has nothing to match it. The box writes out the expansion, and the numbers below show the mismatch.
+
+::: details Expanding the folded quadratic term
+
+Substituting $\v{r} = \rho\,\v{r}_1 + \v{r}_2$ into the quadratic part gives
 
 $$\revdot{\v{r}}{\v{r} \circ \v{z^{4n}}} = \rho^2 \revdot{\v{r}_1}{\v{r}_1 \circ \v{z^{4n}}} + \rho \Big( \revdot{\v{r}_1}{\v{r}_2 \circ \v{z^{4n}}} + \revdot{\v{r}_2}{\v{r}_1 \circ \v{z^{4n}}} \Big) + \revdot{\v{r}_2}{\v{r}_2 \circ \v{z^{4n}}},$$
 
-and the middle term has nothing to match it on the target side:
+and the middle term has nothing to match it on the target side.
+
+:::
 
 <!-- worked:fold-quadratic -->
 
@@ -414,7 +440,7 @@ With $w = 11$, the prover computes $e = x + w\,v = 3 + 11 \cdot 9 = 16$ and comm
 
 The two public inputs have different reasons for being public. The verifier rederives $w$ from the transcript, so making it public lets the verifier check that the circuit used the right challenge. The value $e$ is public because it is what a later check would use.
 
-The order of the commitments is what gives $e$ its value as a check. The combination $e = x + w\,v$ is a [random linear combination](./statements-and-challenges.md#_7-random-linear-combinations), and such a combination catches a wrong wire only because the prover cannot predict the challenge when it fixes the wires. If the prover could choose the stage after seeing $w$, it could steer $e$ to any value it liked, and a check written on $e$ would then accept wires that separate checks on $x$ and $v$ would reject.
+The order of the commitments is what gives $e$ its value as a check. The combination $e = x + w\,v$ is a [random linear combination](./statements-and-challenges.md#_6-random-linear-combinations), and such a combination catches a wrong wire only because the prover cannot predict the challenge when it fixes the wires. If the prover could choose the stage after seeing $w$, it could steer $e$ to any value it liked, and a check written on $e$ would then accept wires that separate checks on $x$ and $v$ would reject.
 
 To measure how much the commitment order limits the prover, we give it an arbitrary target value for $e$, which stands for whatever value a later check would accept. The prover may change the stage, but $v$ has to stay the square of $x$, because a reader such as the cubing circuit checks that relation. So a new stage means a new $x$ with $v = x^2$, and we let $x$ range freely, as if no other statement fixed it.
 
@@ -428,7 +454,7 @@ The commitment order prevents this, because the prover cannot see $w$ first. Eve
 
 <!-- worked:grind-chain -->
 
-For $2$ of the 43 values of $x$, one of the two commitments $\bar{A}$ and $\mathring{A}$ is the identity, which Section 3 showed cannot be absorbed, so we skip them. Of the remaining $41$ values, one, $x = 15$, reaches the target. A search of about 43 tries succeeds on a field of 43 elements, which is the [repeated-trials problem from chapter 03](./statements-and-challenges.md#_10-repeated-trials), and the same search has no realistic chance on a 255-bit field.
+For $2$ of the 43 values of $x$, one of the two commitments $\bar{A}$ and $\mathring{A}$ is the identity, which Section 3 showed cannot be absorbed, so we skip them. Of the remaining $41$ values, one, $x = 15$, reaches the target. A search of about 43 tries succeeds on a field of 43 elements, which is the [repeated-trials problem from chapter 03](./statements-and-challenges.md#_9-repeated-trials), and the same search has no realistic chance on a 255-bit field.
 
 <!-- /worked:grind-chain -->
 
@@ -446,7 +472,13 @@ The missing requirement is $d_1 = d_2$. A circuit with one gate could check it, 
 
 $$\revdot{\v{a} + \v{b}}{\v{s}} = 0.$$
 
+A bonding polynomial has no row for the constant wire, so it has $s(X, 0) = 0$ where every circuit has $s(X, 0) = 1$, and its constraint rows start at $Y^1$ rather than $Y^0$. The box explains why, and Section 14 uses the same fact.
+
+::: details Why a bonding polynomial starts at $Y^1$
+
 Recall from [chapter 09](./nark.md#_15-the-constant-wire) that a circuit's row $Y^0$ is the constraint $d_0 = k_0$ on the constant wire, whose only term is $X^0Y^0$, so every circuit has $s(X, 0) = 1$. A bonding polynomial is [not allowed to reference the constant wire](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/staging/bonding.rs#L39-L51), so it has no such row and $s(X, 0) = 0$. That is why the row numbering below starts at 1.
+
+:::
 
 <!-- worked:bond-run -->
 
@@ -472,7 +504,13 @@ These claims then fold into one polynomial $r^*(X) = \sum_i \lambda_i\, r_i(X)$ 
 
 The prover carries the folded claim forward, so it needs the commitment $\bar{R}^*$ to $r^*(X)$. Each $r_i(X)$ is a sum of stored parts, so $r^*(X)$ is a weighted sum of stored parts, and since commitments add, $\bar{R}^*$ is the same weighted sum of the stored commitments. The prover computes it with one small multi-scalar multiplication.
 
-The verifying circuit cannot follow that route. The commitments are points on $E$, whose coordinates lie in the other field, so adding them inside the circuit would need the nested arithmetic of [chapter 13](./curve-cycles.md#_8-deferred-operations). It works with values instead, which are elements of its own field, and the point where it takes those values has to account for the dilation in the consolidated equation. The vector $\v{r} \circ \v{z^{4n}}$ has coefficients $r_i z^i$, so it is the polynomial $r(zX)$, and its value at the opening point $x$ is $r(xz)$, as in [chapter 09](./nark.md#_16-what-the-verifier-pays). So the prover opens each stored polynomial and $r^*(X)$ at the one random point $xz$, and the circuit recomputes the value of $r^*$ at that point from the values of its parts and compares the two.
+The verifying circuit cannot follow that route. The commitments are points on $E$, whose coordinates lie in the other field, so adding them inside the circuit would need the nested arithmetic of [chapter 13](./curve-cycles.md#_8-deferred-operations). It works with values instead, which are elements of its own field. The prover opens each stored polynomial and $r^*(X)$ at one random point, which is $xz$ because of the dilation in the consolidated equation, and the circuit recomputes the value of $r^*$ at that point from the values of its parts and compares the two.
+
+::: details Why the opening point is $xz$
+
+The point where the circuit takes those values has to account for the dilation in the consolidated equation. The vector $\v{r} \circ \v{z^{4n}}$ has coefficients $r_i z^i$, so it is the polynomial $r(zX)$, and its value at the opening point $x$ is $r(xz)$, as in [chapter 09](./nark.md#_16-what-the-verifier-pays).
+
+:::
 
 <!-- worked:code-sum-intro -->
 

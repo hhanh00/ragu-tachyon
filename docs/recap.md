@@ -62,7 +62,7 @@ Alice's wallet now combines its secrets with the service's segments, working up 
 
 Every node in that tree is [one call to `fuse`](./pcd-intro.md#fusing-in-ragu), which runs a step on two child proofs and emits a [header and a proof](./pcd-intro.md#_6-attaching-a-proof). Take `SpendBind` as the node, and follow what its proof has to contain.
 
-Its step first becomes [gates and linear constraints](./arithmetization.md#_3-gates), which random powers reduce to [one consolidated equation](./arithmetization.md#_12-the-consolidated-equation). Ragu reads that equation as [one coefficient of a polynomial product](./polynomial-encoding.md#_10-the-consolidated-equation-as-a-coefficient), where a QAP would use a [quotient by a vanishing polynomial](./polynomial-encoding.md#_5-the-vanishing-polynomial-and-the-quotient). The prover [commits to its polynomials](./polynomial-commitments.md#_7-committing-to-a-polynomial), and [many evaluation claims batch into one](./batched-openings.md#_8-the-complete-protocol), which an [inner product argument](./inner-product-argument.md#_4-one-round-of-folding) can open. [Random checks and Fiat–Shamir](./statements-and-challenges.md#_8-removing-the-verifier-with-fiat–shamir) remove the interaction, and [chapter 9](./nark.md#_17-a-short-proof-from-the-same-parts) assembles these parts into one complete proof.
+Its step first becomes [gates and linear constraints](./arithmetization.md#_3-gates), which random powers reduce to [one consolidated equation](./arithmetization.md#_12-the-consolidated-equation). Ragu reads that equation as [one coefficient of a polynomial product](./polynomial-encoding.md#_10-the-consolidated-equation-as-a-coefficient), where a QAP would use a [quotient by a vanishing polynomial](./polynomial-encoding.md#_5-the-vanishing-polynomial-and-the-quotient). The prover [commits to its polynomials](./polynomial-commitments.md#_7-committing-to-a-polynomial), and [many evaluation claims batch into one](./batched-openings.md#_8-the-complete-protocol), which an [inner product argument](./inner-product-argument.md#_4-one-round-of-folding) can open. [Random checks and Fiat–Shamir](./statements-and-challenges.md#_7-removing-the-verifier-with-fiat–shamir) remove the interaction, and [chapter 9](./nark.md#_17-a-short-proof-from-the-same-parts) assembles these parts into one complete proof.
 
 That proof leaves [the verifier two linear costs](./nark.md#_16-what-the-verifier-pays), computing $s(x, y)$ and computing $\hat{G}$. The node has to [verify its children inside its own circuit](./recursive-proofs.md#_2-a-proof-about-a-verifier), and [those costs block this](./recursive-proofs.md#_4-what-the-verifier-costs). So the rest of the proof system moves that work out of the circuit, along with the checks that read whole vectors:
 
@@ -98,10 +98,10 @@ The table lists the layers in the order that the trace meets them.
 | Layer | What it gives Alice's spend | Chapter |
 | --- | --- | --- |
 | Motivation | why state and scanning have to shrink | [1, Scaling Zcash](./scaling-zcash.md) |
-| Keys, notes, nullifiers | the objects and their derivations | [19, Notes, Nullifiers, and Tachygrams](./notes-and-nullifiers.md) |
-| Pool state | a short reference to forgotten history | [20, Pool State and Anchors](./pool-state.md) |
-| Absence evidence | epochs tested by a party who does not know the note | [21, Oblivious Sync](./oblivious-sync.md) |
-| Proof tree | the steps from note to stamp | [22, The Proof Tree](./proof-tree.md) |
+| Keys, notes, nullifiers | the objects and their derivations | [20, Notes, Nullifiers, and Tachygrams](./notes-and-nullifiers.md) |
+| Pool state | a short reference to forgotten history | [21, Pool State and Anchors](./pool-state.md) |
+| Absence evidence | epochs tested by a party who does not know the note | [22, Oblivious Sync](./oblivious-sync.md) |
+| Proof tree | the steps from note to stamp | [23, The Proof Tree](./proof-tree.md) |
 | PCD model | header and proof at every node | [2, An Introduction to Proof-Carrying Data](./pcd-intro.md) |
 | Circuit | a step written as one equation | [4, Arithmetization](./arithmetization.md) |
 | Encoding | that equation as a polynomial test | [5, QAP and Polynomial Encoding](./polynomial-encoding.md) |
@@ -119,7 +119,7 @@ The table lists the layers in the order that the trace meets them.
 | Shared witness | circuits reading the same stage | [17, Staging](./staging.md) |
 | Assembled fuse | the node's circuits | [18, Recursion in Ragu](./ragu-recursion.md) |
 | Compression | the short proof that leaves the tree | [19, Compression in Ragu](./compression.md) |
-| Bundle to block | fees, merging, stripping, block checks | [23, Aggregation and Bundles](./aggregation-and-bundles.md) |
+| Bundle to block | fees, merging, stripping, block checks | [24, Aggregation and Bundles](./aggregation-and-bundles.md) |
 
 ## 10. What exists at the pinned commits
 

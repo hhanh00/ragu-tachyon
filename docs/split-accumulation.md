@@ -114,11 +114,15 @@ The book's [list](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d8
 
 The prover follows the steps of chapter 08 with this list. We keep that chapter's weights, in which the first claim takes the highest power of $\alpha$ and $f$ takes the highest power of $\beta$. Write $(\bar{C}_i, x_i, y_i)$ for the claims in order and $h_i$ for their polynomials, so that $h_0$ is the old accumulator's polynomial and $h_1, \ldots, h_4$ are $a$, $b$, $s(X, y)$ and $k$. Their quotients take the weights $\alpha^4, \alpha^3, \alpha^2, \alpha, 1$ in that order. We use $h$ here because the letter $p$ with a subscript will name the accumulator's polynomial at each step of the chain in Section 6.
 
-After receiving $\alpha$, the prover divides and combines,
+The prover works in three rounds, one per challenge. After receiving $\alpha$, it divides each $h_i(X) - y_i$ by $X - x_i$ to get a quotient $q_i$, adds the quotients with their powers of $\alpha$ into one polynomial $f$, and sends the commitment $\bar{F}$ to $f$. After receiving $u$, it sends the five values $h_i(u)$. After receiving $\beta$, it adds $f$ and the five polynomials with powers of $\beta$, giving $f$ the highest power $\beta^5$, and the result is the new witness polynomial $p$. It combines the blinding factors with the same weights to get the new $\gamma$.
+
+::: details The prover's formulas
+
+The quotients and their combination are
 
 $$q_i(X) = \frac{h_i(X) - y_i}{X - x_i}, \qquad f(X) = \sum_{i=0}^{4} \alpha^{4-i}\, q_i(X),$$
 
-and it sends $\bar{F} = \dot{\v{f}}{\v{G}} + \gamma_f \cdot H$. After receiving $u$, it sends the five values $h_i(u)$. After receiving $\beta$, it forms the new witness:
+and the prover sends $\bar{F} = \dot{\v{f}}{\v{G}} + \gamma_f \cdot H$. After receiving $\beta$, it forms the new witness:
 
 $$
 \begin{aligned}
@@ -127,7 +131,11 @@ p(X) &= \beta^5 f(X) + \sum_{i=0}^{4} \beta^{4-i}\, h_i(X), \\
 \end{aligned}
 $$
 
-Here $\gamma_i$ is zero for $s$ and $k$, which have no blinding factor. The messages make up the accumulation proof, $\mathsf{pf} = (\bar{F},\, h_0(u), \ldots, h_4(u))$, which [matches the book's](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/pcs.md?plain=1#L112-L115). The book [describes it](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/index.md?plain=1#L83-L85) as an internal value for the circuit's prover, so it goes into the next circuit's witness and is not an output of the recursive step.
+Here $\gamma_i$ is zero for $s$ and $k$, which have no blinding factor.
+
+:::
+
+The messages make up the accumulation proof, $\mathsf{pf} = (\bar{F},\, h_0(u), \ldots, h_4(u))$, which [matches the book's](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/pcs.md?plain=1#L112-L115). The book [describes it](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/index.md?plain=1#L83-L85) as an internal value for the circuit's prover, so it goes into the next circuit's witness and is not an output of the recursive step.
 
 ### The accumulation verifier
 
@@ -143,7 +151,11 @@ $$
 
 It accepts if the claimed new instance equals $(\bar{P}, u, v)$, where $\alpha$, $u$ and $\beta$ are the challenges that the transcript produced. This takes one scalar multiplication per commitment and one inverse per claim, however large $4n$ is, because no vector and no inner product argument appears in the calculation.
 
-The two sides agree for an honest prover. Expanding the commitment to the new witness and applying [linearity](./polynomial-commitments.md#_5-adding-commitments) gives
+The two sides agree for an honest prover. The commitment side holds because commitments are [linear](./polynomial-commitments.md#_5-adding-commitments), so committing to a weighted sum of vectors gives the same weighted sum of their commitments. The value side holds because each quotient's value at $u$ equals $(h_i(u) - y_i)/(u - x_i)$, which is what the verifier computes from the values the prover sent.
+
+::: details The full derivation
+
+Expanding the commitment to the new witness and applying linearity gives
 
 $$
 \begin{aligned}
@@ -162,6 +174,8 @@ The prover sent each $h_i(u)$, so only $f(u)$ remains to be written in terms the
 $$p(u) = \beta^5 \sum_{i=0}^{4} \alpha^{4-i}\, \frac{h_i(u) - y_i}{u - x_i} + \sum_{i=0}^{4} \beta^{4-i}\, h_i(u),$$
 
 which is the verifier's $v$.
+
+:::
 
 ### The decider
 
@@ -382,7 +396,17 @@ Take the relation of Section 3 with $\bar{P}$, $u$, $v$ as instance and $\v{p}$,
 
 So our scheme is a folding scheme for evaluation claims, and the book's phrase quoted above, "without the use of any (S)NARK verifier", describes the same thing as a verifier that reads nothing of a proof beyond its instances. What differs is mainly the point of view. Accumulation starts from a proof system and asks what can be postponed, whereas folding starts from a relation and asks how to combine instances of it.
 
-Not every relation folds as cleanly as this one, and the reason explains why $\mathsf{pf}$ can take different forms. The book says that an accumulation proof [contains the cross terms](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/index.md?plain=1#L81-L83) the verifier needs. Evaluation claims at one point combine linearly and need no such term, which is why our $\mathsf{pf}$ only has to bring the claims to a common point. A relation with a product does not combine linearly. Suppose the claim is $\dot{\v{a}}{\v{b}} = c$, and we fold two instances with a challenge $r$. Multiplying out gives
+Not every relation folds as cleanly as this one, and the reason explains why $\mathsf{pf}$ can take different forms. The book says that an accumulation proof [contains the cross terms](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/index.md?plain=1#L81-L83) the verifier needs. Evaluation claims at one point combine linearly and need no such term, which is why our $\mathsf{pf}$ only has to bring the claims to a common point. A relation with a product does not combine linearly. Suppose the claim is $\dot{\v{a}}{\v{b}} = c$, and we fold two instances by adding the second pair of vectors, scaled by a challenge $r$, to the first. The inner product of the folded vectors is then $c_1 + r E + r^2 c_2$, where the middle term $E$, called the cross term, mixes the vectors of the two instances. The verifier cannot compute $E$ from instances, so the prover has to supply it. A small example shows the extra term at work:
+
+<!-- worked:cross-term -->
+
+Take $\v{a}_1 = (2, 5)$, $\v{b}_1 = (7, 3)$ with $c_1 = 29$, and $\v{a}_2 = (4, 6)$, $\v{b}_2 = (1, 8)$ with $c_2 = 9$. At $r = 9$ the folded vectors are $(38, 16)$ and $(16, 32)$, and their inner product is $2$. The two old values give only $c_1 + r^2 c_2 = 27$. The prover supplies the cross term $E = 2$ before it learns $r$, and $c_1 + r E + r^2 c_2 = 2$ matches.
+
+<!-- /worked:cross-term -->
+
+::: details Where the cross term comes from
+
+Multiplying out the folded inner product gives
 
 $$
 \begin{aligned}
@@ -392,13 +416,9 @@ $$
 \end{aligned}
 $$
 
-where the middle term $E$ is the cross term. The verifier cannot compute it from instances, so the prover has to supply it.
+so $E = \dot{\v{a}_1}{\v{b}_2} + \dot{\v{a}_2}{\v{b}_1}$. It depends on both witnesses, which is why only the prover can compute it.
 
-<!-- worked:cross-term -->
-
-Take $\v{a}_1 = (2, 5)$, $\v{b}_1 = (7, 3)$ with $c_1 = 29$, and $\v{a}_2 = (4, 6)$, $\v{b}_2 = (1, 8)$ with $c_2 = 9$. At $r = 9$ the folded vectors are $(38, 16)$ and $(16, 32)$, and their inner product is $2$. The two old values give only $c_1 + r^2 c_2 = 27$. The prover supplies the cross term $E = 2$ before it learns $r$, and $c_1 + r E + r^2 c_2 = 2$ matches.
-
-<!-- /worked:cross-term -->
+:::
 
 Nova's folding of R1CS is commonly described with a term of this kind. Ragu's revdot claims have the same structure, so [chapter 14](./revdot-folding.md) develops this example into a complete protocol.
 
@@ -412,13 +432,23 @@ The verifier recomputes the new instance from the inputs, so the prover has litt
 
 <!-- worked:tamper -->
 
-At the second fold, we replaced $\bar{P}_2$ with each of the 42 other group elements, replaced $v_2$ with each of the 42 other values, and separately replaced $\bar{F}$ with each of the 42 other group elements while keeping the output. We also shifted each of the five values at $u$ by each of the 42 nonzero amounts while keeping the output, which makes 210 more cases. The accumulation verifier rejected $294$ of the $336$ altered runs. The other $42$ are shifts of the value for $a$, and a short calculation shows why. Shifting $h_1(u)$ by $\delta$ has two effects on $v$. It changes the derived $f(u)$ by $\alpha^{3}\delta/(u - x_1)$, and $f(u)$ enters $v$ with weight $\beta^5$. It also changes the term $\beta^{3} h_1(u)$ by $\beta^{3}\delta$. Adding the two contributions gives
+At the second fold, we replaced $\bar{P}_2$ with each of the 42 other group elements, replaced $v_2$ with each of the 42 other values, and separately replaced $\bar{F}$ with each of the 42 other group elements while keeping the output. We also shifted each of the five values at $u$ by each of the 42 nonzero amounts while keeping the output, which makes 210 more cases. The accumulation verifier rejected $294$ of the $336$ altered runs. The other $42$ are shifts of the value for $a$. A shift of that value moves the derived $f(u)$, which moves $v$, and it also moves $v$ directly through its own term. At these challenges the two movements cancel exactly for this one input, so every shift of it leaves the output unchanged. The output then stays the same true claim, and the prover gains nothing. The coincidence comes from our hand-picked challenges. With $u = 30$ fixed, only $42$ of the $1,764$ pairs of nonzero $\alpha$ and $\beta$ produce this cancellation for this input, about 1 in $42$.
+
+<!-- /worked:tamper -->
+
+::: details Why the shifts of one value cancel
+
+<!-- worked:tamper-why -->
+
+Shifting $h_1(u)$ by $\delta$ has two effects on $v$. It changes the derived $f(u)$ by $\alpha^{3}\delta/(u - x_1)$, and $f(u)$ enters $v$ with weight $\beta^5$. It also changes the term $\beta^{3} h_1(u)$ by $\beta^{3}\delta$. Adding the two contributions gives
 
 $$\Delta v = \beta^5 \alpha^{3} \cdot \frac{\delta}{u - x_1} + \beta^{3} \delta = \beta^{3} \delta \cdot \left( \frac{\beta^{2} \alpha^{3}}{u - x_1} + 1 \right).$$
 
-The bracket is zero exactly when $\beta^{2}\alpha^{3} = x_1 - u$. Here $\beta^{2} = 23$ and $\alpha^{3} = 2$, whose product is $3$, and $x_1 - u = 33 - 30 = 3$. The condition holds for this input and fails for the other four, so every shift of this one value leaves the output unchanged. The output then stays the same true claim, and the prover gains nothing. The coincidence comes from our hand-picked challenges. With $u = 30$ fixed, only $42$ of the $1,764$ pairs of nonzero $\alpha$ and $\beta$ satisfy the condition for this input, about 1 in $42$.
+The bracket is zero exactly when $\beta^{2}\alpha^{3} = x_1 - u$. Here $\beta^{2} = 23$ and $\alpha^{3} = 2$, whose product is $3$, and $x_1 - u = 33 - 30 = 3$. The condition holds for this input and fails for the other four.
 
-<!-- /worked:tamper -->
+<!-- /worked:tamper-why -->
+
+:::
 
 The instance is therefore a function of the inputs and of the prover's messages. The prover keeps the freedom to change those messages consistently, and the verifier cannot detect that:
 
@@ -434,15 +464,23 @@ This shows the limit of what $\mathsf{Acc.V}$ does. It confirms the arithmetic o
 
 ### A false claim travels to the decider
 
-Now suppose an input is false. Say the prover states the old accumulator's value as $v_{\text{old}} + \delta$, where $v_{\text{old}}$ is the true value, and it otherwise follows the protocol, including honest division, which [ignores claimed values](./batched-openings.md#_3-writing-a-claim-as-a-division). The polynomials and $\bar{F}$ stay honest, so $\bar{P}$ commits to the true $p$. The error enters at one place, which is the first term of the formula for $f(u)$:
-
-$$\alpha^{4} \cdot \frac{h_0(u) - v_{\text{old}} - \delta}{u - u_{\text{old}}} = \alpha^{4} \cdot \frac{h_0(u) - v_{\text{old}}}{u - u_{\text{old}}} - \alpha^4 \cdot \frac{\delta}{u - u_{\text{old}}}.$$
-
-The derived $f(u)$ is therefore off by the last term, and its weight in $v$ is $\beta^5$. That gives the gap between the stated value and the true value of $p$ at $u$:
+Now suppose an input is false. Say the prover states the old accumulator's value as $v_{\text{old}} + \delta$, where $v_{\text{old}}$ is the true value, and it otherwise follows the protocol, including honest division, which [ignores claimed values](./batched-openings.md#_3-writing-a-claim-as-a-division). The polynomials and $\bar{F}$ stay honest, so $\bar{P}$ commits to the true $p$. The error enters at one place, which is the old accumulator's term in the verifier's formula for $f(u)$. It shifts the derived $f(u)$, and through $f(u)$ it shifts the new $v$ away from the true $p(u)$ by
 
 $$v - p(u) = -\beta^5 \alpha^4 \cdot \frac{\delta}{u - u_{\text{old}}}.$$
 
-Every factor is nonzero as long as $\alpha$ and $\beta$ are nonzero, so a false input produces a false output. Each later fold repeats this calculation, with the previous gap in place of $\delta$:
+Every factor is nonzero as long as $\alpha$ and $\beta$ are nonzero, so a false input produces a false output.
+
+::: details The derivation of the gap
+
+The first term of the formula for $f(u)$ splits into the honest term and an error:
+
+$$\alpha^{4} \cdot \frac{h_0(u) - v_{\text{old}} - \delta}{u - u_{\text{old}}} = \alpha^{4} \cdot \frac{h_0(u) - v_{\text{old}}}{u - u_{\text{old}}} - \alpha^4 \cdot \frac{\delta}{u - u_{\text{old}}}.$$
+
+The derived $f(u)$ is therefore off by the last term, and $f(u)$ enters $v$ with weight $\beta^5$, which gives the gap above.
+
+:::
+
+Each later fold repeats this calculation, with the previous gap in place of $\delta$:
 
 <!-- worked:false-carry -->
 
@@ -466,7 +504,7 @@ For the fold above, the formula gives $-25^5 \cdot 20^4 \cdot 1 / (30 - 17) = 32
 
 The gap therefore survives every fold and reaches the decider. A chain that never runs the decider has established nothing about its openings, which was also the conclusion of [chapter 11](./accumulation.md#a-false-claim-moves-forward).
 
-A prover can do better than stay honest after the lie, for example by altering the values at $u$ or by committing to something other than the true quotients. [Chapter 08 counted these options](./batched-openings.md#_9-why-cheating-fails) in full, and the same bounds apply to each fold, because the fold is that protocol with the accumulator as one more claim. For a real field each fold's chance of hiding a false claim is negligible, and the chances add across folds and grow with [private retries under Fiat–Shamir](./statements-and-challenges.md#_10-repeated-trials).
+A prover can do better than stay honest after the lie, for example by altering the values at $u$ or by committing to something other than the true quotients. [Chapter 08 counted these options](./batched-openings.md#_9-why-cheating-fails) in full, and the same bounds apply to each fold, because the fold is that protocol with the accumulator as one more claim. For a real field each fold's chance of hiding a false claim is negligible, and the chances add across folds and grow with [private retries under Fiat–Shamir](./statements-and-challenges.md#_9-repeated-trials).
 
 ### Dropping the accumulator
 
@@ -482,7 +520,7 @@ The fold cannot detect this by itself, so the protection has to come from the ci
 
 ### The order of the messages
 
-Chapter 08 showed that [each challenge must follow the message it tests](./batched-openings.md#each-challenge-has-to-come-after-the-message-it-tests), and in a non-interactive proof this means the transcript has to absorb [everything the challenges depend on](./statements-and-challenges.md#_9-omitting-data-from-the-transcript). The accumulator's instance belongs on that list. It is the one input that chapter 08 did not have, so it is the easiest to forget:
+Chapter 08 showed that [each challenge must follow the message it tests](./batched-openings.md#each-challenge-has-to-come-after-the-message-it-tests), and in a non-interactive proof this means the transcript has to absorb [everything the challenges depend on](./statements-and-challenges.md#_8-omitting-data-from-the-transcript). The accumulator's instance belongs on that list. It is the one input that chapter 08 did not have, so it is the easiest to forget:
 
 <!-- worked:late -->
 

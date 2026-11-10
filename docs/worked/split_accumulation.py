@@ -487,12 +487,15 @@ frag['tamper'] = (
     f'At the second fold, we replaced $\\bar{{P}}_2$ with each of the 42 other group elements, replaced $v_2$ with each of the 42 other values, and separately replaced $\\bar{{F}}$ with each of the 42 other group elements while keeping the output. '
     f'We also shifted each of the five values at $u$ by each of the 42 nonzero amounts while keeping the output, which makes 210 more cases. '
     + (f'The accumulation verifier rejected all ${42 * 3 + 210}$ altered runs.' if not shift_pass else
-       f'The accumulation verifier rejected ${42 * 3 + 210 - len(shift_pass)}$ of the ${42 * 3 + 210}$ altered runs. The other ${len(shift_pass)}$ are shifts of the value for ${names[ci]}$, and a short calculation shows why. '
+       f'The accumulation verifier rejected ${42 * 3 + 210 - len(shift_pass)}$ of the ${42 * 3 + 210}$ altered runs. The other ${len(shift_pass)}$ are shifts of the value for ${names[ci]}$. '
+       f'A shift of that value moves the derived $f(u)$, which moves $v$, and it also moves $v$ directly through its own term. At these challenges the two movements cancel exactly for this one input, so every shift of it leaves the output unchanged. '
+       f'The output then stays the same true claim, and the prover gains nothing. '
+       f'The coincidence comes from our hand-picked challenges. With $u = {ch["u"]}$ fixed, only ${cancel_pairs}$ of the ${42 * 42:,}$ pairs of nonzero $\\alpha$ and $\\beta$ produce this cancellation for this input, about 1 in ${round(42 * 42 / cancel_pairs)}$.'))
+frag['tamper-why'] = ('' if not shift_pass else
        f'Shifting $h_{ci}(u)$ by $\\delta$ has two effects on $v$. It changes the derived $f(u)$ by $\\alpha^{{{4 - ci}}}\\delta/(u - x_{ci})$, and $f(u)$ enters $v$ with weight $\\beta^5$. It also changes the term $\\beta^{{{4 - ci}}} h_{ci}(u)$ by $\\beta^{{{4 - ci}}}\\delta$. Adding the two contributions gives\n\n'
        f'$$\\Delta v = \\beta^5 \\alpha^{{{4 - ci}}} \\cdot \\frac{{\\delta}}{{u - x_{ci}}} + \\beta^{{{4 - ci}}} \\delta = \\beta^{{{4 - ci}}} \\delta \\cdot \\left( \\frac{{\\beta^{{{1 + ci}}} \\alpha^{{{4 - ci}}}}}{{u - x_{ci}}} + 1 \\right).$$\n\n'
        f'The bracket is zero exactly when $\\beta^{{{1 + ci}}}\\alpha^{{{4 - ci}}} = x_{ci} - u$. Here $\\beta^{{{1 + ci}}} = {pow(ch["beta"], 1 + ci, Q)}$ and $\\alpha^{{{4 - ci}}} = {pow(ch["alpha"], 4 - ci, Q)}$, whose product is ${pow(ch["beta"], 1 + ci, Q) * pow(ch["alpha"], 4 - ci, Q) % Q}$, and $x_{ci} - u = {claims1[ci][1]} - {ch["u"]} = {(claims1[ci][1] - ch["u"]) % Q}$. '
-       f'The condition holds for this input and fails for the other four, so every shift of this one value leaves the output unchanged. The output then stays the same true claim, and the prover gains nothing. '
-       f'The coincidence comes from our hand-picked challenges. With $u = {ch["u"]}$ fixed, only ${cancel_pairs}$ of the ${42 * 42:,}$ pairs of nonzero $\\alpha$ and $\\beta$ satisfy the condition for this input, about 1 in ${round(42 * 42 / cancel_pairs)}$.'))
+       f'The condition holds for this input and fails for the other four.')
 
 # A consistent false F passes Acc.V, and only the decider sees it.
 F_pass, F_decide = 0, 0

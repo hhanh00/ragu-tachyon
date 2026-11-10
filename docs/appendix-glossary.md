@@ -29,12 +29,12 @@ Each entry gives a one-line reminder and links to the chapter that teaches the t
 - **Evidence tree:** a tree that retains one proof for all of an epoch's buckets. See [Oblivious Sync](./oblivious-sync.md#_13-composing-segments-and-keeping-evidence).
 - **Exclusion proof:** a proof that a nullifier is absent from closed epochs. See [Scaling Zcash](./scaling-zcash.md#_8-evolving-nullifiers).
 - **Faerie gold:** an attack in which a sender makes two notes that cannot both be spent. See [Notes, Nullifiers, and Tachygrams](./notes-and-nullifiers.md#_9-reusing-a-trapdoor).
-- **Fiat–Shamir transform:** replacing a verifier's random challenges with a hash of the transcript. See [Statements and Challenges](./statements-and-challenges.md#_8-removing-the-verifier-with-fiat–shamir).
+- **Fiat–Shamir transform:** replacing a verifier's random challenges with a hash of the transcript. See [Statements and Challenges](./statements-and-challenges.md#_7-removing-the-verifier-with-fiat–shamir).
 - **Folding:** halving a claim with a random challenge. See [The Inner Product Argument](./inner-product-argument.md#_4-one-round-of-folding).
 - **Folding scheme:** a reduction of several instances of a relation to one, with no verifier run inside. See [Split Accumulation](./split-accumulation.md#_9-folding-schemes).
 - **Fuse:** Ragu's operation that produces a node's proof from its children. See [An Introduction to Proof-Carrying Data](./pcd-intro.md#fusing-in-ragu).
 - **Gate:** one multiplication check $a_i b_i = c_i$ on the witness. See [Arithmetization](./arithmetization.md#_3-gates).
-- **Grinding:** retrying offline until a hash-derived challenge favors the prover. See [Statements and Challenges](./statements-and-challenges.md#_10-repeated-trials).
+- **Grinding:** retrying offline until a hash-derived challenge favors the prover. See [Statements and Challenges](./statements-and-challenges.md#_9-repeated-trials).
 - **Header:** a node's public claim in proof-carrying data. See [An Introduction to Proof-Carrying Data](./pcd-intro.md#_3-headers).
 - **Hiding:** the property that a commitment reveals nothing about the committed value. See [Polynomial Commitments](./polynomial-commitments.md#_6-hiding-the-vector).
 - **Hoisting:** sharing products between gadget steps to save gates. See [Endoscalars](./endoscalars.md#sharing-the-products).
@@ -59,12 +59,12 @@ Each entry gives a one-line reminder and links to the chapter that teaches the t
 - **Quotient fold:** Ragu's fuse-time reduction of revdot claims using Lagrange weights and a quotient. See [Revdot Folding](./revdot-folding.md#_10-the-quotient-fold-in-ragu-s-fuse).
 - **Quotient polynomial:** $(p(X) - y)/(X - x)$, which exists exactly when $p(x) = y$. See [Batched Openings](./batched-openings.md#_3-writing-a-claim-as-a-division).
 - **R1CS (rank-1 constraint system):** constraints of the form $A\v{w} \circ B\v{w} = C\v{w}$. See [Arithmetization](./arithmetization.md#_14-comparison-with-r1cs-and-plonk).
-- **Random linear combination:** merging several claims with random weights. See [Statements and Challenges](./statements-and-challenges.md#_7-random-linear-combinations).
-- **Random oracle:** an idealized hash function whose outputs behave as independent random values. See [Statements and Challenges](./statements-and-challenges.md#_11-poseidon-and-the-random-oracle-assumption).
+- **Random linear combination:** merging several claims with random weights. See [Statements and Challenges](./statements-and-challenges.md#_6-random-linear-combinations).
+- **Random oracle:** an idealized hash function whose outputs behave as independent random values. See [Statements and Challenges](./statements-and-challenges.md#_10-poseidon-and-the-random-oracle-assumption).
 - **Registry polynomial:** a polynomial that interpolates many circuits' wiring over a domain. See [Wiring and the Registry](./wiring-and-registry.md#_5-a-polynomial-for-many-circuits).
 - **Revdot claim:** an instance $(\bar{A}, \bar{B}, c)$ with witness vectors whose revdot product is $c$. See [Revdot Folding](./revdot-folding.md#_1-the-claim-that-remains).
 - **Revdot product:** the inner product of one vector with the reversal of another, written $\revdot{\v{a}}{\v{b}}$. See [Arithmetization](./arithmetization.md#_7-reading-one-coefficient-of-a-product).
-- **Schwartz–Zippel lemma:** a nonzero low-degree polynomial is zero at a random point with probability at most $d/|\F_q|$. See [Statements and Challenges](./statements-and-challenges.md#_6-polynomials-in-several-variables).
+- **Schwartz–Zippel lemma:** a nonzero low-degree polynomial is zero at a random point with probability at most $d/|\F_q|$. See [Statements and Challenges](./statements-and-challenges.md#_5-polynomials-in-several-variables).
 - **Soundness:** the property that false statements rarely pass verification. See [Statements and Challenges](./statements-and-challenges.md#_2-completeness-and-soundness).
 - **Spendable:** a proof that certifies a note's position in the pool's history. See [The Proof Tree](./proof-tree.md#_5-starting-and-lifting-a-lineage).
 - **Split accumulation:** accumulation in which the verifier handles only public instances, while the prover keeps a separate witness. See [Split Accumulation](./split-accumulation.md#_4-an-accumulator-with-two-parts).

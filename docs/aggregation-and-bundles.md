@@ -41,7 +41,11 @@ Here are our four bundles. They use small values so that every later equation fi
 
 ## 2. The bundle on the wire
 
-The first byte, [`tachyonBundleState`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md?plain=1#L146-L152), selects among no bundle (`0x00`), stamped (`0x01`), and stripped (`0x02`). Any other value [is rejected](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/bundle/mod.rs#L138-L150). A [body](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md?plain=1#L156-L167) follows, with the same layout in both states:
+The first byte, [`tachyonBundleState`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md?plain=1#L146-L152), selects among no bundle (`0x00`), stamped (`0x01`), and stripped (`0x02`). Any other value [is rejected](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/bundle/mod.rs#L138-L150). A [body](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md?plain=1#L156-L167) follows, with the same layout in both states. It holds the net value of the actions, each action's value commitment $\mathsf{cv}$ and randomized key $\mathsf{rk}$ (together the action's **descriptor**), the value commitment of a max fee note that Section 3 explains, one signature per action, a binding signature, and an optional memo.
+
+The trailer depends on the state, and it is where stripping happens. A [stamped trailer](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md?plain=1#L177-L187) holds the fee, the proof and what goes with it: a coverage indicator, the anchor, a commitment to the tachygrams, and the tachygram list. A [stripped trailer](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md?plain=1#L213-L218) holds only the fee and a 64-byte pointer to the aggregate that covers the bundle. The box below gives every field with its size.
+
+::: details Field-by-field layout of the body and the trailers
 
 | Field | Size in bytes | Meaning |
 | --- | --- | --- |
@@ -54,7 +58,7 @@ The first byte, [`tachyonBundleState`](https://github.com/tachyon-zcash/tachyon/
 | `nMemoTachyon` | compactsize | memo length $m$, zero when absent |
 | `vMemoTachyon` | $m$ | an opaque payload for the recipient |
 
-The trailer depends on the state, and it is where stripping happens. A [stamped trailer](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md?plain=1#L177-L187) holds the proof and what goes with it, and a [stripped trailer](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md?plain=1#L213-L218) holds a pointer:
+The two trailers:
 
 | Stamped trailer | Size in bytes | Stripped trailer | Size in bytes |
 | --- | --- | --- | --- |
@@ -65,6 +69,10 @@ The trailer depends on the state, and it is where stripping happens. A [stamped 
 | `nTachygrams` | compactsize | | |
 | `vTachygrams` | $32t$ | | |
 | `proofTachyon` | fixed | | |
+
+The reader also [enforces a few rules](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/mod.rs#L312-L342) that the book's table does not show. A stamped trailer must hold at least one tachygram, the list must be strictly increasing in its byte encoding, and repeats are rejected. A bundle with no actions [must have a zero value balance](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/bundle/mod.rs#L916-L921), and the max fee commitment [cannot be the identity](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/bundle/mod.rs#L928-L937).
+
+:::
 
 ![Two bars show a stamped and a stripped bundle. Both share the state byte and body, with the value balance, descriptors, max fee commitment and memo marked as effecting data, and the signatures marked as authorization data. The stamped trailer and the stripped trailer are both authorization data.](./manim/bundle-wire-format.png)
 
@@ -77,8 +85,6 @@ The memo sits on the effecting side for a reason that the [book states](https://
 Bundle Y carries the memo `first contact`. Dropping it changes the bundle commitment from `9ad01c2e` to `a8bc1608`, and the binding signature made over the first value fails against the second.
 
 <!-- /worked:memo -->
-
-The reader also [enforces a few rules](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/mod.rs#L312-L342) that the book's table does not show. A stamped trailer must hold at least one tachygram, the list must be strictly increasing in its byte encoding, and repeats are rejected. A bundle with no actions [must have a zero value balance](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/bundle/mod.rs#L916-L921), and the max fee commitment [cannot be the identity](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/bundle/mod.rs#L928-L937).
 
 ## 3. Fees chosen after signing
 
@@ -102,6 +108,10 @@ A validator cannot see the values, so it has to check this equation on commitmen
 
 $$\mathsf{bvk} = \sum_i \mathsf{cv}_i + \mathsf{cv}_{\mathsf{maxfee}} - [v^{\mathsf{bal}}]\,\mathcal{V}.$$
 
+When the claimed balance is right, the values cancel against $v^{\mathsf{bal}}$, so every $\mathcal{V}$ part disappears and $\mathsf{bvk}$ is a multiple of $\mathcal{R}$ alone. The multiplier is the sum of the blinds, $\mathsf{bsk} = \sum_i \mathsf{rcv}_i + r$, which the planner knows, so the planner can sign with $\mathsf{bsk}$ as a key, and the signature proves knowledge of that key. When the claimed balance is wrong, a leftover multiple of $\mathcal{V}$ remains in $\mathsf{bvk}$, and nobody knows a key for it. Neither $\mathsf{bsk}$ nor $\mathsf{bvk}$ mentions the fee, so a signature made now stays valid at any fee chosen later. The box shows the expansion that gives this.
+
+::: details Expanding the validator's key
+
 Expanding the commitments and collecting the two generators gives
 
 $$\begin{aligned}
@@ -109,7 +119,9 @@ $$\begin{aligned}
 &= \Big[\sum_i v_i - \mathsf{maxfee} - v^{\mathsf{bal}}\Big]\mathcal{V} + \Big[\sum_i \mathsf{rcv}_i + r\Big]\mathcal{R}.
 \end{aligned}$$
 
-The first bracket is zero exactly when the claimed balance is right, since $\sum_i v_i = \sum v_{\text{in}} - \sum v_{\text{out}}$. In that case $\mathsf{bvk} = [\mathsf{bsk}]\mathcal{R}$ with $\mathsf{bsk} = \sum_i \mathsf{rcv}_i + r$, and the planner, who knows every blind, can sign with $\mathsf{bsk}$ as a key. The signature proves knowledge of that key. Neither $\mathsf{bsk}$ nor $\mathsf{bvk}$ mentions the fee, so a signature made now stays valid at any fee chosen later.
+The first bracket is zero exactly when the claimed balance is right, since $\sum_i v_i = \sum v_{\text{in}} - \sum v_{\text{out}}$. In that case $\mathsf{bvk} = [\mathsf{bsk}]\mathcal{R}$ with $\mathsf{bsk} = \sum_i \mathsf{rcv}_i + r$.
+
+:::
 
 <!-- worked:generators -->
 
@@ -145,7 +157,11 @@ This rests on the assumption that the discrete log between the two generators is
 
 Later, a prover picks $\mathsf{fee} \leq \mathsf{maxfee}$. The unused part of the reservation has to stay in the pool, so the proof creates a [**fee change note**](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L64-L68) $(\mathsf{pk}, \mathsf{maxfee} - \mathsf{fee}, \psi, \mathsf{rcm})$, which differs from the max fee note only in its value. It is published only as its [note commitment](./notes-and-nullifiers.md#_4-notes-and-commitments) $\mathsf{cm}_{\mathsf{chg}}$, which is a tachygram. A fee equal to the maximum leaves a change note of value zero, and that note still publishes its tachygram, so the tachygram count does not show whether any change came back. The fee itself is public in the trailer. Bundle X in our table is this case.
 
-We can now find what a bundle [contributes to its transaction](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L144-L148). The pool loses the spends and gains the outputs and the change:
+We can now find what a bundle [contributes to its transaction](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L144-L148). Take Y at fee 4. The pool loses the spend of 30 and gains the output of 21 and the change of 2, so it loses $30 - 21 - 2 = 7$, which equals $3 + 4$, the signed balance plus the fee. Three of these leave to another pool and four pay the fee, and a transaction's pools must then sum to a non-negative total, which the book assigns to transaction accounting outside the bundle. The same holds for every bundle, so the wire format defines the contribution as [`valueBalanceTachyon + vFeeTachyon`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md?plain=1#L169). The box gives the general step.
+
+::: details Why the contribution is the balance plus the fee
+
+The pool loses the spends and gains the outputs and the change:
 
 $$\begin{aligned}
 \text{net outflow} &= \sum v_{\text{in}} - \sum v_{\text{out}} - (\mathsf{maxfee} - \mathsf{fee}) \\
@@ -153,15 +169,21 @@ $$\begin{aligned}
 &= v^{\mathsf{bal}} + \mathsf{fee}.
 \end{aligned}$$
 
-That is why the wire format defines the contribution as [`valueBalanceTachyon + vFeeTachyon`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md?plain=1#L169). For Y at fee 4, the pool loses $30 - 21 - 2 = 7$, which equals $3 + 4$. Three of these leave to another pool and four pay the fee. A transaction's pools must then sum to a non-negative total, which the book assigns to transaction accounting outside the bundle.
+:::
 
 ### Choosing the fee
 
-The fee reaches the proof through a **fee descriptor**, the pair $(\mathsf{cv}_{\mathsf{maxfee}}, \mathsf{fee})$. Its [Poseidon digest](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L85-L87) is
+The fee reaches the proof through a **fee descriptor**, the pair $(\mathsf{cv}_{\mathsf{maxfee}}, \mathsf{fee})$, which the proof hashes with Poseidon into a fee digest $d_{\mathsf{fee}}$. A step called `FeeFuse` starts from the proof of the bundle's actions, recomputes the max fee commitment and the fee digest from the max fee note opening and the chosen fee, creates the change note commitment $\mathsf{cm}_{\mathsf{chg}}$, and adds the digest and the change commitment to the sets that Section 4 describes. It cannot apply twice to one bundle. The box gives the digest formula, the step's inputs and outputs, the reason it cannot repeat, and the companion step for a bundle with no actions.
+
+::: details The fee digest and the steps `FeeFuse` and `FeeSeed`
+
+The fee descriptor's [Poseidon digest](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L85-L87) is
 
 $$d_{\mathsf{fee}} = \mathsf{Poseidon}_{\texttt{Tachyon-FeeDg}}\big(x(\mathsf{cv}_{\mathsf{maxfee}}),\ y(\mathsf{cv}_{\mathsf{maxfee}}),\ \mathsf{fee}\big).$$
 
 The step [`FeeFuse`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L518-L645) takes the bundle's `Actions` header and a witness holding the max fee note opening and the fee. It derives $r$, then $\mathsf{cv}_{\mathsf{maxfee}}$, then $d_{\mathsf{fee}}$ and $\mathsf{cm}_{\mathsf{chg}}$, and it adds these last two to the sets that the following section describes. Its output is a `Stamp`. Since the step accepts only `Actions` as input, [it cannot apply twice](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L136-L137) to one lineage, which is the [suffix idea](./wiring-and-registry.md#header-types-and-suffixes) from chapter 15. A bundle with no actions uses [`FeeSeed`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L647-L659), which has unit inputs, requires $\mathsf{maxfee} = 0$, and uses fee 0.
+
+:::
 
 These steps [prove a local relation and not funding](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/fee.md?plain=1#L112-L114). The funding comes from the actions, the binding signature, and transaction accounting. Here is bundle Y proved at three fees. We use the stand-in hash from [chapter 21](./pool-state.md#_6-folding-stamps-into-a-hash-chain), SHA-256 reduced modulo 43, for each Poseidon value, because the digests must be roots of polynomials over $\F_{43}$. The two hex columns are the first bytes of real BLAKE2b-256 digests over toy encodings, which Section 7 defines.
 
@@ -320,7 +342,11 @@ This site follows the code. Bundle A in our example has these values.
 
 We now have a bundle that exists in several physical forms: as an autonome, at a different fee, stripped with one pointer, or stripped with another. These forms need one stable name, so that a wallet can recognize its transaction. They also need to be told apart, because they are different bytes. Zcash's [ZIP 239](https://zips.z.cash/zip-0239) already has this split, with `wtxid = txid || auth_digest`, and Tachyon [routes each field to one half](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/transaction-identifiers.md?plain=1#L5-L8).
 
-The first half covers effecting data only. Tachyon's [contribution to `txid`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/authorization.md?plain=1#L78-L92), which [the code](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/digest/blake2b.rs#L175-L187) calls the bundle commitment, is
+The first half covers effecting data only. Tachyon's contribution to `txid`, which the code calls the **bundle commitment**, is a BLAKE2b hash of the actions' descriptors, the value balance, the max fee commitment, and the memo, and every signature signs a message built from it. The second half covers what can change. Tachyon's contribution to `auth_digest` is a BLAKE2b hash of the state byte, the signatures, and a fixed-size summary of the trailer. For a stamped bundle that summary covers the fee, the coverage indicator, and digests of the proof, anchor and tachygrams. For a stripped bundle it covers the fee and the pointer. The box gives the exact inputs.
+
+::: details The two digest formulas
+
+Tachyon's [contribution to `txid`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/authorization.md?plain=1#L78-L92), which [the code](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/digest/blake2b.rs#L175-L187) calls the bundle commitment, is
 
 $$\text{BLAKE2b-256}_{\texttt{ZTxIdTachyonHash}}\big(\mathsf{hActionsTachyon} \,\|\, \mathsf{valueBalanceTachyon} \,\|\, \mathsf{cvFeeMaxTachyon} \,\|\, \mathsf{hMemoTachyon}\big),$$
 
@@ -329,6 +355,8 @@ where $\mathsf{hActionsTachyon}$ hashes each $\mathsf{cv}_i \| \mathsf{rk}_i$ in
 $$\text{BLAKE2b-256}_{\texttt{ZTxAuthTachyHash}}\big(\mathsf{tachyonBundleState} \,\|\, \mathsf{vActionSigs} \,\|\, \mathsf{bindingSigTachyon} \,\|\, \mathsf{tachyonStampState}\big).$$
 
 The last input is [72 bytes in both states](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/transaction-identifiers.md?plain=1#L27-L34). A stamped bundle uses its fee, the coverage indicator, and $\mathsf{hStampDataTachyon}$, a digest of the proof's digest, the anchor, $\mathsf{cTachygrams}$, and the tachygrams. A stripped bundle uses its fee and the 64-byte `tachyonAggregateId`. The book says that the personalization [`ZTxAuthTachyHash` is a placeholder](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/transaction-identifiers.md?plain=1#L48) until an amendment to ZIP 244 fixes it.
+
+:::
 
 Here are forms of A and Y in our example. We compute real BLAKE2b-256 with these personalizations, over toy encodings of the points, field elements and signatures. A real `txid` and `auth_digest` would hash these contributions together with those of other pools, and we leave that step out.
 
@@ -365,7 +393,11 @@ This site follows the identifier page. The book's link to a ["Block Layout" sect
 
 A stamp [carries no proof header](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/aggregation.md?plain=1#L144). This creates a problem before a transaction reaches a block. Within a block, a verifier collects the bundles that point to an aggregate and rebuilds the header from them. In the mempool, nothing connects an aggregate to the bundles it covers, and the only way to test a guess at them would be a full proof verification.
 
-The **action set indicator** `hStampCoverageTachyon` [makes this test cheap](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/aggregation.md?plain=1#L146). It is a BLAKE2b digest that the transaction's author supplies, [built in two layers](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md?plain=1#L201-L207):
+The **action set indicator** `hStampCoverageTachyon` [makes this test cheap](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/aggregation.md?plain=1#L146). It is a BLAKE2b digest that the transaction's author supplies. It hashes two sub-digests together, one over the descriptors of every covered action and one over the fee descriptor of every covered bundle, with each list sorted first so that the result depends only on the sets and not on their order. The box gives the formulas.
+
+::: details The indicator's two layers
+
+The indicator is [built in two layers](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/bundle.md?plain=1#L201-L207):
 
 $$\begin{aligned}
 \mathsf{hStampCoverageTachyon} &= \text{BLAKE2b-256}_{\texttt{Tachyon-Coverage}}\big(\mathsf{hStampActionsTachyon} \,\|\, \mathsf{hStampFeesTachyon}\big), \\
@@ -373,7 +405,11 @@ $$\begin{aligned}
 \mathsf{hStampFeesTachyon} &= \text{BLAKE2b-256}_{\texttt{Tachyon-Fees}}\big(f_1 \,\|\, \cdots \,\|\, f_B\big), \quad f_j = \mathsf{cv}_{\mathsf{maxfee},j} \,\|\, \mathsf{LE64}(\mathsf{fee}_j).
 \end{aligned}$$
 
-Each sub-digest takes its entries in sorted byte order, so that the digest depends only on the set. The indicator has a side benefit, which is that it distinguishes an autonome from an aggregate. [The code's test](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/bundle/mod.rs#L669-L681) asks whether the digest matches the bundle's own descriptors alone.
+Each sub-digest takes its entries in sorted byte order, so that the digest depends only on the set.
+
+:::
+
+The indicator has a side benefit, which is that it distinguishes an autonome from an aggregate. [The code's test](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/bundle/mod.rs#L669-L681) asks whether the digest matches the bundle's own descriptors alone.
 
 The indicator is [not a soundness mechanism](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/aggregation.md?plain=1#L150). It is a claim by the author, and it strips away with the rest of the stamp. The proof binds the action set separately. A wrong indicator can only harm its author, because others will decline to handle the transaction. So consider what a verifier does with a candidate collection of bundles. It applies [two fast gates](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/aggregation.md?plain=1#L152) before the proof: compare the indicator, then compare the tachygram count with $2N + B$. Here are the candidates for the merged stamp on A, which has 12 tachygrams.
 
@@ -503,7 +539,13 @@ A builder could instead hold back a component proof, so that it alone can split 
 
 Suppose our aggregator is holding the merged stamp, which we call $W$, and a new block includes X on its own. The stamp of $W$ repeats X's tachygrams, and consensus [rejects a tachygram published twice within two epochs](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/network_roles/aggregator.md?plain=1#L66-L70). So publishing $W$ now would fail. Rebuilding from the remaining inputs would discard finished work, and we want to keep the proof of the rest.
 
-The step [`StampUnmerge`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L761-L839) removes one stamp from another. It has the shape of a merge run backward. Its witness holds the quotient polynomials, and it [enforces](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L382) that each dividend polynomial is the product of the divisor's and the quotient's, at one common anchor. Each set polynomial is a product of linear factors, so [unique factorization makes the division exact](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L383-L384), and the divisor's factors are a sub-multiset of the dividend's. The output header states less than the input did, and that is acceptable, because a step only has to establish the relation it declares between its inputs and its output.
+The step [`StampUnmerge`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L761-L839) removes one stamp from another. It has the shape of a merge run backward. A merge multiplies set polynomials, so removing a stamp divides them, and the division succeeds only when every member of the removed stamp's sets also appears in the larger stamp's sets. The output header states less than the input did, and that is acceptable, because a step only has to establish the relation it declares between its inputs and its output. The box says what the step checks and why the division is exact.
+
+::: details What `StampUnmerge` enforces
+
+Its witness holds the quotient polynomials, and it [enforces](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L382) that each dividend polynomial is the product of the divisor's and the quotient's, at one common anchor. Each set polynomial is a product of linear factors, so [unique factorization makes the division exact](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L383-L384), and the divisor's factors are a sub-multiset of the dividend's.
+
+:::
 
 <!-- worked:unmerge-run -->
 

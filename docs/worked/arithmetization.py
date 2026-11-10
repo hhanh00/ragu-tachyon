@@ -175,9 +175,12 @@ for k_ in range(8):
 weights = [(z ** (2 * n - 1 - i) + z ** (2 * n + i)) % Q for i in range(n)]
 dil_total = rev(r, dil)
 assert dil_total == sum(a[i] * b[i] * weights[i] for i in range(n)) % Q
-frag['dilation'] = (f'At $z = {z}$ the powers are ${vec(zp)}$, so $\\v{{r}} \\circ \\v{{z^{{8}}}} = {vec(dil)}$.\n\n' + '\n'.join(term_rows)
-                    + f'\n\nThe last column sums to {dil_total}. The formula above gives the same value. Its weights are $z^3 + z^4 = {weights[0]}$ and $z^2 + z^5 = {weights[1]}$, '
-                      f'and ${a[0] * b[0]} \\cdot {weights[0]} + {a[1] * b[1]} \\cdot {weights[1]} = {dil_total}$ modulo 43.')
+frag['dilation'] = (f'At $z = {z}$, gate 0 gets the weight $z^3 + z^4 = {weights[0]}$ and gate 1 gets $z^2 + z^5 = {weights[1]}$. '
+                    f'The products are $a_0 b_0 = {a[0] * b[0]}$ and $a_1 b_1 = {a[1] * b[1]}$, so the dilated revdot product is '
+                    f'${a[0] * b[0]} \\cdot {weights[0]} + {a[1] * b[1]} \\cdot {weights[1]} = {dil_total}$ modulo 43.')
+frag['dilation-table'] = (f'At $z = {z}$ the powers are ${vec(zp)}$, so $\\v{{r}} \\circ \\v{{z^{{8}}}} = {vec(dil)}$. '
+                          f'The table multiplies each entry of $\\v{{r}}$ by its partner and by the power of $z$ at the partner position.\n\n' + '\n'.join(term_rows)
+                          + f'\n\nThe last column sums to {dil_total}, the same value as the gate-by-gate formula.')
 
 
 def t_vector(at):
@@ -247,8 +250,8 @@ eps3_signed = eps3 - Q if eps3 > Q // 2 else eps3
 assert all(residual(j, a4, b4, c4) == 0 for j in range(8) if j != 3)
 assert [v_ for v_ in range(Q) if v_ ** 3 * eps3 % Q == 0] == [0] and counts[1] == Q
 frag['cheats'] = ('\n'.join(table) + f'\n\nThe bound for this circuit is $(4n - 1)/|\\F_q| = {bound}/{Q} \\approx {bound / Q:.3f}$, and no row exceeds it. '
-                  f'The second row also follows from the exponent structure. Its gates hold and $\\v{{d}} = \\v{{0}}$, so only the constraint part survives, and constraint 3 is the only one that fails, with error $\\epsilon_3 = {eps3_signed}$. '
-                  f'So $E_c(y) = {eps3_signed}y^3$, which is zero only at $y = 0$, and that one value of $y$ passes with all {Q} values of $z$. '
+                  f'Two of the counts can be predicted by hand. In the second row the gates hold and $\\v{{d}} = \\v{{0}}$, so only the constraint check can fail, and constraint 3 is the only one that fails, with error ${eps3_signed}$. '
+                  f'The combined constraint check is then ${eps3_signed}y^3$, which is zero only at $y = 0$, and that one value of $y$ passes with all {Q} values of $z$. '
                   f'The last row keeps the honest gates and constraints and sets $d_0 = {bad_d[0]}$. Only the term $c_0 d_0 (1 + z^{{7}}) = {c[0] * bad_d[0] % Q}(1 + z^7)$ survives, '
                   f'and it vanishes at the {len(d_roots)} values of $z$ with $z^7 = -1$, for any $y$. That gives ${len(d_roots)} \\cdot {Q} = {counts[3]}$ passing pairs, '
                   f'which reaches the bound exactly.')

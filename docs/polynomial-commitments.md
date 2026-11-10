@@ -14,7 +14,7 @@ Suppose a prover holds a polynomial $p$ and a verifier holds nothing. The two pa
 2. The verifier later picks a point $x$.
 3. The prover sends $y = p(x)$ along with a proof that $y$ is correct for the polynomial behind $C$.
 
-The verifier gets evidence about $p$ from one evaluation because two different low-degree polynomials rarely agree at a random point, as [Statements and Challenges](./statements-and-challenges.md#_5-testing-polynomials-at-a-random-point) showed. This exchange only works if the prover fixes $p$ before seeing $x$, which means the prover must not be able to open $C$ to a second polynomial. A commitment with this property is called **binding**. When $p$ contains secrets, the commitment should also be **hiding**, which means $C$ reveals nothing about $p$.
+The verifier gets evidence about $p$ from one evaluation because two different low-degree polynomials rarely agree at a random point, as [Statements and Challenges](./statements-and-challenges.md#testing-at-a-random-point) showed. This exchange only works if the prover fixes $p$ before seeing $x$, which means the prover must not be able to open $C$ to a second polynomial. A commitment with this property is called **binding**. When $p$ contains secrets, the commitment should also be **hiding**, which means $C$ reveals nothing about $p$.
 
 A hash of the coefficients is binding and short, which makes it a natural first candidate. Hashes have no algebraic structure, however, so the only way to prove something about $p$ from its hash is to run the entire hash computation inside a proof. Ragu's [accumulation scheme](./accumulation.md) also needs to combine commitments directly, and the hash of a sum has no relation to the hashes of its parts. Elliptic curve points provide the missing structure, because adding two commitments gives a commitment to the sum. Sections 3 to 6 build this commitment and show why it has both properties. Sections 7 to 9 then connect it to polynomial evaluation.
 
@@ -34,13 +34,17 @@ The [curves appendix](./appendix-curves.md) lists the parameters.
 
 ### Two different moduli
 
-As [Statements and Challenges](./statements-and-challenges.md#_1-statements-instances-and-witnesses) noted, the worked examples use two different moduli. This section adds the point arithmetic behind that remark. Coordinates of points belong to the field the curve is defined over, so we compute with them modulo 31. Here is one point operation carried out on coordinates:
+As [Statements and Challenges](./statements-and-challenges.md#_1-statements-instances-and-witnesses) noted, the worked examples use two different moduli. This section adds the point arithmetic behind that remark. Coordinates of points belong to the field the curve is defined over, so we compute with them modulo 31. The box below carries out one point doubling on coordinates, for readers who want to see the field arithmetic. Its result is the second row of the table that follows.
+
+::: details Doubling a point by hand
 
 <!-- worked:doubling -->
 
 Doubling $G_0 = (1,\,2)$ uses the tangent slope, computed modulo 31: $s = 3x^2 / (2y) = 3 / 4 = 24$. The new coordinates are $x_3 = s^2 - 2x = 16$ and $y_3 = s(x - x_3) - y = 10$, so $2 \cdot G_0 = (16,\,10)$.
 
 <!-- /worked:doubling -->
+
+:::
 
 Scalars count how many times we add a point to itself, and they behave differently. Adding a point to itself repeatedly eventually returns to $\mathcal{O}$, and the multiples then repeat:
 
@@ -127,11 +131,19 @@ $$\sum_{i=0}^{n-1} (a_i - a_i') \cdot G_i = \mathcal{O},$$
 
 where at least one coefficient is nonzero, since the vectors differ. A second opening therefore requires a nontrivial linear relation among the generators.
 
-With two generators, such a relation gives a discrete log directly. To see this, suppose $d_0 \cdot G_0 + d_1 \cdot G_1 = \mathcal{O}$ with $d_1 \neq 0$. Moving the first term across and dividing by $d_1$ gives
+With only two generators, such a relation hands over the discrete log of one generator relative to the other, as the box below shows.
+
+::: details From a relation to a discrete log
+
+Suppose $d_0 \cdot G_0 + d_1 \cdot G_1 = \mathcal{O}$ with $d_1 \neq 0$. Moving the first term across and dividing by $d_1$ gives
 
 $$G_1 = -\frac{d_0}{d_1} \cdot G_0,$$
 
-which expresses $G_1$ as a known multiple of $G_0$. With more than two generators, a relation no longer hands over a discrete log in one step. We therefore assume directly that nobody can find any nontrivial relation among the generators. This is the **discrete log relation assumption**, and for generators chosen at random it is known to be no stronger than the discrete log assumption itself. If nobody can find a relation among the generators, nobody can open a commitment in two ways, so binding rests on this assumption. It also explains how real systems choose generators. If someone produced $G_1$ by multiplying $G_0$ by a chosen scalar, that person would know the relation and could forge openings, so real generators come from a hash whose output has no known relation to the other points.
+which expresses $G_1$ as a known multiple of $G_0$.
+
+:::
+
+With more than two generators, a relation no longer hands over a discrete log in one step. We therefore assume directly that nobody can find any nontrivial relation among the generators. This is the **discrete log relation assumption**, and for generators chosen at random it is known to be no stronger than the discrete log assumption itself. If nobody can find a relation among the generators, nobody can open a commitment in two ways, so binding rests on this assumption. It also explains how real systems choose generators. If someone produced $G_1$ by multiplying $G_0$ by a chosen scalar, that person would know the relation and could forge openings, so real generators come from a hash whose output has no known relation to the other points.
 
 On the toy curve we can compute such a relation directly, so we can run the argument above in reverse to produce a forgery:
 
@@ -141,7 +153,9 @@ Counting multiples of $G_0$ shows that $G_1 = 30\cdot G_0$, so $30\cdot G_0 - G_
 
 <!-- /worked:forgery -->
 
-The next table compares the two computations term by term. The change to entry 0 and the change to entry 1 cancel exactly, so the later terms and the total stay the same.
+The change to entry 0 and the change to entry 1 cancel exactly, so the later terms and the total stay the same. The box below compares the two computations term by term.
+
+::: details The forgery, term by term
 
 <!-- worked:forgery-check -->
 
@@ -155,11 +169,27 @@ The next table compares the two computations term by term. The change to entry 0
 
 <!-- /worked:forgery-check -->
 
+:::
+
 A prover who can do this on a real curve could change the committed polynomial after seeing the challenge. On a curve of 255 bits, no known method finds such a relation in practice.
 
 ## 5. Adding commitments
 
-Point addition is commutative and scalar multiplication distributes over it, so we can regroup the terms of two commitments by generator:
+Anyone holding two commitments can combine them into a commitment to a combination of the vectors, without seeing the vectors. The next example scales one commitment, adds another, and compares the result with a commitment computed directly from the vectors:
+
+<!-- worked:homomorphism -->
+
+Take a second vector $\v{b} = (3, 1, 8, 4)$, whose commitment is $C_b = (6,\,23)$, and the scalar $r = 6$. Working only with the two points, we compute $6 \cdot C_b$ and add $C$, which gives $C + 6 \cdot C_b = (7,\,6)$. Working only with the vectors, we form $\v{a} + 6\v{b} = (7 + 6\cdot 3,\ 2 + 6\cdot 1,\ 5 + 6\cdot 8,\ 3 + 6\cdot 4) = (25, 8, 10, 27)$ modulo 43 and commit to it directly, which gives $(7,\,6)$. The two routes reach the same point, and the first route never looked at either vector.
+
+<!-- /worked:homomorphism -->
+
+The agreement is not a coincidence of these numbers. Point addition is commutative and scalar multiplication distributes over it, so we can regroup the terms of a commitment by generator, as the box below writes out. The result is two identities that hold for any vectors $\v{a}, \v{b}$ and any scalar $r$:
+
+$$\dot{\v{a}}{\v{G}} + \dot{\v{b}}{\v{G}} = \dot{\v{a} + \v{b}}{\v{G}}, \qquad r \cdot \dot{\v{a}}{\v{G}} = \dot{r\v{a}}{\v{G}}.$$
+
+::: details Regrouping the terms by generator
+
+Adding two commitments and collecting the two terms that share each generator gives
 
 $$\sum_i a_i \cdot G_i + \sum_i b_i \cdot G_i = \sum_i (a_i \cdot G_i + b_i \cdot G_i) = \sum_i (a_i + b_i) \cdot G_i.$$
 
@@ -167,17 +197,9 @@ Multiplying a commitment by a scalar $r$ regroups in the same way:
 
 $$r \cdot \sum_i a_i \cdot G_i = \sum_i (r a_i) \cdot G_i.$$
 
-Written with the inner product notation, these are two identities that hold for any vectors $\v{a}, \v{b}$ and any scalar $r$:
+:::
 
-$$\dot{\v{a}}{\v{G}} + \dot{\v{b}}{\v{G}} = \dot{\v{a} + \v{b}}{\v{G}}, \qquad r \cdot \dot{\v{a}}{\v{G}} = \dot{r\v{a}}{\v{G}}.$$
-
-Pedersen commitments are therefore **linearly homomorphic**, meaning anyone can compute a commitment to a linear combination of vectors from the commitments alone, without seeing the vectors. The next example uses both identities at once, by scaling one commitment and adding another:
-
-<!-- worked:homomorphism -->
-
-Take a second vector $\v{b} = (3, 1, 8, 4)$, whose commitment is $C_b = (6,\,23)$, and the scalar $r = 6$. Working only with the two points, we compute $6 \cdot C_b$ and add $C$, which gives $C + 6 \cdot C_b = (7,\,6)$. Working only with the vectors, we form $\v{a} + 6\v{b} = (7 + 6\cdot 3,\ 2 + 6\cdot 1,\ 5 + 6\cdot 8,\ 3 + 6\cdot 4) = (25, 8, 10, 27)$ modulo 43 and commit to it directly, which gives $(7,\,6)$. The two routes reach the same point, and the first route never looked at either vector.
-
-<!-- /worked:homomorphism -->
+Pedersen commitments are therefore **linearly homomorphic**, meaning anyone can compute a commitment to a linear combination of vectors from the commitments alone.
 
 Much of the later construction depends on this property. Batched openings and accumulation both replace many committed polynomials with one random linear combination, and the verifier can compute the combined commitment using only group operations.
 
@@ -207,7 +229,7 @@ Committing to $\v{a}$ with blinding factors $\gamma = 20$ and $\gamma = 29$ give
 
 <!-- /worked:hiding -->
 
-To see that the observer learns nothing at all, we count. Fix any point $\bar{C}$ and any candidate vector $\v{a}$. The difference $\bar{C} - \dot{\v{a}}{\v{G}}$ is some group element, and because $H$ generates the group, exactly one $\gamma$ satisfies $\gamma \cdot H$ equal to that difference. So every candidate vector explains a given point with exactly one blinding factor, as the next example shows for one specific point:
+The observer in fact learns nothing at all about $\v{a}$, because every candidate vector explains a given blinded point with exactly one blinding factor. The next example shows this for one specific point:
 
 <!-- worked:hiding-any -->
 
@@ -215,7 +237,15 @@ Take the blinded commitment $\bar{C} = (28,\,21)$ made from $\v{a}$ with $\gamma
 
 <!-- /worked:hiding-any -->
 
-The prover draws $\gamma$ uniformly at random from $\F_q$, so the term $\gamma \cdot H$ is a uniformly random point whatever $\v{a}$ is, and $\bar{C}$ is therefore a uniformly random point as well. Since every candidate fits with exactly one $\gamma$ and all values of $\gamma$ are equally likely, $\bar{C}$ alone gives no information about $\v{a}$. A predictable $\gamma$ would break this, because an observer could then subtract $\gamma \cdot H$ and test guesses as before.
+The prover draws $\gamma$ uniformly at random, so every candidate vector is equally consistent with the point the observer sees, and the point alone says nothing about which vector the prover used. The box below gives the counting argument behind this. A predictable $\gamma$ would break this, because an observer could then subtract $\gamma \cdot H$ and test guesses as before.
+
+::: details Why each candidate fits exactly once
+
+Fix any point $\bar{C}$ and any candidate vector $\v{a}$. The difference $\bar{C} - \dot{\v{a}}{\v{G}}$ is some group element, and because $H$ generates the group, exactly one $\gamma$ satisfies $\gamma \cdot H$ equal to that difference. So every candidate vector explains $\bar{C}$ with exactly one blinding factor.
+
+The prover draws $\gamma$ uniformly at random from $\F_q$, so the term $\gamma \cdot H$ is a uniformly random point whatever $\v{a}$ is, and $\bar{C}$ is therefore a uniformly random point as well. Since every candidate fits with exactly one $\gamma$ and all values of $\gamma$ are equally likely, $\bar{C}$ alone gives no information about $\v{a}$.
+
+:::
 
 The two properties rest on different foundations. Hiding holds even against an observer with unlimited computing power, because the counting argument uses no hardness assumption. Binding holds only because finding a relation among the generators is computationally hard, and Section 4 showed that a prover who could count discrete logs would break it.
 
@@ -284,7 +314,7 @@ The chapter on batched openings uses this fact to reduce many evaluation claims 
 
 ## 9. Combining the commitment and the claim
 
-The prover must now show two facts about one vector at once. The vector $\v{a}$ must open the commitment $C$, and its inner product with the powers of $x$ must equal $y$. Proving these facts separately would not be enough, since a prover could satisfy the first with one vector and the second with another. The two facts must apply to the same vector, so we package them into a single point. This section derives that statement, shows two ways it fails when its assumptions break, explains why the evaluation point must come after the commitment, and then runs the whole exchange on the toy curve.
+The prover must now show two facts about one vector at once. The vector $\v{a}$ must open the commitment $C$, and its inner product with the powers of $x$ must equal $y$. Proving these facts separately would not be enough, since a prover could satisfy the first with one vector and the second with another. The two facts must apply to the same vector, so we package them into a single point. This section builds that statement, shows two ways it fails when its assumptions break, explains why the evaluation point must come after the commitment, and then runs the whole exchange on the toy curve.
 
 ### Deriving the combined statement
 
@@ -298,7 +328,11 @@ $$P = \dot{\v{a}}{\v{G}} + \dot{\v{a}}{\v{x^n}} \cdot U.$$
 
 The verifier can compute $P$ from public values alone, because it holds $C$ and $y$. The right side has the shape of a Pedersen commitment to the $n + 1$ entries $(a_0, \ldots, a_{n-1}, \dot{\v{a}}{\v{x^n}})$ under the generators $(G_0, \ldots, G_{n-1}, U)$, which lets us reuse the binding argument of Section 4 with the longer list of generators.
 
-To run that argument, we need two openings of $P$ to compare. Suppose the prover committed honestly, so it knows a vector $\v{a}_0$ with $C = \dot{\v{a}_0}{\v{G}}$, and the true value is $p(x) = \dot{\v{a}_0}{\v{x^n}}$. Substituting this $C$ into the definition of $P$ gives
+That argument compares two openings of $P$. An honest commitment supplies one opening, the committed vector together with the claimed $y$, and any vector that satisfies the claimed equation supplies another. If the two openings differ, subtracting them gives a relation among $\v{G}$ and $U$. A prover who knows no such relation can therefore satisfy the equation only with the committed vector, and only when $y$ is the true value $p(x)$. One equation enforces both facts, because the same $\v{a}$ appears in both of its terms. The box below writes out the subtraction.
+
+::: details Comparing the two openings of P
+
+To run the argument, we need two openings of $P$ to compare. Suppose the prover committed honestly, so it knows a vector $\v{a}_0$ with $C = \dot{\v{a}_0}{\v{G}}$, and the true value is $p(x) = \dot{\v{a}_0}{\v{x^n}}$. Substituting this $C$ into the definition of $P$ gives
 
 $$P = \dot{\v{a}_0}{\v{G}} + y \cdot U,$$
 
@@ -306,7 +340,11 @@ so the entries $(\v{a}_0, y)$ form one opening of $P$, whatever value $y$ the pr
 
 $$\dot{\v{a}_0 - \v{a}}{\v{G}} + \big(y - \dot{\v{a}}{\v{x^n}}\big) \cdot U = \mathcal{O}.$$
 
-If any coefficient on the left is nonzero, this is a relation among $\v{G}$ and $U$. A prover who knows no such relation must therefore have every coefficient equal to zero. The $\v{G}$ coefficients give $\v{a} = \v{a}_0$, so the vector in the claim is the committed vector. The $U$ coefficient then gives $y = \dot{\v{a}_0}{\v{x^n}} = p(x)$, so the claimed value is the true one. One equation enforces both facts, because the same $\v{a}$ appears in both of its terms. Here is the statement point for the running example:
+If any coefficient on the left is nonzero, this is a relation among $\v{G}$ and $U$. A prover who knows no such relation must therefore have every coefficient equal to zero. The $\v{G}$ coefficients give $\v{a} = \v{a}_0$, so the vector in the claim is the committed vector. The $U$ coefficient then gives $y = \dot{\v{a}_0}{\v{x^n}} = p(x)$, so the claimed value is the true one.
+
+:::
+
+Here is the statement point for the running example:
 
 <!-- worked:claim -->
 
@@ -315,12 +353,14 @@ The statement point is $P = C + 37\cdot U = (5,\,29)$. Treating it as a five-ent
 <!-- /worked:claim -->
 
 ::: tip A coincidence on the toy curve
-The statement point $P$ above is the same point as the forged entry-0 term in the Section 4 table, although nothing connects the two computations. With so few points on the toy curve, unrelated computations often collide like this. On a real curve with about $2^{255}$ points, such collisions essentially never happen.
+The statement point $P$ above is the same point as the forged entry-0 term in the term-by-term forgery table of Section 4, although nothing connects the two computations. With so few points on the toy curve, unrelated computations often collide like this. On a real curve with about $2^{255}$ points, such collisions essentially never happen.
 :::
 
 ### Forging a claim with a known relation to U
 
-The derivation needs $U$ to have no known relation to $\v{G}$, and not only the generators in $\v{G}$ to have none among themselves. If a prover knows the relations, it can run the argument in reverse, as it did for the forged opening in Section 4. The prover turns the equation for $P$ into an equation between scalars and solves it for one entry of the vector:
+The derivation needs $U$ to have no known relation to $\v{G}$, and not only the generators in $\v{G}$ to have none among themselves. If a prover knows the relations, it can run the argument in reverse, as it did for the forged opening in Section 4. On the toy curve the prover can count the discrete log of every generator relative to $G_0$. Writing each point in the equation for $P$ as a multiple of $G_0$ then turns that equation into one linear equation over $\F_{43}$ in the entries of the vector, and the prover solves it for one entry. The box below carries out this arithmetic for a false claimed value, keeping three entries of the honest vector and solving for the first.
+
+::: details Solving for the forged vector
 
 <!-- worked:forged-claim -->
 
@@ -334,7 +374,15 @@ Collecting the terms for each entry and reducing modulo 43 gives
 
 $$6a_0 + 32a_1 + 3a_2 + 15a_3 \equiv 42 \pmod{43}.$$
 
-The prover keeps entries 1 to 3 of the honest vector, $a_1 = 2$, $a_2 = 5$ and $a_3 = 3$. Their terms add up to $32 \cdot 2 + 3 \cdot 5 + 15 \cdot 3 = 38$ modulo 43, so $6a_0 \equiv 42 - 38 = 4$, and dividing by $6$ gives $a_0 = 15$. The next table checks the forged vector against the false statement point.
+The prover keeps entries 1 to 3 of the honest vector, $a_1 = 2$, $a_2 = 5$ and $a_3 = 3$. Their terms add up to $32 \cdot 2 + 3 \cdot 5 + 15 \cdot 3 = 38$ modulo 43, so $6a_0 \equiv 42 - 38 = 4$, and dividing by $6$ gives $a_0 = 15$. The forged vector is therefore $(15, 2, 5, 3)$.
+
+<!-- /worked:forged-claim -->
+
+:::
+
+The next table checks the forged vector from the box against the false statement point.
+
+<!-- worked:forged-claim-check -->
 
 | Quantity | Value |
 | --- | --- |
@@ -345,9 +393,9 @@ The prover keeps entries 1 to 3 of the honest vector, $a_1 = 2$, $a_2 = 5$ and $
 
 The last two rows agree, so the check passes, although the forged vector does not open $C$ and its inner product is $2$ rather than $38$.
 
-The honest vector gives a second opening $(\v{a},\ 38)$ of the same point, as in the derivation above. Subtracting the forged opening from it leaves the relation $(7 - 15) \cdot G_0 + (38 - 2) \cdot U = 35 \cdot G_0 + 36 \cdot U = \mathcal{O}$. The prover can cancel these two terms only because it knows $U = 5 \cdot G_0$, which turns $36 \cdot U$ into $8 \cdot G_0$.
+The honest vector gives a second opening $(\v{a},\ 38)$ of the same point, as in the derivation of the combined statement. Subtracting the forged opening from it leaves the relation $(7 - 15) \cdot G_0 + (38 - 2) \cdot U = 35 \cdot G_0 + 36 \cdot U = \mathcal{O}$. The prover can cancel these two terms only because it knows $U = 5 \cdot G_0$, which turns $36 \cdot U$ into $8 \cdot G_0$.
 
-<!-- /worked:forged-claim -->
+<!-- /worked:forged-claim-check -->
 
 ### A commitment with a hidden multiple of U
 
@@ -383,7 +431,7 @@ So the textbook statement still ties the prover to one polynomial, but that poly
 
 ### Choosing the point after the commitment
 
-The verifier must also choose $x$ after the prover sends $C$. [Statements and Challenges](./statements-and-challenges.md#_5-testing-polynomials-at-a-random-point) showed that a prover who knows the point in advance can pass the test with a different polynomial, and a commitment does not change this, because the prover can commit honestly to the wrong polynomial:
+The verifier must also choose $x$ after the prover sends $C$. [Statements and Challenges](./statements-and-challenges.md#testing-at-a-random-point) showed that a prover who knows the point in advance can pass the test with a different polynomial, and a commitment does not change this, because the prover can commit honestly to the wrong polynomial:
 
 <!-- worked:early-point -->
 
@@ -484,11 +532,17 @@ Both checks pass. The only change is that each value now arrives with a proof th
 
 The most widely known alternative is **KZG**, which takes a different route to the same interface. KZG uses the same kind of powers-of-$\tau$ setup as [Groth16 in the previous chapter](./polynomial-encoding.md#_8-enforcing-the-test-in-groth16), which publishes the points $G, \tau G, \tau^2 G, \ldots$ for a secret scalar $\tau$, and the commitment to $p$ is the point $p(\tau) \cdot G$. To open at $x$, the prover sends $\pi = q(\tau) \cdot G$, a commitment to the quotient $q(X) = (p(X) - y)/(X - x)$, which is a polynomial exactly when $p(x) = y$. Multiplying through, an honest quotient satisfies $p(X) - y = q(X)(X - x)$.
 
-The verifier checks this relation at $\tau$. It cannot compute $p(\tau)$ or $q(\tau)$, but it holds them hidden as scalars of the points $C$ and $\pi$, and the pairing $e$ that Groth16 used in that section can multiply two hidden scalars. The check is
+The verifier checks this relation at $\tau$. It cannot compute $p(\tau)$ or $q(\tau)$, but it holds them hidden as scalars of the points $C$ and $\pi$, and the pairing $e$ that Groth16 used in that section can multiply two hidden scalars. The box below writes out the check.
+
+::: details The KZG pairing check
+
+The check is
 
 $$e(C - y \cdot G,\ G) = e(\pi,\ \tau G - x \cdot G).$$
 
 Bilinearity means $e(a \cdot G, b \cdot G)$ depends only on the product $ab$, so the left side stands for $(p(\tau) - y) \cdot 1$ and the right side for $q(\tau)(\tau - x)$. The verifier computes $\tau G - x \cdot G$ from the public point $\tau G$, so it never needs $\tau$ itself.
+
+:::
 
 KZG proofs are one group element, and their verification cost does not depend on $n$. In exchange, KZG requires pairing-friendly curves and a trusted setup, because anyone who learns $\tau$ can forge openings. Ragu avoids a trusted setup and uses the Pasta curves, which Zcash already deploys in Orchard. The cost of that choice is a verifier whose work grows linearly with $n$, and most of the recursion chapters exist to manage this cost.
 

@@ -59,16 +59,20 @@ The wallet derives its nullifiers in Section 3. In Section 4 the sync service te
 We keep Alice's note from chapter 20, with value 25, created in epoch 3 and spent with target epoch 7. All of its numbers carry over, including the stand-in hash, which is SHA-256 of a tag and inputs reduced modulo 65,537. Three kinds of arithmetic appear in this chapter, and it helps to know which is which before the numbers start.
 
 - **Hash outputs** are integers below 65,537. They stand in for Poseidon outputs.
-- **Polynomials live modulo 65,539.** A batch of 16 epochs gives polynomials with one cubic factor per epoch, and those factors are built from full-sized hash values, so the polynomials cannot use the toy curve's small field. The nullifier factors of Section 3 also need a constant that has no cube root, which rules out 65,537 itself, as the next paragraph shows. [Chapter 22](./oblivious-sync.md#_7-the-real-window-size) made the same move for the same reasons.
+- **Polynomials live modulo 65,539.** A batch of 16 epochs gives polynomials with one cubic factor per epoch, and those factors are built from full-sized hash values, so the polynomials cannot use the toy curve's small field. The nullifier factors of Section 3 also need a constant that has no cube root, which rules out 65,537 itself. [Chapter 22](./oblivious-sync.md#_7-the-real-window-size) made the same move for the same reasons.
 - **Points and scalars** use the toy curve $E$, so signing keys and value commitments are real curve arithmetic, and their scalars are reduced modulo 43.
 
-Here is why 65,537 does not work for the polynomials.
+The box below checks that 65,537 has no non-cube to offer and that 65,539 does.
+
+::: details Why 65,537 does not work for the polynomials
 
 <!-- worked:fields -->
 
 Modulo 65,537 every element is a cube, because $65537 \equiv 2 \pmod 3$ and so cubing permutes the field. The next prime congruent to 1 modulo 3 is 65,539, and there $2^{(p-1)/3} = 32641 \neq 1$, so 2 is not a cube.
 
 <!-- /worked:fields -->
+
+:::
 
 Every hash output is below 65,537, so it is also a valid element of $\F_{65539}$, and whenever one enters a polynomial we read it there unchanged. For example, the action set of Section 6 has a hash output as its only root, and the table there writes that polynomial both as $X$ minus the hash output and in the form reduced modulo 65,539. When a hash output becomes a curve scalar, such as the randomizer $\alpha$, we reduce it modulo 43 instead.
 
@@ -140,7 +144,11 @@ The commitment has to record each nullifier together with its epoch. [Chapter 22
 
 $$F_{i,m}(X) = \big(m + (i+1)X\big)^3 - 2.$$
 
-Two properties from that chapter matter here. The constant 2 is not a cube, so $F_{i,m}$ has no root and is irreducible. And two different pairs give different factors as long as $i + 1$ stays below $\lfloor\sqrt{p/3}\rfloor$, a bound that the code states and [chapter 22 §5](./oblivious-sync.md#_5-when-two-pairs-share-a-factor) derives. Here $i$ is the absolute epoch number, counted from the start of the chain, not a position inside the batch. Together these properties mean that one product of factors divides another exactly when its pairs are among the other's.
+Here $i$ is the absolute epoch number, counted from the start of the chain, not a position inside the batch. Two properties from that chapter matter here. Each factor cannot be split into smaller factors, and two different pairs give different factors as long as the epoch stays below a bound that our epochs never approach. Together these properties mean that one product of factors divides another exactly when its pairs are among the other's. The box below states both properties exactly and checks them on Alice's factor for epoch 3.
+
+::: details The two properties of the indexed factor, checked on one factor
+
+The constant 2 is not a cube, so $F_{i,m}$ has no root and is irreducible. And two different pairs give different factors as long as $i + 1$ stays below $\lfloor\sqrt{p/3}\rfloor$, a bound that the code states and [chapter 22 §5](./oblivious-sync.md#_5-when-two-pairs-share-a-factor) derives.
 
 <!-- worked:factor-bound -->
 
@@ -157,6 +165,8 @@ $$F_{3,\,14090}(X) = (14090 + 4X)^3 - 2 = 64X^{3} + 20930X^{2} + 60089X + 45458.
 Trying all 65,539 field elements finds no root, so this cubic has no linear factor, and a cubic with no linear factor is irreducible.
 
 <!-- /worked:factor -->
+
+:::
 
 We keep chapter 22's names for the three polynomials. The wallet's batch polynomial is $N(X) = \prod_e F_{e,\,\mathsf{nf}_e}(X)$, the product of one factor per epoch in the batch. The service's polynomial is $\Delta$, and the quotient that links them is $C$, for complement. The code calls them `nf_seq`, `elapsed`, and `complement`.
 
@@ -223,11 +233,17 @@ Three steps build segments. [`QrUnspentInit`](https://github.com/tachyon-zcash/t
 
 <!-- /worked:segments -->
 
+The fuse checks that its two segments meet end to start, and both the fuse and the lift check at a challenge that the joined $\Delta$ is the product of the polynomials they combine. Every entry in the table is a plain number, so nothing in it mentions a note. The box gives the values of those checks.
+
+::: details The fuse and lift checks in numbers
+
 <!-- worked:segments-note -->
 
 The fuse checks that the anchors meet at 58408 and the epochs meet at 5, and then checks that the joined $\Delta$ is the product of the two inputs' polynomials at $z = 37557$, where it reads $8718 = 50038 \cdot 36200$. The lift's product check at $z = 45485$ reads $13237 = 50076 \cdot 39192$. Each segment holds plain numbers, so nothing in the table mentions a note.
 
 <!-- /worked:segments-note -->
+
+:::
 
 ### `UnspentBind`
 
@@ -470,11 +486,17 @@ Chapter 21's restriction applies here. A span runs within one epoch, because no 
 
 The merged sets are the [union of chapter 21](./pool-state.md#_4-combining-and-dividing-sets), so each merged polynomial must be the product of its two inputs. The step checks this with [`enforce_poly_product`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/relations/enforce.rs#L62-L84). That relation absorbs all three commitments into the challenge, so the polynomials are fixed before the challenge exists.
 
+After the lift, Alice's spend and her output rest on the same anchor, so the merge accepts them. The merged action set holds both action digests, and the merged tachygram set holds all four tachygrams. The box gives the two product checks and the merged header.
+
+::: details The merge in numbers
+
 <!-- worked:merge -->
 
 Both inputs now sit at anchor 58791, so the anchor check passes. The merged action set has the roots 52188 and 40891, and at $z = 61893$ its check reads $63659 = 9705 \cdot 21002$. The merged tachygram set has the roots 55113, 61177, 36798 and 56347, and at $z = 11199$ its check reads $26949 = 29399 \cdot 28926$. The output header is $(51068,\ 37081,\ 58791)$.
 
 <!-- /worked:merge -->
+
+:::
 
 The code's [`Plan::prove`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/mod.rs#L484-L700) follows this order. It binds and acts on each spend, lifts it along any spans to the plan's anchor, proves each output at that anchor, and merges everything.
 
@@ -551,13 +573,17 @@ No step adds up values, so the proof cannot show that a bundle balances. Value c
 
 $$\mathsf{bvk} = \sum_i \mathsf{cv}_i + \mathsf{cv}_\text{maxfee} - [v^{\mathsf{bal}}]\mathcal{V}.$$
 
-When the values balance, the $\mathcal{V}$ terms cancel and $\mathsf{bvk} = [\mathsf{bsk}]\mathcal{R}$, where $\mathsf{bsk}$ is the sum of all the blinds. Only the wallet that planned the bundle knows all those blinds, and its [binding signature](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/bundle/mod.rs#L250-L262) under $\mathsf{bsk}$ shows that the two agree.
+When the values balance, the $\mathcal{V}$ terms cancel and $\mathsf{bvk} = [\mathsf{bsk}]\mathcal{R}$, where $\mathsf{bsk}$ is the sum of all the blinds. Only the wallet that planned the bundle knows all those blinds, and its [binding signature](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/bundle/mod.rs#L250-L262) under $\mathsf{bsk}$ shows that the two agree. The box collects the coefficients of Alice's bundle term by term to show the cancellation, and the paragraph after it checks the result on the curve.
+
+::: details Collecting the terms of Alice's binding key
 
 <!-- worked:binding-cancel -->
 
 In Alice's bundle the $\mathcal{V}$ coefficients are 25 from the spend, $-18$ from the output, $-5$ from $\mathsf{cv}_\text{maxfee}$, and $-2$ from subtracting the value balance, and $25 - 18 - 5 - 2 = 0$. The $\mathcal{R}$ coefficients are the three blinds, so collecting terms gives $\mathsf{bvk} = [0]\mathcal{V} + [38 + 34 + 36]\mathcal{R}$.
 
 <!-- /worked:binding-cancel -->
+
+:::
 
 <!-- worked:binding -->
 
@@ -704,7 +730,9 @@ Following the fields shows where each commitment stops and where each anchor mov
 
 <!-- /worked:thread -->
 
-The whole registered set divides into families:
+Beyond this run, the whole registered set divides into families. The wallet runs the families that read note secrets, the sync service runs those that test, route, and seal published data, and an aggregator runs the stamp and span steps that need no secret. The box lists every family with its steps.
+
+::: details The full roster of registered steps
 
 <!-- worked:roster -->
 
@@ -723,13 +751,15 @@ The whole registered set divides into families:
 
 <!-- /worked:roster -->
 
+The evidence-tree steps collect an epoch's sealed buckets under one Merkle root and open it again for a query, ending in the same bucket header that `QrUnspentInit` consumes, as reconstructed from code at commit `7e50254` and not confirmed by the authors. [Chapter 22](./oblivious-sync.md#the-evidence-tree) describes the tree.
+
+:::
+
 <!-- worked:roster-count -->
 
 Tachyon registers 38 steps at this commit. The book's table gives 14 of them to a wallet alone, and it assigns 20 to the sync service, none of which reads a note, although a wallet may run those itself.
 
 <!-- /worked:roster-count -->
-
-The evidence-tree steps collect an epoch's sealed buckets under one Merkle root and open it again for a query, ending in the same bucket header that `QrUnspentInit` consumes, as reconstructed from code at commit `7e50254` and not confirmed by the authors. [Chapter 22](./oblivious-sync.md#the-evidence-tree) describes the tree.
 
 ## 14. Why cheating fails
 

@@ -103,7 +103,9 @@ To remove this freedom, Tachyon [cubes the linear term and subtracts a constant]
 
 $$F_{i,m}(X) = \big(m + (i+1)X\big)^3 - c, \qquad a = i + 1.$$
 
-The constant $c$ does two jobs, and we can derive both.
+The constant $c$ does two jobs. First, as long as $c \neq 0$, it removes the scaling freedom of the linear attempt. Two different pairs can then give the same factor only when one pair is the other multiplied by a cube root of unity, and Section 5 deals with that case. Second, if $c$ is not a cube in the field, each factor $F_{i,m}$ has no root and so cannot split into smaller pieces. The box derives both facts.
+
+::: details Deriving both jobs of the constant
 
 **The constant removes the scaling freedom.** Suppose a second pair gives the same factor up to a constant $u$, so $(m' + a'X)^3 - c = u\big((m + aX)^3 - c\big)$. Write $Y = m + aX$, and express the other linear term through it as $m' + a'X = rY + s$, with $r = a'/a$ and $s = m' - rm$. Expanding the left side gives
 
@@ -111,7 +113,11 @@ $$r^3 Y^3 + 3r^2 s\, Y^2 + 3 r s^2\, Y + s^3 - c = uY^3 - uc.$$
 
 Compare coefficients one power of $Y$ at a time. The $Y^2$ term gives $3r^2 s = 0$, and $r \neq 0$, so $s = 0$. The constant term then reads $-c = -uc$, which forces $u = 1$ whenever $c \neq 0$. The $Y^3$ term becomes $r^3 = 1$. So the two factors can agree only when $u = 1$ and $(a', m') = (ra, rm)$ for a cube root of unity $r$. Without the $-c$, the constant term would say nothing, and any $u$ would do, which is the same trick as in the linear case. Section 5 deals with the cube roots of unity that remain.
 
-**A non-cube makes each factor irreducible.** A cubic over a field can only split by having a root, and $F_{i,m}$ has a root $x$ exactly when $(m + ax)^3 = c$, which requires $c$ to be a cube. So if $c$ is not a cube, $F_{i,m}$ has no root in the field and is irreducible. Non-cubes exist only when 3 divides $p - 1$, because otherwise cubing permutes the nonzero elements. Pasta satisfies this, and the code [fixes $c = 2$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/collections/indexed_multiset.rs#L80-L82), which it calls the smallest cubic non-residue.
+**A non-cube makes each factor irreducible.** A cubic over a field can only split by having a root, and $F_{i,m}$ has a root $x$ exactly when $(m + ax)^3 = c$, which requires $c$ to be a cube. So if $c$ is not a cube, $F_{i,m}$ has no root in the field and is irreducible.
+
+:::
+
+Non-cubes exist only when 3 divides $p - 1$, because otherwise cubing permutes the nonzero elements. Pasta satisfies this, and the code [fixes $c = 2$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/collections/indexed_multiset.rs#L80-L82), which it calls the smallest cubic non-residue.
 
 <!-- worked:noncube -->
 
@@ -148,9 +154,15 @@ With $c = 3$, $N(X)$ has no roots in the field at all, and the only other pairs 
 <!-- /worked:cube-fail -->
 
 ::: warning Reconstructed from code at commit 7e50254, not confirmed by the authors
-The [deep dive's sketch](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L389-L410) states that $Y^3 - c$ is irreducible and stays so under affine substitution, and that collisions need a cube root of unity. The rescaling attack on linear factors, the coefficient comparison above, the attack with a cube for $c$, and the comparison with a square below are our own explanation of why the form takes this shape.
+The [deep dive's sketch](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L389-L410) states that $Y^3 - c$ is irreducible and stays so under affine substitution, and that collisions need a cube root of unity. The rescaling attack on linear factors, the coefficient comparison in the box above, the attack with a cube for $c$, and the comparison with a square in the box below are our own explanation of why the form takes this shape. That comparison finds that a square would work as well, and the sources do not say why they chose the cube.
+:::
 
-A square might seem to do as well, and it is cheaper. Run the same comparison on $(m + aX)^2 - c$ with $c$ a non-square. The $Y$ term gives $2rs = 0$, so $s = 0$, the constant term again forces $u = 1$, and the $Y^2$ term gives $r^2 = 1$. So the only collision is $r = -1$, which pairs $(a, m)$ with $(-a, -m)$, and keeping $a$ below $p/2$ already rules that out. By this argument the square works too. The sources do not say why they chose the cube, so we leave that question open.
+::: details Would a square work instead?
+
+This comparison is reconstructed from code at commit `7e50254` and not confirmed by the authors, like the rest of the argument above.
+
+A square might seem to do as well, and it is cheaper. Run the same comparison on $(m + aX)^2 - c$ with $c$ a non-square. The $Y$ term gives $2rs = 0$, so $s = 0$, the constant term again forces $u = 1$, and the $Y^2$ term gives $r^2 = 1$. So the only collision is $r = -1$, which pairs $(a, m)$ with $(-a, -m)$, and keeping $a$ below $p/2$ already rules that out. By this argument the square works too, and we leave open why the sources chose the cube.
+
 :::
 
 ## 5. When two pairs share a factor
@@ -163,11 +175,17 @@ In $\F_{43}$ the cube roots of unity are 1, 6, and 36. Since $6 \cdot 1 = 6$, th
 
 <!-- /worked:omega -->
 
-A collision like this would matter if a valid epoch number $a'$ happened to equal $\omega a$. The code [states a bound](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/collections/indexed_multiset.rs#L54-L69) that prevents it, namely keeping $a$ below $\lfloor\sqrt{p/3}\rfloor$. The reason takes three lines. Suppose $a' = \omega a$ with both numbers between 1 and that bound. A nontrivial $\omega$ satisfies $\omega^2 + \omega + 1 = 0$. Multiplying by $a^2$ gives
+A collision like this would matter if a valid epoch number $a'$ happened to equal $\omega a$. The code [states a bound](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/collections/indexed_multiset.rs#L54-L69) that prevents it, namely keeping $a$ below $\lfloor\sqrt{p/3}\rfloor$. A collision $a' = \omega a$ would force the integer $a'^2 + a'a + a^2$ to be a multiple of $p$, and below the bound that integer is positive but smaller than $p$, so no collision can happen. The box gives the three-line argument.
+
+::: details Why the bound rules out collisions
+
+Suppose $a' = \omega a$ with both numbers between 1 and that bound. A nontrivial $\omega$ satisfies $\omega^2 + \omega + 1 = 0$. Multiplying by $a^2$ gives
 
 $$a'^2 + a'a + a^2 = a^2(\omega^2 + \omega + 1) \equiv 0 \pmod p.$$
 
 As an ordinary integer, the left side is positive, and it is less than $3 \cdot p/3 = p$ because each of its three terms is below $p/3$. A positive integer below $p$ cannot be a multiple of $p$, so no such pair exists.
+
+:::
 
 <!-- worked:omega-bound -->
 
@@ -176,7 +194,7 @@ On the toy field the bound is $\lfloor\sqrt{43/3}\rfloor = 3$, which is small, a
 <!-- /worked:omega-bound -->
 
 ::: warning Reconstructed from code at commit 7e50254, not confirmed by the authors
-The code states the bound without a derivation. The three-line argument above is ours.
+The code states the bound without a derivation. The three-line argument in the box above is ours.
 :::
 
 ## 6. A full run on the toy curve
@@ -189,7 +207,15 @@ Over a delegated range, the [delegation section](https://github.com/tachyon-zcas
 
 $$\Delta(X) = \prod_{i \in \text{delegated}} F_{i,\delta_i}(X), \qquad N(X) = \prod_{j \in \text{derived}} F_{j,\mathsf{nf}_j}(X), \qquad C(X) = \prod_{\substack{j \in \text{derived} \\ j \notin \text{delegated}}} F_{j,\mathsf{nf}_j}(X),$$
 
-and the claim is $N(X) = C(X) \cdot \Delta(X)$. Here $\delta_i$ is the value tested at epoch $i$, and the honest service tests the values it was given, so $\delta_i = \mathsf{nf}_i$:
+and the claim is $N(X) = C(X) \cdot \Delta(X)$. Here $\delta_i$ is the value tested at epoch $i$, and the honest service tests the values it was given, so $\delta_i = \mathsf{nf}_i$.
+
+<!-- worked:run-degrees -->
+
+Each factor is a cubic, so $\Delta$ has degree 9, $C$ has degree 3, and $N$ has degree 12. The box lists their coefficients.
+
+<!-- /worked:run-degrees -->
+
+::: details The three polynomials in full
 
 <!-- worked:run-polys -->
 
@@ -200,6 +226,8 @@ and the claim is $N(X) = C(X) \cdot \Delta(X)$. Here $\delta_i$ is the value tes
 | $C(X)$ | 3 | the wallet | $21X^{3} + 16X^{2} + 30X + 5$ |
 
 <!-- /worked:run-polys -->
+
+:::
 
 We built $\Delta$ here in one go so that the identity is easy to see. In practice the service builds it one factor per epoch, through steps that Sections 12 and 13 describe. [Chapter 23](./proof-tree.md#unspentbind) runs those steps end to end, through `UnspentBind`, on the running note.
 
@@ -223,7 +251,7 @@ The output is a `NoteUnspent` header. It keeps the segment's anchors and epochs,
 
 A dishonest service gains nothing, because its proof is about whatever it tested, and [the wallet's check leaves a diverging proof useless](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nullifiers.md?plain=1#L76). It can refuse to serve, and it cannot fool the wallet.
 
-A cheating wallet is the more serious case. A wallet that wants to spend a note twice needs an absence proof for a nullifier that is already published, and nothing forces it to use an honest service. The service's steps run on public data, so the wallet can run them itself on any values it likes. It therefore controls the segment it brings to the bind, and it also chooses $C$. Write $\Delta'$ for the `elapsed` polynomial of that segment, which is $\Delta$ when the wallet is honest. The wallet cannot choose $N$, though. $N$ comes from its own `NoteNullifiers` proof, which derives every factor from the note's master key, so $N$ is fixed by the note. The argument against this wallet runs through the order of events, as in [chapter 3](./statements-and-challenges.md#_5-testing-polynomials-at-a-random-point). The commitments to $\Delta'$, $C$ and $N$ are fixed before $z$ exists. If $N \neq \Delta' C$, the difference $N - \Delta' C$ is a fixed nonzero polynomial, and the check passes only when the challenge lands on one of its roots.
+A cheating wallet is the more serious case. A wallet that wants to spend a note twice needs an absence proof for a nullifier that is already published, and nothing forces it to use an honest service. The service's steps run on public data, so the wallet can run them itself on any values it likes. It therefore controls the segment it brings to the bind, and it also chooses $C$. Write $\Delta'$ for the `elapsed` polynomial of that segment, which is $\Delta$ when the wallet is honest. The wallet cannot choose $N$, though. $N$ comes from its own `NoteNullifiers` proof, which derives every factor from the note's master key, so $N$ is fixed by the note. The argument against this wallet runs through the order of events, as in [chapter 3](./statements-and-challenges.md#testing-at-a-random-point). The commitments to $\Delta'$, $C$ and $N$ are fixed before $z$ exists. If $N \neq \Delta' C$, the difference $N - \Delta' C$ is a fixed nonzero polynomial, and the check passes only when the challenge lands on one of its roots.
 
 The table tries each kind of false segment. The middle column asks whether any $C$ at all, chosen freely, would make the identity hold exactly. The last column fixes the honest $C$ and counts the challenges at which the check passes anyway.
 
@@ -238,11 +266,21 @@ The table tries each kind of false segment. The middle column asks whether any $
 
 <!-- /worked:run-cheat -->
 
+<!-- worked:run-cheat-bound -->
+
+The difference $N - \Delta' C$ has degree at most 12, so no attempt can pass more than 12 challenges, and the worst one here passes 3. The box explains why a single wrong value passes so few.
+
+<!-- /worked:run-cheat-bound -->
+
+::: details Why a wrong value passes so few challenges
+
 <!-- worked:run-cheat-note -->
 
-The difference $N - \Delta' C$ has degree at most 12, so no attempt can pass more than 12 challenges, and the worst one here passes 3. A wrong value passes so few because $N - \Delta' C$ factors as $C$, $F_{4,9}$ and $F_{6,41}$, which have no roots in the field, times $F_{5,12} - F_{5,m}$. The constants $c$ cancel in that difference, which leaves $A^3 - B^3$ with $A = 12 + 6X$ and $B = m + 6X$. Because $\F_{43}$ contains the cube root of unity $\omega$, this factors as $(A - B)(A - \omega B)(A - \omega^2 B)$. The first factor $A - B = 12 - m$ is a nonzero constant, and each of the other two is linear in $X$ with one root. So the difference has at most two roots, and the count of 2 in every case shows that the two roots never coincide here. The proportion looks large only because the field has 43 elements.
+A wrong value passes so few because $N - \Delta' C$ factors as $C$, $F_{4,9}$ and $F_{6,41}$, which have no roots in the field, times $F_{5,12} - F_{5,m}$. The constants $c$ cancel in that difference, which leaves $A^3 - B^3$ with $A = 12 + 6X$ and $B = m + 6X$. Because $\F_{43}$ contains the cube root of unity $\omega$, this factors as $(A - B)(A - \omega B)(A - \omega^2 B)$. The first factor $A - B = 12 - m$ is a nonzero constant, and each of the other two is linear in $X$ with one root. So the difference has at most two roots, and the count of 2 in every case shows that the two roots never coincide here. The proportion looks large only because the field has 43 elements.
 
 <!-- /worked:run-cheat-note -->
+
+:::
 
 The third row of that table needs one more fact. The wallet's $N$ has each epoch once, because [`NullifierFuse`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/delegation.rs#L253-L273) requires contiguous ranges, which keeps it squarefree. A repeated factor in $\Delta'$ therefore cannot divide it.
 
@@ -346,11 +384,17 @@ The rule files this value on the residue side, so a step that claims the non-res
 
 A builder holds a set of tachygrams whose polynomial $f(X)$ is committed, and it wants to split them into a non-residue side with polynomial $q_0(X)$ and a residue side with polynomial $q_1(X)$. The product $q_0(X)\,q_1(X) = f(X)$ shows that the two sides partition the set, and that check works as in Section 6. What remains is to show that each member sits on the side it claims, without one check per member.
 
-Suppose every root $x_i$ of a polynomial $s(X)$ has a root $y_i$ with $y_i^2 = \kappa(x_i + R)$. Interpolate a polynomial $u(X)$ through the points $(x_i, y_i)$. Then $u(X)^2 - \kappa(X + R)$ vanishes at every $x_i$, because at $x_i$ it equals $y_i^2 - \kappa(x_i + R) = 0$. Consensus [forbids repeats within two epochs](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L258-L260), so $s$ is squarefree. A polynomial that vanishes at every root of a squarefree $s$ is divisible by $s$, so a quotient $h$ exists with
+The idea is to gather every member's root into one polynomial. Write $s(X)$ for the polynomial of the side being attested, with $\kappa = 1$ for the residue side and $\kappa = n$ for the other, and let $u(X)$ be the polynomial that takes each member $x_i$ to its root $y_i$, the value in the "Root" column of Section 9. The prover then shows that, for some quotient $h(X)$,
 
 $$u(X)^2 - \kappa(X + R) = s(X)\,h(X).$$
 
-The reverse also holds, and that is what gives the identity force. If this identity holds for some $u$ and $h$, then evaluating at any root $x$ of $s$ gives $u(x)^2 = \kappa(x + R)$, so $u(x)$ is a root of the kind that only $x$'s true side allows. One identity, checked at one random point, therefore covers all the members at once.
+This identity is what gives the check its force. Evaluating it at any member $x$ of $s$ makes the right side zero, so $u(x)^2 = \kappa(x + R)$, which means $u(x)$ is a root of the kind that only $x$'s true side allows. One identity, checked at one random point, therefore covers all the members at once. The box shows that an honest prover can always find $u$ and $h$.
+
+::: details Why an honest prover can always find $u$ and $h$
+
+Suppose every root $x_i$ of a polynomial $s(X)$ has a root $y_i$ with $y_i^2 = \kappa(x_i + R)$. Interpolate a polynomial $u(X)$ through the points $(x_i, y_i)$. Then $u(X)^2 - \kappa(X + R)$ vanishes at every $x_i$, because at $x_i$ it equals $y_i^2 - \kappa(x_i + R) = 0$. Consensus [forbids repeats within two epochs](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L258-L260), so $s$ is squarefree. A polynomial that vanishes at every root of a squarefree $s$ is divisible by $s$, so a quotient $h$ exists that makes the identity above hold.
+
+:::
 
 The code [splits this into two steps](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L347-L529). [`QrIntakeSplit`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L356-L412) checks the product, and it opens the non-residue side at $-R$ to show that it is nonzero there, which handles the exceptional value. [`QrSideDescend`](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L443-L529) then extracts one side as a child, and it runs the identity above on the *other* side, the sibling. Attesting the sibling protects the child through two facts in turn. The product check says that every member of $f$ is a root of exactly one side. The sibling's identity says that every root of the sibling has the sibling's class. So a member of the child's class cannot be in the sibling, and it must therefore be in the child.
 
@@ -383,7 +427,7 @@ The crate's tests [reject a child short of a member](https://github.com/tachyon-
 This site follows the code. The deep dive's "exactly" is stronger than what each descent enforces, and the weaker form is enough for absence.
 :::
 
-The challenge in `QrSideDescend` also [absorbs $R$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L488-L501), through the point $[R]G_0$. $R$ is chosen by the prover, and it is not one of the committed polynomials, so without this a prover could [solve the identity for $R$ after seeing $z$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/tests/integration/qr.rs#L889). [Chapter 3](./statements-and-challenges.md#_9-omitting-data-from-the-transcript) showed the same failure in general.
+The challenge in `QrSideDescend` also [absorbs $R$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L488-L501), through the point $[R]G_0$. $R$ is chosen by the prover, and it is not one of the committed polynomials, so without this a prover could [solve the identity for $R$ after seeing $z$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/tests/integration/qr.rs#L889). [Chapter 3](./statements-and-challenges.md#_8-omitting-data-from-the-transcript) showed the same failure in general.
 
 ## 11. Routing an epoch into buckets
 
@@ -506,23 +550,31 @@ Now test 41, which stamp B published. Its sides lead to bucket `1`, where $q(41)
 
 <!-- /worked:open-present -->
 
-To force the match, the step witnesses the value's side and root at [every one of 32 positions](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L656-L702). Write $w_j = x + R_0 + j$ for the shifted value at position $j$, $b_j$ for the witnessed side, and $y_j$ for the witnessed root, as in the "Root" column of Section 9. The step checks
+To force the match, the step recomputes the value's own profile and compares it with the bucket's label. It classifies the value at [every one of 32 positions](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L656-L702), one for each discriminant $R_0 + j$, and proves each side with a root, as in the "Root" column of Section 9. Because $n$ is a non-residue, only the value's true side has a root, so the prover cannot choose the sides. The step then compares the first $d$ sides with the bucket's bits, where $d$ is the bucket's depth, and ignores the rest. It runs all 32 positions because a [circuit's shape cannot depend on secret values](./arithmetization.md#_1-what-arithmetization-produces), and buckets differ in depth.
+
+The comparison is sound only if each witnessed side is a bit, 0 or 1, and the code still marks the constraint on the sides as remaining work, as the status note at the top recorded. The box gives the exact checks and runs them on the value 4.
+
+::: details The side, mask, and accumulator checks
+
+The step witnesses the value's side and root at [every one of 32 positions](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/qr.rs#L656-L702). Write $w_j = x + R_0 + j$ for the shifted value at position $j$, $b_j$ for the witnessed side, and $y_j$ for the witnessed root, as in the "Root" column of Section 9. The step checks
 
 $$y_j^2 = \big(n - (n - 1)\,b_j\big)\,w_j, \qquad b_j = 0 \implies w_j \neq 0.$$
 
-The factor in the first equation equals $1$ when $b_j = 1$ and $n$ when $b_j = 0$, so this is the root check of Section 9. Since $n$ is a non-residue, only the value's true side has a root. The step runs all 32 positions because a [circuit's shape cannot depend on secret values](./arithmetization.md#_1-what-arithmetization-produces), and buckets differ in depth.
+The factor in the first equation equals $1$ when $b_j = 1$ and $n$ when $b_j = 0$, so this is the root check of Section 9.
 
 The bucket's depth $d$ selects how many sides to compare, through a mask $\mu_j$ of 32 bits, and an accumulator $t_j$ folds the selected sides into an integer. The [proof tree page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/proof-tree.md?plain=1#L252-L254) gives the checks:
 
 $$\sum_j \mu_j = d, \qquad 2\sum_j j\, \mu_j = d(d-1), \qquad t_{j+1} = t_j + \mu_j(t_j + b_j), \qquad t_{32} = \mathsf{bits}.$$
 
-The step also requires each $\mu_j$ and each $b_j$ to be a bit, 0 or 1, because the arguments below hold only for bits. The code still marks the constraint on the sides $b_j$ as remaining work, as the status note at the top recorded. With bits, the first two checks force the mask to be the first $d$ positions, since among bit vectors with $d$ ones only the leading positions reach the smallest possible index sum, which is $0 + 1 + \cdots + (d-1)$. Where a mask bit is set, the third line becomes $t_{j+1} = 2t_j + b_j$, which appends one bit, so $t$ builds the integer $\mathsf{bits}$ out of the value's own sides.
+The step also requires each $\mu_j$ and each $b_j$ to be a bit, 0 or 1, because the arguments below hold only for bits. With bits, the first two checks force the mask to be the first $d$ positions, since among bit vectors with $d$ ones only the leading positions reach the smallest possible index sum, which is $0 + 1 + \cdots + (d-1)$. Where a mask bit is set, the third line becomes $t_{j+1} = 2t_j + b_j$, which appends one bit, so $t$ builds the integer $\mathsf{bits}$ out of the value's own sides.
 
 <!-- worked:mask -->
 
 For depth 2 there are 496 ways to set two mask bits among 32 positions. The index sum must equal $d(d-1)/2 = 1$, and only the prefix $\{0, 1\}$ does. For the value 4, the first four sides are 0, 1, 0, 0, and the fold starts from $t_0 = 0$. Under the mask it gives $t_1, \ldots, t_4 = 0, 1, 1, 1$, because the first two steps append a side and the last two leave $t$ unchanged. It ends at 1, the integer that encodes `01`. The sides past the depth are computed and ignored.
 
 <!-- /worked:mask -->
+
+:::
 
 The profile check compares the value's sides with the depth and bits in the bucket header, and that header came out of the evidence tree. So the check is only as good as the label in the leaf, which is why the leaf digests the profile.
 

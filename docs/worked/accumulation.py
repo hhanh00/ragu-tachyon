@@ -492,7 +492,7 @@ assert all((x, 1) in opp_pass for x in range(Q))
 assert len(opp_pass) == Q + 3 * (Q - 2)
 frag['count-two'] = (
     f'Now make claim 2 false as well, with $h_2 - g_2$ having the coefficients ${vec(d2)}$. A pair $(x_M, \\alpha)$ passes when $(h_1 - g_1)(x_M) + \\alpha (h_2 - g_2)(x_M) = 0$. '
-    f'Running all {total_pairs:,} pairs gives {len(passes2)} that pass, against the bound of $4 \\cdot 43 = {4 * Q}$ from the [multivariate root count](./statements-and-challenges.md#_6-polynomials-in-several-variables), since the expression has total degree at most 4.'
+    f'Running all {total_pairs:,} pairs gives {len(passes2)} that pass, against the bound of $4 \\cdot 43 = {4 * Q}$ from the [multivariate root count](./statements-and-challenges.md#_5-polynomials-in-several-variables), since the expression has total degree at most 4.'
     f' To see what $\\alpha$ prevents, let the second error be the exact negative of the first. With $\\alpha$ fixed at 1 the errors cancel, and all {Q} values of $x_M$ pass. With $\\alpha$ random, the {len(opp_pass)} passing pairs are those {Q} pairs with $\\alpha = 1$ and the pairs at the three roots.'
 )
 

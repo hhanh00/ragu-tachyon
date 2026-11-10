@@ -80,7 +80,7 @@ frag['cubic-witnesses'] = (
 a = 12
 P = mul(a, GEN)
 assert P not in G and P is not None
-frag['dlog-instance'] = (f'Take the generator $G = G_0 = {show(GEN)}$ and the secret scalar $a = {a}$, which give the instance $P = {a} \\cdot G = {show(P)}$. '
+frag['dlog-instance'] = (f'Take the public generator $G = {show(GEN)}$ and the secret scalar $a = {a}$, which give the instance $P = {a} \\cdot G = {show(P)}$. '
                          f'The relation holds for the pair $(P, {a})$ because recomputing ${a} \\cdot G$ yields $P$. The pair $(P, {a + 1})$ falls outside it, since ${a + 1} \\cdot G = {show(mul(a + 1, GEN))}$.')
 
 # Section 3: Schnorr
@@ -145,8 +145,8 @@ y = poly_eval(pc, at)
 shifted = [(pc[0] - y) % Q] + pc[1:]
 quot, rem = divide_linear(shifted, at)
 assert rem == 0 and poly_mul([-at % Q, 1], quot) == shifted
-frag['factor'] = (f'Take $p(X) = {poly_str(pc)}$ over $\\F_{{43}}$ and $a = {at}$, where $p({at}) = {y}$. Subtracting gives $f(X) = p(X) - {y} = {poly_str(shifted)}$, which has a root at ${at}$. '
-                  f'Dividing by $X - {at}$ leaves no remainder, so $f(X) = (X - {at})({poly_str(quot)})$. Expanding this product returns the coefficients of $f$.')
+frag['factor'] = (f'Take $p(X) = {poly_str(pc)}$ over $\\F_{{43}}$. Its value at ${at}$ is $p({at}) = {y}$, so subtracting gives $f(X) = p(X) - {y} = {poly_str(shifted)}$, which has a root at ${at}$. '
+                  f'Dividing $f$ by $X - {at}$ leaves no remainder, so $f(X) = (X - {at})({poly_str(quot)})$, and the second factor has degree {len(quot) - 1}, one less than $f$.')
 
 peel = [2]
 for t in (1, 2, 3):
@@ -164,8 +164,10 @@ frag['peel'] = '\n'.join(peel_rows) + (f'\n\nThe constant 2 has no roots, so the
 
 roots8 = [t for t in range(8) if (t * t - 1) % 8 == 0]
 assert roots8 == [1, 3, 5, 7]
-frag['ring'] = (f'Work modulo 8, which is not a prime. The degree-2 polynomial $X^2 - 1$ has the four roots ${", ".join(map(str, roots8))}$. '
-                f'At $X = 3$ it factors as $(3 - 1)(3 + 1) = 2 \\cdot 4 = 0$ modulo 8, where neither factor is zero, so the cancellation step above is invalid.')
+frag['ring'] = (f'Work modulo 8, which is not a prime. The degree-2 polynomial $X^2 - 1$ has the {len(roots8)} roots ${", ".join(map(str, roots8))}$, more than its degree allows over a field.')
+assert (3 - 1) * (3 + 1) % 8 == 0 and (3 + 1) % 8 != 0
+frag['ring-detail'] = (f'Peeling the root 1 gives $X^2 - 1 = (X - 1)(X + 1)$. At $X = 3$ the product is $(3 - 1)(3 + 1) = 2 \\cdot 4 = 0$ modulo 8, although neither factor is zero. '
+                       f'So 3 is a root of $X^2 - 1$ without being a root of the remaining factor $X + 1$, and the step that carries every other root into $g$ fails.')
 
 # Every monic cubic over F_43
 powers = [[pow(x, i, Q) for i in range(4)] for x in range(Q)]
@@ -181,7 +183,7 @@ frag['root-tally'] = '\n'.join(
     + [f'| {k} | {tally[k]} | {tally[k] / Q ** 3:.3f} |' for k in sorted(tally)]
 ) + (f'\n\nThe counts add up to $43^3 = {Q ** 3}$, and no polynomial reaches 4 roots.')
 
-# Section 5: testing a product
+# Section 4: testing a product
 honest = poly_mul(pc, qc)
 
 
@@ -199,7 +201,7 @@ errors = [
     ('$(X-1)(X-2)(X-3)$', roots_prod(1, 2, 3)),
     ('$(X-1)(X-2)(X-3)(X-4)(X-5)(X-6)$', roots_prod(1, 2, 3, 4, 5, 6)),
 ]
-test_rows = ['| Error added to $r$ | Points where the test passes | Pass rate | Bound $6/43$ |', '| --- | --- | --- | --- |']
+test_rows = ['| Error $e = r\' - p \\cdot q$ | Points where the test passes | Pass rate | Bound $6/43$ |', '| --- | --- | --- | --- |']
 for name, e in errors:
     forged = poly_add(honest, e)
     assert len(forged) == 7
@@ -208,8 +210,11 @@ for name, e in errors:
     test_rows.append(f'| {name} | {len(agree)} | {len(agree) / Q:.3f} | {6 / Q:.3f} |')
 at_test = 9
 assert poly_eval(pc, at_test) * poly_eval(qc, at_test) % Q == poly_eval(honest, at_test)
-frag['product-honest'] = (f'Let $p(X) = {poly_str(pc)}$ and $q(X) = {poly_str(qc)}$. Their product is $r(X) = {poly_str(honest)}$. At the point ${at_test}$, '
-                          f'$p({at_test}) = {poly_eval(pc, at_test)}$ and $q({at_test}) = {poly_eval(qc, at_test)}$, whose product is ${poly_eval(honest, at_test)}$ modulo 43, and $r({at_test}) = {poly_eval(honest, at_test)}$ as well.')
+school = len(pc) * len(qc)
+horner = [len(pc) - 1, len(qc) - 1, len(honest) - 1]
+frag['product-honest'] = (f'Let $p(X) = {poly_str(pc)}$ and $q(X) = {poly_str(qc)}$. Their product is $r(X) = {poly_str(honest)}$, and writing it out by the schoolbook method takes {school} multiplications of coefficients. At the point ${at_test}$, '
+                          f'$p({at_test}) = {poly_eval(pc, at_test)}$ and $q({at_test}) = {poly_eval(qc, at_test)}$, whose product is ${poly_eval(honest, at_test)}$ modulo 43, and $r({at_test}) = {poly_eval(honest, at_test)}$ as well, so the claim passes. '
+                          f'Horner\'s rule evaluates $p$, $q$ and $r$ with {horner[0]}, {horner[1]} and {horner[2]} multiplications, and one more multiplies $p({at_test})$ by $q({at_test})$.')
 frag['product-cheats'] = '\n'.join(test_rows)
 
 known = 9
@@ -218,7 +223,7 @@ assert poly_eval(late, known) == poly_eval(honest, known) and late != honest
 frag['product-early'] = (f'If the prover knows the point ${known}$ in advance, it can send $r\'(X) = r(X) + (X - {known}) = {poly_str(late)}$. '
                          f'This polynomial differs from $r$, yet $r\'({known}) = {poly_eval(late, known)}$, so the test at ${known}$ passes.')
 
-# Section 5: scale
+# Section 4: scale
 d_exp, f_exp = 13, 254
 p_pallas = 0x40000000000000000000000000000000224698fc094cf91b992d30ed00000001
 q_pallas = 0x40000000000000000000000000000000224698fc0994a8dd8c46eb2100000001
@@ -230,7 +235,7 @@ assert len(trivial) == Q
 frag['degree-limit'] = (f'The polynomial $X^{{{Q}}} - X$ has degree {Q} and is not the zero polynomial, yet it evaluates to 0 at all {len(trivial)} points of $\\F_{{{Q}}}$. Its bound is ${Q}/{Q} = 1$, which promises nothing.')
 
 
-# Section 6: several variables
+# Section 5: several variables
 def zeros(fn):
     return sum(1 for u in range(Q) for v in range(Q) if fn(u, v) % Q == 0)
 
@@ -281,7 +286,7 @@ assert checked == F5 ** 6 - 1 and best == 2 * F5
 frag['biv-exhaustive'] = (f'To test every case rather than selected ones, we move to the smaller field $\\F_{{{F5}}}$, whose bivariate polynomials of total degree at most 2 have six coefficients. There are {checked} nonzero choices. '
                           f'None has more than {best} zeros among the {F5 * F5} points of the grid, which matches the limit $2 \\cdot {F5}$, and {reach} of them reach it.')
 
-# Section 7: random linear combinations
+# Section 6: random linear combinations
 e_cancel = [1, 42]
 assert sum(e_cancel) % Q == 0
 weights = [1, 2]
@@ -307,7 +312,7 @@ e3_roots = [x for x in range(Q) if (e3[0] + e3[1] * x + e3[2] * x * x) % Q == 0]
 frag['rlc-powers'] = '\n'.join(
     ['| Values of $r$ that hide the errors | Nonzero error vectors of length 3 |', '| --- | --- |']
     + [f'| {k} | {power_tally[k]} |' for k in sorted(power_tally)]
-) + (f'\n\nThe counts cover all ${Q ** 3 - 1}$ nonzero vectors, and no vector is hidden by more than 2 of the 43 values, which agrees with the bound $(m - 1)/|\\F_q| = 2/43$. '
+) + (f'\n\nThe counts cover all ${Q ** 3 - 1}$ nonzero vectors, and no vector is hidden by more than 2 of the 43 values, which agrees with the bound $(m - 1)/|\\F| = 2/43$. '
      f'The errors ${vec(e3)}$ from the previous example are hidden by {len(e3_roots)} value{"" if len(e3_roots) == 1 else "s"} in this form'
      + (f', namely $r \\in \\{{{", ".join(map(str, e3_roots))}\\}}$.' if e3_roots else '.'))
 
@@ -424,7 +429,7 @@ def verify_strong(pub, com, resp, tag=TAG_A):
     return mul(resp, GEN) == add(com, mul(challenge(tag, pub, com), pub))
 
 
-# Section 8: Fiat-Shamir run
+# Section 7: Fiat-Shamir run
 fs_r = 29
 fs_R = mul(fs_r, GEN)
 fs_c = challenge(TAG_A, P, fs_R)
@@ -460,7 +465,7 @@ assert c_first == fs_c and d_first != d_alt
 frag['fs-tamper'] = (f'Changing the commitment to $R\' = {show(alt_R)}$ changes the challenge from ${fs_c}$ to ${alt_c}$, and the old response ${fs_s}$ no longer satisfies the check. '
                      f'The effect also carries forward. If the protocol had a later round, which absorbed $s$ and squeezed a second challenge, that challenge would be ${d_first}$ after $R$ and ${d_alt}$ after $R\'$, with the same $s$ in both runs.')
 
-# Section 9: omitted data. None of these attacks reads the variable a,
+# Section 8: omitted data. None of these attacks reads the variable a,
 # except the mauling attack's input proof, which an honest party made.
 weak_c = challenge(TAG_A, P)
 atk_s = 31
@@ -486,7 +491,7 @@ atk2_P = mul(pow(weak2_c, -1, Q), sub(mul(atk2_s, GEN), chosen_R))
 assert atk2_P is not None and atk2_P != P
 assert mul(atk2_s, GEN) == add(chosen_R, mul(weak2_c, atk2_P))
 assert not verify_strong(atk2_P, chosen_R, atk2_s)
-frag['omit-instance'] = (f'Start from the public point $R = G_3 = {show(chosen_R)}$, one of the fixed points from Section 1, whose discrete log relative to $G$ the cheater is assumed not to know. The flawed transcript gives $c = {weak2_c}$ without looking at any instance. '
+frag['omit-instance'] = (f'Start from the public point $R = G_3 = {show(chosen_R)}$, one of the fixed public points described above, whose discrete log relative to $G$ the cheater is assumed not to know. The flawed transcript gives $c = {weak2_c}$ without looking at any instance. '
                          f'Picking $s = {atk2_s}$ and solving gives $P\' = c^{{-1}} \\cdot (s \\cdot G - R) = {show(atk2_P)}$. The check holds, since $s \\cdot G = {show(mul(atk2_s, GEN))}$ and $R + c \\cdot P\' = {show(add(chosen_R, mul(weak2_c, atk2_P)))}$.')
 
 honest_weak_c = challenge(TAG_A, fs_R)
@@ -505,7 +510,7 @@ tag_c = challenge(TAG_B, P, fs_R)
 assert tag_c != fs_c and not verify_strong(P, fs_R, fs_s, TAG_B)
 frag['omit-tag'] = (f'With the tag ${vec(TAG_A)}$, the instance and commitment above give the challenge ${fs_c}$. With the tag ${vec(TAG_B)}$, the same two points give ${tag_c}$, and the response ${fs_s}$ fails the check.')
 
-# Section 10: repeated trials. The search uses only public data.
+# Section 9: repeated trials. The search uses only public data.
 attempts = 0
 first = None
 successes = 0
@@ -527,9 +532,9 @@ frag['grinding'] = (f'A cheater repeats the early-challenge trick. It guesses a 
                     f'The honest verifier accepts this proof, and the search never touched $a$. Across all {tried} pairs that give a nonidentity $R$, exactly {successes} succeed, which is one attempt in {tried // successes}.')
 
 trials_exp = 128
-frag['grinding-scale'] = (f'Suppose a cheater can compute $2^{{{trials_exp}}}$ hashes, and each attempt faces the error $d/|\\F_q|$ with $d = 2^{{{d_exp}}}$ and a field above $2^{{{f_exp}}}$. Each attempt succeeds with probability below $2^{{{d_exp - f_exp}}}$, and all attempts together succeed with probability below $2^{{{trials_exp + d_exp - f_exp}}}$.')
+frag['grinding-scale'] = (f'Suppose a cheater can compute $2^{{{trials_exp}}}$ hashes, and each attempt faces the soundness error $d/|\\F|$ with $d = 2^{{{d_exp}}}$ and a field above $2^{{{f_exp}}}$. Each attempt succeeds with probability below $2^{{{d_exp - f_exp}}}$, and all attempts together succeed with probability below $2^{{{trials_exp + d_exp - f_exp}}}$.')
 
-# Section 11: Poseidon
+# Section 10: Poseidon
 squares = len({x * x % Q for x in range(Q)})
 cubes = len({pow(x, 3, Q) for x in range(Q)})
 fifths = len({pow(x, 5, Q) for x in range(Q)})
@@ -538,7 +543,7 @@ assert gcd(5, p_pallas - 1) == 1 and gcd(5, q_pallas - 1) == 1
 assert gcd(3, p_pallas - 1) == 3 and gcd(3, q_pallas - 1) == 3 and gcd(2, p_pallas - 1) == 2
 assert gcd(5, 31 - 1) == 5
 frag['sbox'] = (f'Over $\\F_{{43}}$, the map $x \\mapsto x^2$ takes only {squares} distinct values and $x \\mapsto x^3$ takes {cubes}, whereas $x \\mapsto x^5$ takes all {fifths}, because 5 shares no factor with $43 - 1 = 42$. '
-                f'The same reasoning rules out smaller exponents on the Pasta fields, where $p - 1$ and $q - 1$ are divisible by 2 and 3 but not by 5.')
+                f'The same reasoning rules out smaller exponents on both Pasta fields, because each field size minus 1 is divisible by 2 and 3 but not by 5.')
 
 start_state = [len(TAG_A), TAG_A[0], 0]
 added, boxed, mixed = one_round(start_state, 0, T)
@@ -564,9 +569,9 @@ sponge_rows = ['| Permutation | Elements added to the state | State afterward |'
 for idx, (taken, st) in enumerate(run.trace):
     sponge_rows.append(f'| {idx + 1} | ${vec(taken)}$ | ${vec(st)}$ |')
 assert run.trace[-1][1][0] == fs_c
-frag['sponge-trace'] = (f'The transcript of Section 8 absorbs seven elements in order: the tag length 2, the tag ${vec(TAG_A)}$, the coordinates of $P = {show(P)}$, and the coordinates of $R = {show(fs_R)}$.\n\n'
+frag['sponge-trace'] = (f'The transcript of Section 7 absorbs seven elements in order: the tag length 2, the tag ${vec(TAG_A)}$, the coordinates of $P = {show(P)}$, and the coordinates of $R = {show(fs_R)}$.\n\n'
                         + '\n'.join(sponge_rows)
-                        + f'\n\nThe last permutation runs when the prover squeezes. The first entry of the resulting state is the challenge $c = {fs_c}$ from Section 8.')
+                        + f'\n\nThe last permutation runs when the prover squeezes. The first entry of the resulting state is the challenge $c = {fs_c}$ from Section 7.')
 
 zero_a = transcript(TAG_A)
 absorb_point(zero_a, P)
@@ -577,6 +582,6 @@ absorb_point(zero_b, fs_R)
 zero_b.absorb(0)
 v_a, v_b = zero_a.squeeze(), zero_b.squeeze()
 assert v_a == v_b == fs_c
-frag['zero-absorb'] = (f'Absorb the seven elements from the sponge trace in Section 11. The seventh waits in the buffer alone, so absorbing a zero after it leaves the sum unchanged. Both runs squeeze the challenge ${v_a}$.')
+frag['zero-absorb'] = (f'Absorb the seven elements from the sponge trace in Section 10. The seventh waits in the buffer alone, so absorbing a zero after it leaves the sum unchanged. Both runs squeeze the challenge ${v_a}$.')
 
 print(json.dumps(frag))

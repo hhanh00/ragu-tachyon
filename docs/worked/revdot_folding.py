@@ -631,11 +631,15 @@ for (i, j), d in best_offsets.items():
     cheated_best[i][j] = (cheated_best[i][j] + d) % Q
 assert sum(passes(false_list, cheated_best, *p) for p in all_pairs()) == best_hits
 frag['cheat-best'] = (
-    f'A cheater can also move the cross terms away from their honest values. The difference between the two sides then becomes a polynomial in $\\mu$ and $\\nu$, nonzero because of the diagonal error, and multiplying by $\\mu^{{m-1}}$ clears the negative powers and leaves total degree at most $3(m - 1) = 6$. '
+    f'A cheater can also move the cross terms away from their honest values. The best attack we found raises $e_{{0,1}}$ by ${d01}$ and $e_{{2,1}}$ by ${d21}$, which makes the two sides agree for every $\\nu$ at $\\mu = {M1}$ and at $\\mu = {M2}$. '
+    f'It passes at {best_hits} of the {n(pair_count)} pairs with $\\mu \\neq 0$, and the best of 300 random choices of offsets passes at {random_best}. '
+    f'No choice of cross terms can pass at more than ${bound_pairs}$ of these pairs.')
+
+frag['cheat-bound'] = (
+    f'With shifted cross terms, the difference between the two sides becomes a polynomial in $\\mu$ and $\\nu$, nonzero because of the diagonal error, and multiplying by $\\mu^{{m-1}}$ clears the negative powers and leaves total degree at most $3(m - 1) = 6$. '
     f'The multiplication changes no root with $\\mu \\neq 0$, because $\\mu^{{m-1}}$ is nonzero there. '
-    f'The [Schwartz–Zippel bound](./statements-and-challenges.md#_6-polynomials-in-several-variables) therefore allows at most ${bound_pairs}$ roots among all $43^2$ pairs, so at most ${bound_pairs}$ among the {n(pair_count)} pairs with $\\mu \\neq 0$ that the fold can use, and the counts below are over those {n(pair_count)}. '
-    f'The best attack we found raises $e_{{0,1}}$ by ${d01}$ and $e_{{2,1}}$ by ${d21}$. The difference becomes $\\nu({(-gap) % Q} + {d01}\\mu + {d21}\\mu^{{-1}})$, which vanishes for every $\\nu$ at $\\mu = {M1}$ and $\\mu = {M2}$, and it passes at {best_hits} of the {n(pair_count)} pairs. '
-    f'The best of 300 random choices of offsets passes at {random_best}.')
+    f'The [Schwartz–Zippel bound](./statements-and-challenges.md#_5-polynomials-in-several-variables) therefore allows at most ${bound_pairs}$ roots among all $43^2$ pairs, so at most ${bound_pairs}$ among the {n(pair_count)} pairs with $\\mu \\neq 0$ that the fold can use. '
+    f'For the best attack above, the difference is $\\nu({(-gap) % Q} + {d01}\\mu + {d21}\\mu^{{-1}})$, and the bracket vanishes at $\\mu = {M1}$ and $\\mu = {M2}$.')
 
 frag['cheat-real'] = (
     f'On a 255-bit field, $m = 133$ gives a bound of $3 \\cdot 132 / 2^{{254}}$, which is below $2^{{-{int(254 - math.log2(3 * 132))}}}$.')

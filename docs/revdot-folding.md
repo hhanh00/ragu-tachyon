@@ -41,7 +41,9 @@ This chapter removes the split and its FFTs from most steps, as [chapter 09 prom
 
 ## 2. Two claims and one cross term
 
-Start with two claims and weight the second by a challenge $r$, as chapter 12 did. The commitments combine by [linearity](./polynomial-commitments.md#_5-adding-commitments), so anyone can compute $\bar{A}_0 + r \cdot \bar{A}_1$ and $\bar{B}_0 + r \cdot \bar{B}_1$. The value needs more care, because the revdot product is linear in each argument separately. Expanding both arguments gives four products:
+Start with two claims and weight the second by a challenge $r$, as chapter 12 did. The commitments combine by [linearity](./polynomial-commitments.md#_5-adding-commitments), so anyone can compute $\bar{A}_0 + r \cdot \bar{A}_1$ and $\bar{B}_0 + r \cdot \bar{B}_1$. The value needs more care, because the revdot product is linear in each argument separately, so the product of the folded vectors expands into four products. Two of them are the claimed values $c_0$ and $c_1$, which the verifier holds. The other two pair one claim's $\v{a}$ with the other claim's $\v{b}$, which no claim says anything about, so the prover supplies their sum $E$. The folded value is then $c_0 + r E + r^2 c_1$.
+
+::: details The expansion
 
 $$
 \begin{aligned}
@@ -51,7 +53,9 @@ $$
 \end{aligned}
 $$
 
-The outer two products are the claimed values, which the verifier holds. The middle two involve one claim's $\v{a}$ and the other claim's $\v{b}$, which no claim says anything about, so the prover supplies their sum $E$.
+The outer two products are the claimed values, and the middle two make up $E$.
+
+:::
 
 <!-- worked:two-claims -->
 
@@ -67,7 +71,7 @@ Suppose the prover states the false $c_0 = 30$. The two sides then differ by $1 
 
 <!-- /worked:two-count -->
 
-So a false claim survives only if $r$ lands on one root. The argument is the [root count of chapter 03](./statements-and-challenges.md#_4-counting-the-roots-of-a-polynomial), applied to a polynomial in $r$ whose constant term is the false claim's error.
+So a false claim survives only if $r$ lands on one root. The argument is the [root count of chapter 03](./statements-and-challenges.md#_4-counting-roots-and-testing-at-a-random-point), applied to a polynomial in $r$ whose constant term is the false claim's error.
 
 ## 3. Three claims break the single challenge
 
@@ -75,7 +79,9 @@ The natural extension gives claim $i$ the weight $r^i$ on both sides. Bilinearit
 
 $$e_{i,j} = \revdot{\v{a}_i}{\v{b}_j}, \qquad \text{so that } e_{i,i} = c_i \text{ for a true claim.}$$
 
-We write $m$ for the number of claims. The book writes $n$ for this count, but here $n$ remains the number of gates, as in every earlier chapter. Expanding for $m = 3$ and collecting powers of $r$ gives
+We write $m$ for the number of claims. The book writes $n$ for this count, but here $n$ remains the number of gates, as in every earlier chapter. In the expanded product, the entry $e_{i,j}$ carries the weight $r^{i+j}$, so all the entries with the same $i + j$ share one power of $r$. For $m = 3$ the claim $c_1 = e_{1,1}$ carries $r^2$, and so do the cross terms $e_{0,2}$ and $e_{2,0}$.
+
+::: details The expansion for three claims
 
 $$
 \begin{aligned}
@@ -84,6 +90,8 @@ $$
 &= c_0 + r(e_{0,1} + e_{1,0}) + r^2(e_{0,2} + c_1 + e_{2,0}) + r^3(e_{1,2} + e_{2,1}) + r^4 c_2.
 \end{aligned}
 $$
+
+:::
 
 Look at the coefficient of $r^2$. It adds the claim $c_1$ to two cross terms, and the verifier can check only this sum. If $c_1$ is false, the prover can move the error into a cross term, which it controls, and the polynomial in $r$ stays exactly right. To see this we need real claims, so we take three proofs of the step function $F(z) = z^3 + z + 5$ from [chapter 12's chain](./split-accumulation.md#_6-a-run-on-the-toy-curve):
 
@@ -133,11 +141,19 @@ With $\lambda_i = \lambda^i$ and $\eta_j = \eta^j$ for two independent challenge
 
 $$\lambda_i = \mu^{-i}, \qquad \eta_j = (\mu\nu)^j,$$
 
-which is the plain choice with the two challenges renamed, $\lambda = \mu^{-1}$ and $\eta = \mu\nu$. Any pair $(\lambda, \eta)$ with $\lambda \neq 0$ comes from exactly one pair $(\mu, \nu)$, so the two forms fold in the same way and nothing below depends on which one we use. We follow the book because its form makes the diagonal easy to read. Multiplying the weights gives
+so that cell $(i, j)$ has the weight $\mu^{j-i} \nu^{j}$. This is the plain choice with the two challenges renamed, so the two forms fold in the same way. We follow the book because its form makes the diagonal easy to read. On the diagonal $\mu$ cancels and the weight is $\nu^i$, so the claimed values depend on $\nu$ alone and $\mu$ only spreads the cross terms apart. The array of all the $e_{i,j}$ is called the **error matrix**.
+
+::: details Why the renaming changes nothing, and why no two cells collide
+
+The renaming is $\lambda = \mu^{-1}$ and $\eta = \mu\nu$. Any pair $(\lambda, \eta)$ with $\lambda \neq 0$ comes from exactly one pair $(\mu, \nu)$, so nothing below depends on which form we use. Multiplying the weights gives
 
 $$\lambda_i \eta_j = \mu^{-i} \mu^{j} \nu^{j} = \mu^{j-i} \nu^{j}.$$
 
-On the diagonal $\mu$ cancels and the weight is $\nu^i$, so the claimed values depend on $\nu$ alone and $\mu$ only spreads the cross terms apart. The pair of exponents $(j - i,\ j)$ determines the cell $(i, j)$, so no two cells share a monomial. The array of all the $e_{i,j}$ is called the **error matrix**. The folded claim is
+The pair of exponents $(j - i,\ j)$ determines the cell $(i, j)$, so no two cells share a monomial.
+
+:::
+
+The folded claim is
 
 $$\bar{A}^* = \sum_i \mu^{-i} \cdot \bar{A}_i, \qquad \bar{B}^* = \sum_j (\mu\nu)^j \cdot \bar{B}_j, \qquad c^* = \sum_{i,j} \mu^{j-i} \nu^j e_{i,j},$$
 
@@ -308,7 +324,9 @@ A cheater who chooses the change more carefully does better, but only up to a li
 
 ### Why the spot check costs less
 
-The saving depends on what the list already contains. Chapter 12's list holds the [claims of each fresh proof](./nark.md#_8-batching-the-evaluation-claims), and two of them are about the same commitments as that proof's revdot claim, because the proof's $\bar{A}$ and $\bar{B}$ are [the commitments that the NARK opens](./split-accumulation.md#the-input-list) at $xz$ and at $x$. So the spot check adds a second point to polynomials that are already queried.
+The saving depends on what the list already contains. Chapter 12's list holds the [claims of each fresh proof](./nark.md#_8-batching-the-evaluation-claims), and two of them are about the same commitments as that proof's revdot claim, because the proof's $\bar{A}$ and $\bar{B}$ are [the commitments that the NARK opens](./split-accumulation.md#the-input-list) at $xz$ and at $x$. So the spot check adds a second point to polynomials that are already queried. For the three proofs of Section 5, chapter 12's list already holds one claim about each $a_i$ and one about each $b_i$, and the next box lists them.
+
+::: details The claims already in the list
 
 <!-- worked:spot-old -->
 
@@ -321,6 +339,8 @@ For the three proofs of Section 5, chapter 12's list already holds these six cla
 | 2 | 31 | 33 | 34 | 4 | 32 |
 
 <!-- /worked:spot-old -->
+
+:::
 
 [Chapter 08's batching](./batched-openings.md#_10-claims-that-share-a-polynomial-or-a-point) combines all the claims into one commitment $\bar{P}$, with one $\beta$-weighted term per distinct polynomial and one more for the quotient commitment $\bar{F}$, so it pays one scalar multiplication per polynomial however many points that polynomial is queried at. The claimed values go into one number $f(u)$, which costs only field arithmetic. Counting the scalar multiplications in $\bar{P}$ before and after the spot check's claims at $\theta$ join the list gives the saving:
 
@@ -338,11 +358,17 @@ The code has no separate $\theta$. It [reuses the NARK's point $x$](https://gith
 
 ## 8. Two layers
 
-The circuit still has to compute $c^*$, which has $m^2$ terms. Factoring the weights lets it compute each level of the sum by repeated multiply-and-add, which is Horner's rule:
+The circuit still has to compute $c^*$, which has $m^2$ terms. The weights factor into a row part and a column part, so the circuit can sum each row by repeated multiply-and-add, which is Horner's rule, and then combine the row sums the same way. The book counts $m^2 + 1$ constraints for this, and the box shows where the count comes from.
+
+::: details Counting the constraints
+
+Factoring the weights gives
 
 $$c^* = \sum_{i} \mu^{-i} \Big( \sum_{j} (\mu\nu)^j e_{i,j} \Big).$$
 
 Each inner sum over $m$ entries takes $m - 1$ multiplications, and the outer sum takes $m - 1$ more, for a total of $m(m - 1) + (m - 1) = m^2 - 1$. Precomputing $\mu\nu$ and $\mu^{-1}$ adds two, which gives the book's $m^2 + 1$ constraints.
+
+:::
 
 <!-- worked:horner -->
 
@@ -405,9 +431,15 @@ The final instance is $((20,\,25),\ (20,\,6),\ 9)$. The prover's vectors are $\v
 
 ### Choosing M and N
 
-Applying Horner's rule at each layer gives the [book's count](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L247-L266). The first layer costs $N(M^2 - 1)$ for its groups plus $2$ for the precomputed values, and the second costs $N^2 - 1$ plus $2$. The total is
+Applying Horner's rule at each layer gives the [book's count](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L247-L266) of $N M^2 + N^2 - N + 3$ constraints for both layers together.
+
+::: details Adding up the two layers
+
+The first layer costs $N(M^2 - 1)$ for its groups plus $2$ for the precomputed values, and the second costs $N^2 - 1$ plus $2$. The total is
 
 $$\big(N M^2 - N + 2\big) + \big(N^2 + 1\big) = N M^2 + N^2 - N + 3.$$
+
+:::
 
 The term $N M^2$ favours small groups and the term $N^2$ favours few groups, so the best split lies between the extremes.
 
@@ -437,9 +469,21 @@ The fold really does accept a false claim at $\nu = 0$, but a uniform challenge 
 
 <!-- worked:cheat-best -->
 
-A cheater can also move the cross terms away from their honest values. The difference between the two sides then becomes a polynomial in $\mu$ and $\nu$, nonzero because of the diagonal error, and multiplying by $\mu^{m-1}$ clears the negative powers and leaves total degree at most $3(m - 1) = 6$. The multiplication changes no root with $\mu \neq 0$, because $\mu^{m-1}$ is nonzero there. The [Schwartz–Zippel bound](./statements-and-challenges.md#_6-polynomials-in-several-variables) therefore allows at most $258$ roots among all $43^2$ pairs, so at most $258$ among the 1,806 pairs with $\mu \neq 0$ that the fold can use, and the counts below are over those 1,806. The best attack we found raises $e_{0,1}$ by $22$ and $e_{2,1}$ by $32$. The difference becomes $\nu(38 + 22\mu + 32\mu^{-1})$, which vanishes for every $\nu$ at $\mu = 3$ and $\mu = 7$, and it passes at 126 of the 1,806 pairs. The best of 300 random choices of offsets passes at 83.
+A cheater can also move the cross terms away from their honest values. The best attack we found raises $e_{0,1}$ by $22$ and $e_{2,1}$ by $32$, which makes the two sides agree for every $\nu$ at $\mu = 3$ and at $\mu = 7$. It passes at 126 of the 1,806 pairs with $\mu \neq 0$, and the best of 300 random choices of offsets passes at 83. No choice of cross terms can pass at more than $258$ of these pairs.
 
 <!-- /worked:cheat-best -->
+
+The cap comes from counting roots. The difference between the two sides is a nonzero polynomial in the two challenges, and a nonzero polynomial of low degree has few roots, which the next box counts.
+
+::: details Counting the roots
+
+<!-- worked:cheat-bound -->
+
+With shifted cross terms, the difference between the two sides becomes a polynomial in $\mu$ and $\nu$, nonzero because of the diagonal error, and multiplying by $\mu^{m-1}$ clears the negative powers and leaves total degree at most $3(m - 1) = 6$. The multiplication changes no root with $\mu \neq 0$, because $\mu^{m-1}$ is nonzero there. The [Schwartz–Zippel bound](./statements-and-challenges.md#_5-polynomials-in-several-variables) therefore allows at most $258$ roots among all $43^2$ pairs, so at most $258$ among the 1,806 pairs with $\mu \neq 0$ that the fold can use. For the best attack above, the difference is $\nu(38 + 22\mu + 32\mu^{-1})$, and the bracket vanishes at $\mu = 3$ and $\mu = 7$.
+
+<!-- /worked:cheat-bound -->
+
+:::
 
 <!-- worked:cheat-real -->
 
@@ -449,7 +493,7 @@ On a 255-bit field, $m = 133$ gives a bound of $3 \cdot 132 / 2^{254}$, which is
 
 ### Sending cross terms after the challenges
 
-Every count so far assumes that the prover fixes its cross terms first, which in a non-interactive proof means that the [transcript absorbs them](./statements-and-challenges.md#_9-omitting-data-from-the-transcript) before it produces $\mu$ and $\nu$:
+Every count so far assumes that the prover fixes its cross terms first, which in a non-interactive proof means that the [transcript absorbs them](./statements-and-challenges.md#_8-omitting-data-from-the-transcript) before it produces $\mu$ and $\nu$:
 
 <!-- worked:cheat-late -->
 
@@ -509,7 +553,7 @@ On a real curve, such a vector would give a discrete log relation among the gene
 
 ### Assumptions
 
-The reasoning relies on the [discrete log relation assumption](./polynomial-commitments.md#_4-why-a-prover-cannot-change-the-vector), and it treats the transcript hash as a [random oracle](./statements-and-challenges.md#the-assumption), with each challenge drawn after the data it tests. It assumes that the circuit takes each target from the statement or the previous proof, and that the decider runs honestly. Private retries under Fiat–Shamir [add to these chances](./statements-and-challenges.md#_10-repeated-trials). We do not analyse Ragu's scheme as a whole here.
+The reasoning relies on the [discrete log relation assumption](./polynomial-commitments.md#_4-why-a-prover-cannot-change-the-vector), and it treats the transcript hash as a [random oracle](./statements-and-challenges.md#the-assumption), with each challenge drawn after the data it tests. It assumes that the circuit takes each target from the statement or the previous proof, and that the decider runs honestly. Private retries under Fiat–Shamir [add to these chances](./statements-and-challenges.md#_9-repeated-trials). We do not analyse Ragu's scheme as a whole here.
 
 ## 10. The quotient fold in Ragu's fuse
 
@@ -523,9 +567,7 @@ $$Z(T) = \prod_i (T - i),$$
 
 then the message drops out at every node $T = i$, because $Z(i) = 0$, and nothing the prover sends can change what claim $i$'s own check sees.
 
-To put claim $i$ at $T = i$ we interpolate. Let $L_i(T)$ be the [Lagrange basis polynomial](./polynomial-encoding.md#_3-interpolating-the-rows) that equals 1 at $T = i$ and 0 at the other nodes, built as in chapter 05 but on the nodes $0, 1, \ldots, m - 1$, and define
-
-$$\v{A}(T) = \sum_i L_i(T)\, \v{a}_i, \qquad \v{B}(T) = \sum_i L_i(T)\, \v{b}_i, \qquad K(T) = \sum_i L_i(T)\, c_i.$$
+To put claim $i$ at $T = i$ we interpolate, using the [Lagrange basis polynomial](./polynomial-encoding.md#_3-interpolating-the-rows) $L_i(T)$ that equals 1 at $T = i$ and 0 at the other nodes $0, 1, \ldots, m - 1$. Interpolating the vectors gives polynomials $\v{A}(T)$ and $\v{B}(T)$ whose values at node $i$ are $\v{a}_i$ and $\v{b}_i$, and interpolating the targets gives $K(T)$ with $K(i) = c_i$.
 
 <!-- worked:q-basis -->
 
@@ -533,19 +575,33 @@ For three claims the nodes are $0, 1, 2$, and the basis polynomials over $\F_{43
 
 <!-- /worked:q-basis -->
 
-At the node $T = i$ these reduce to $\v{a}_i$, $\v{b}_i$ and $c_i$. So the difference
-
-$$R(T) = \revdot{\v{A}(T)}{\v{B}(T)} - K(T)$$
-
-equals $e_{i,i} - c_i$ at node $i$, and it vanishes at every node exactly when all the claims are true. A polynomial that vanishes at all $m$ nodes is a multiple of $Z(T)$. This is the [divisibility test of chapter 05's QAP](./polynomial-encoding.md#_5-the-vanishing-polynomial-and-the-quotient), applied to a list of claims in place of a list of gates. The nodes $0, \ldots, m - 1$ play the role of the domain, $Z$ is its vanishing polynomial, and as there the prover fixes the quotient before a random point tests the identity. Bilinearity gives the first term of $R(T)$ as
-
-$$\revdot{\v{A}(T)}{\v{B}(T)} = \sum_{i,j} L_i(T) L_j(T)\, e_{i,j},$$
-
-which has degree at most $2m - 2$. Since $Z$ has degree $m$, the quotient $Q(T) = R(T) / Z(T)$ has degree at most $m - 2$, and therefore only $m - 1$ coefficients. This is the shorter message. The prover sends the coefficients of $Q$, and the verifier sends one challenge $\tau$. Evaluating at $\tau$ gives the new claim, with the weights $\ell_i = L_i(\tau)$ on both sides:
+The difference $R(T) = \revdot{\v{A}(T)}{\v{B}(T)} - K(T)$ equals $e_{i,i} - c_i$ at node $i$, so it vanishes at every node exactly when all the claims are true, and then it is a multiple of $Z(T)$. This is the [divisibility test of chapter 05's QAP](./polynomial-encoding.md#_5-the-vanishing-polynomial-and-the-quotient), applied to a list of claims in place of a list of gates. The quotient $Q(T) = R(T) / Z(T)$ has only $m - 1$ coefficients, which is the shorter message. The prover sends the coefficients of $Q$, and the verifier sends one challenge $\tau$. Evaluating at $\tau$ gives the new claim, with the weights $\ell_i = L_i(\tau)$ on both sides:
 
 $$\bar{A}^* = \sum_i \ell_i \cdot \bar{A}_i, \qquad \bar{B}^* = \sum_i \ell_i \cdot \bar{B}_i, \qquad c^* = K(\tau) + Z(\tau)\, Q(\tau).$$
 
-The value is right because $\revdot{\v{A}(\tau)}{\v{B}(\tau)} = K(\tau) + R(\tau) = K(\tau) + Z(\tau) Q(\tau)$. The prover's message enters only through $Z(\tau)\,Q(\tau)$, which is the product with $Z$ that the opening paragraph asked for. The prover's work has not shrunk, though. Expanding the sum over $i, j$ still needs every cross term $e_{i,j}$ with $i \neq j$, which are the same products that the matrix fold needs. The diagonal adds nothing, because an honest prover already knows $e_{i,i} = c_i$, as in Section 5, and can put $c_i$ in those terms without computing the product.
+The prover's message enters only through $Z(\tau)\,Q(\tau)$, which is the product with $Z$ that the opening paragraph asked for. The next box writes out the interpolated polynomials, counts the degrees, and checks that $c^*$ is the revdot product of the folded vectors.
+
+::: details The full derivation
+
+The interpolated polynomials are
+
+$$\v{A}(T) = \sum_i L_i(T)\, \v{a}_i, \qquad \v{B}(T) = \sum_i L_i(T)\, \v{b}_i, \qquad K(T) = \sum_i L_i(T)\, c_i.$$
+
+At the node $T = i$ these reduce to $\v{a}_i$, $\v{b}_i$ and $c_i$, so
+
+$$R(T) = \revdot{\v{A}(T)}{\v{B}(T)} - K(T)$$
+
+equals $e_{i,i} - c_i$ at node $i$. A polynomial that vanishes at all $m$ nodes is a multiple of $Z(T)$. The nodes $0, \ldots, m - 1$ play the role of the QAP's domain, $Z$ is its vanishing polynomial, and as there the prover fixes the quotient before a random point tests the identity. Bilinearity gives the first term of $R(T)$ as
+
+$$\revdot{\v{A}(T)}{\v{B}(T)} = \sum_{i,j} L_i(T) L_j(T)\, e_{i,j},$$
+
+which has degree at most $2m - 2$. Since $Z$ has degree $m$, the quotient $Q(T)$ has degree at most $m - 2$, and therefore only $m - 1$ coefficients.
+
+The value is right because $\revdot{\v{A}(\tau)}{\v{B}(\tau)} = K(\tau) + R(\tau) = K(\tau) + Z(\tau) Q(\tau)$.
+
+:::
+
+The prover's work has not shrunk, though. Computing $\revdot{\v{A}(T)}{\v{B}(T)}$ still needs every cross term $e_{i,j}$ with $i \neq j$, which are the same products that the matrix fold needs. The diagonal adds nothing, because an honest prover already knows $e_{i,i} = c_i$, as in Section 5, and can put $c_i$ in those terms without computing the product.
 
 The code calls the coefficients of $Q$ "error terms". The book uses "cross term" and "error term" [interchangeably](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/revdot.md?plain=1#L80-L93) for an off-diagonal product $e_{i,j}$, which is a different number, so we keep "cross term" for a product and say "quotient coefficient" for the code's values. As with the cross terms, "sends" means that the transcript absorbs the coefficients before it produces the challenge. In the code the prover [commits to a stage holding them, and the transcript absorbs that commitment before squeezing $\tau$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/mod.rs#L137-L169).
 
@@ -633,11 +689,17 @@ The next table sets the three options side by side:
 
 The first two columns compute the same products, so the quotient fold does not trade prover work for a shorter message. It sends and checks far less for the same work. The last row of the first column uses the book's formula from Section 8. The other two columns use our count of the multiplications in the code's [`Basis`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/fold_revdot.rs#L302-L370), which computes the Lagrange weights and then folds each group's scalars. These rows cover only the folding of scalars, since the circuit also computes each claim's target.
 
+The code also computes the diagonal products, which the fold does not need, and the next box counts them.
+
+::: details The code's diagonal products
+
 <!-- worked:q-code-diag -->
 
 The code forms the diagonal products as well. Its division routine [computes every product of a group, the diagonal included](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/fold_revdot.rs#L188-L224) and uses each diagonal product as that claim's target, which adds $98 + 14$ products to the count, for $882$ in all. This is a choice of the implementation and not a requirement of the fold, since substituting $c_i$ gives the same quotient.
 
 <!-- /worked:q-code-diag -->
+
+:::
 
 The fold's output has the form of its inputs, so the code carries it as Section 6's accumulator. The folded pair is stored as the proof's $A$ and $B$, and at the next fuse it [enters the list as a claim](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/claims.rs#L167-L170) whose target is [the previous fold's $c$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/collapse.rs#L237-L247). The order in which the fuse absorbs the quotients and squeezes the challenges, the stages that hold the quotients, and the circuit that checks the fold belong with the [staging chapter](./staging.md) and the [chapter on recursion in Ragu](./ragu-recursion.md).
 

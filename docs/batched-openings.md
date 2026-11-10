@@ -20,7 +20,7 @@ We write one claim as a triple $(C_i, x_i, y_i)$, which says that the polynomial
 
 ## 2. Combining claims at different points
 
-The [random linear combinations](./statements-and-challenges.md#_7-random-linear-combinations) from chapter 03 already solve the problem when all the claims use one point. If $p_0(x) = y_0$ and $p_1(x) = y_1$, the verifier picks $r$ and asks about $p_0 + r p_1$ at $x$. It can compute the commitment $C_0 + r C_1$ and the expected value $y_0 + r y_1$ alone, because [commitments and evaluations combine with the same coefficients](./polynomial-commitments.md#evaluations-of-linear-combinations). Chapter 03 ran this check on [two claims at the point 9](./statements-and-challenges.md#combining-evaluation-claims).
+The [random linear combinations](./statements-and-challenges.md#_6-random-linear-combinations) from chapter 03 already solve the problem when all the claims use one point. If $p_0(x) = y_0$ and $p_1(x) = y_1$, the verifier picks $r$ and asks about $p_0 + r p_1$ at $x$. It can compute the commitment $C_0 + r C_1$ and the expected value $y_0 + r y_1$ alone, because [commitments and evaluations combine with the same coefficients](./polynomial-commitments.md#evaluations-of-linear-combinations). Chapter 03 ran this check on [two claims at the point 9](./statements-and-challenges.md#combining-evaluation-claims).
 
 The method stops working when the points differ, because a combination of polynomials has no single point at which the combined claim makes sense. The next example tries it on two true claims at different points.
 
@@ -38,7 +38,28 @@ The statement $p(x) = y$ says that the polynomial $p(X) - y$ has a root at $x$. 
 
 $$p(X) - y = (X - x)\, q(X).$$
 
-We call $q$ the **quotient** of the claim. To see how the prover computes it, and why a false claim has no quotient, write out the case $n = 4$. Then $p$ has coefficients $a_0, \ldots, a_3$, the quotient has degree 2, and we can write $q(X) = b_0 + b_1 X + b_2 X^2$. Multiplying out the right side gives
+We call $q$ the **quotient** of the claim. The prover computes it by a procedure called synthetic division. For a polynomial $p$ with coefficients $a_0, \ldots, a_3$, the quotient has three coefficients $b_2, b_1, b_0$, and the prover finds them from the top down. It starts with $b_2 = a_3$, and each later line multiplies the previous result by $x$ and adds the next coefficient of $p$. One more line of the same kind gives back $p(x)$. The next example runs the procedure on a claim from the commitments chapter.
+
+<!-- worked:division -->
+
+Take $p(X) = 7 + 2X + 5X^2 + 3X^3$ and $x = 9$, so $a_3, a_2, a_1, a_0 = 3, 5, 2, 7$.
+
+| Line | Formula | Value modulo 43 |
+| --- | --- | --- |
+| $b_2$ | $a_3$ | $3$ |
+| $b_1$ | $a_2 + x b_2 = 5 + 9 \cdot 3$ | $32$ |
+| $b_0$ | $a_1 + x b_1 = 2 + 9 \cdot 32$ | $32$ |
+| $y$ | $a_0 + x b_0 = 7 + 9 \cdot 32$ | $37$ |
+
+The quotient is $q(X) = 32 + 32X + 3X^2$, and the last line recovers $y = 37$, the value of $p(9)$ from the [commitments chapter](./polynomial-commitments.md#_8-writing-an-evaluation-as-an-inner-product). Multiplying out $(X - 9)(32 + 32X + 3X^2)$ returns $13 + 2X + 5X^2 + 3X^3$, which equals $p(X) - 37$ with coefficients reduced modulo 43.
+
+<!-- /worked:division -->
+
+The claimed value $y$ plays no part in the first three lines. It appears only in the last line, which has to reproduce $p(x)$, so the division comes out exact precisely when the claim is true. The box below derives the table from the equation $p(X) - y = (X - x)\,q(X)$, and the same pattern works for any number of coefficients.
+
+::: details Deriving the division table
+
+Take the case $n = 4$. Then $p$ has coefficients $a_0, \ldots, a_3$, the quotient has degree 2, and we can write $q(X) = b_0 + b_1 X + b_2 X^2$. Multiplying out the right side gives
 
 $$
 \begin{aligned}
@@ -62,22 +83,9 @@ The first three equations determine the quotient from the top coefficient down, 
 
 $$y = a_0 + x b_0 = a_0 + a_1 x + a_2 x^2 + a_3 x^3 = p(x).$$
 
-So the system has a solution exactly when the claim is true. This procedure is called synthetic division, and the same pattern works for any $n$.
+So the system has a solution exactly when the claim is true. Each line of the division table is one of these equations, solved for its unknown.
 
-<!-- worked:division -->
-
-Take $p(X) = 7 + 2X + 5X^2 + 3X^3$ and $x = 9$, so $a_3, a_2, a_1, a_0 = 3, 5, 2, 7$.
-
-| Line | Formula | Value modulo 43 |
-| --- | --- | --- |
-| $b_2$ | $a_3$ | $3$ |
-| $b_1$ | $a_2 + x b_2 = 5 + 9 \cdot 3$ | $32$ |
-| $b_0$ | $a_1 + x b_1 = 2 + 9 \cdot 32$ | $32$ |
-| $y$ | $a_0 + x b_0 = 7 + 9 \cdot 32$ | $37$ |
-
-The quotient is $q(X) = 32 + 32X + 3X^2$, and the last line recovers $y = 37$, the value of $p(9)$ from the [commitments chapter](./polynomial-commitments.md#_8-writing-an-evaluation-as-an-inner-product). Multiplying out $(X - 9)(32 + 32X + 3X^2)$ returns $13 + 2X + 5X^2 + 3X^3$, which equals $p(X) - 37$ with coefficients reduced modulo 43.
-
-<!-- /worked:division -->
+:::
 
 The same computation behaves differently when the claimed value is wrong, as the next example shows.
 
@@ -121,7 +129,13 @@ The commitment $C_1$ must now open to $11$ at $17$, and $Q_1$ must open to $10$ 
 
 For one claim this looks like a step backward, because it replaced one opening with two. The gain appears with several claims, since every claim can use the same $u$. The three claims of the next section, at three different points, become openings that all sit at $u$, and the same-point method of Section 2 then merges them into a single opening.
 
-The test also has the behaviour we want for a false claim. For now, assume the prover sends the true value $p(u)$, which the opening of $C$ at $u$ enforces. Section 9 deals with a prover that sends a false one. If $p(x) \neq y$, whatever polynomial $q'$ the prover commits to differs from the rational function, so the formula gives the wrong value at most values of $u$. To count the exceptions, multiply through by $u - x$. The formula matches only where $(X - x) q'(X) - (p(X) - y)$ vanishes, and this polynomial is nonzero because a false claim has no quotient. Its degree is at most $n$, since the commitment limits $q'$ to degree $n - 1$, so [it has at most $n$ roots](./statements-and-challenges.md#a-polynomial-of-degree-d-has-at-most-d-roots) and the prover has at most an $n / |\F|$ chance of passing.
+The test also has the behaviour we want for a false claim. For now, assume the prover sends the true value $p(u)$, which the opening of $C$ at $u$ enforces. Section 9 deals with a prover that sends a false one. If $p(x) \neq y$, whatever polynomial $q'$ the prover commits to differs from the rational function, so the formula gives the wrong value at most values of $u$. The exceptions number at most $n$, so the prover has at most an $n / |\F|$ chance of passing.
+
+::: details Counting the exceptions
+
+Multiply the formula through by $u - x$. The formula matches only where $(X - x) q'(X) - (p(X) - y)$ vanishes, and this polynomial is nonzero because a false claim has no quotient. Its degree is at most $n$, since the commitment limits $q'$ to degree $n - 1$, so [it has at most $n$ roots](./statements-and-challenges.md#a-polynomial-of-degree-d-has-at-most-d-roots).
+
+:::
 
 ## 5. Alpha batching
 
@@ -139,7 +153,7 @@ The commitment $C_2 = (17,\,24)$ is the same point as $Q_1$ from Section 4, alth
 
 <!-- /worked:claims -->
 
-A plain sum of the quotients would be safe if every claim used its own point, because an error over $X - 5$ and an error over $X - 9$ cannot cancel each other, as the next paragraphs make precise. The running example has distinct points, but real lists do not. Section 1's list has claims about $a(0)$ and $k(0)$, which share the point $0$. Errors at a shared point can cancel, because two false claims at the same $x$ have their errors over the same denominator, and a cheater can choose those errors to be opposite. For this example only, put the claims about $p_0$ and $p_1$ both at the point $9$, instead of the points in the table. The next example runs the attack with those two claims.
+A plain sum of the quotients would be safe if every claim used its own point, because an error over $X - 5$ and an error over $X - 9$ cannot cancel each other, as the combined fraction below makes precise. The running example has distinct points, but real lists do not. Section 1's list has claims about $a(0)$ and $k(0)$, which share the point $0$. Errors at a shared point can cancel, because two false claims at the same $x$ have their errors over the same denominator, and a cheater can choose those errors to be opposite. For this example only, put the claims about $p_0$ and $p_1$ both at the point $9$, instead of the points in the table. The next example runs the attack with those two claims.
 
 <!-- worked:plain-sum -->
 
@@ -153,11 +167,19 @@ $$f(X) = \sum_{i=0}^{m-1} \alpha^{m-1-i}\, q_i(X).$$
 
 For three claims this is $f(X) = \alpha^2 q_0(X) + \alpha\, q_1(X) + q_2(X)$. The first claim takes the highest power, which is the order Ragu's code uses, and Section 7 compares it with the book's order.
 
-To see what the weights do to false claims, compare $f$ with the **combined fraction**
+To see what the weights do to false claims, compare $f$ with the **combined fraction**, which applies the same weights to the fractions $(p_i(X) - y_i)/(X - x_i)$ instead of the quotients. Section 3 split each fraction into its quotient plus the claim's error over $X - x_i$. Applying that split to every term shows that the combined fraction equals $f$ plus, for each distinct point $a$, one leftover term $R_a/(X - a)$. We call $R_a$ the **combined error at $a$**. It is the weighted sum of the errors of the claims at $a$, and it replaces the single error of Section 3 when several claims share a point. The box below writes out the grouping.
+
+::: details Splitting the combined fraction
+
+The combined fraction is
 $$\sum_{i=0}^{m-1} \alpha^{m-1-i}\, \frac{p_i(X) - y_i}{X - x_i}.$$
 Section 3 split each fraction into the quotient $q_i(X)$ plus the claim's error over $X - x_i$. The quotient parts add up to $f$. The error parts with the same point $a$ share the denominator $X - a$, so they add into one term. Grouping them this way gives
 $$\sum_{i=0}^{m-1} \alpha^{m-1-i}\, \frac{p_i(X) - y_i}{X - x_i} = f(X) + \sum_{a} \frac{R_a}{X - a}, \qquad R_a = \sum_{i:\, x_i = a} \alpha^{m-1-i} \big(p_i(a) - y_i\big),$$
-where the outer sum on the right runs over the distinct points $a$ among the $x_i$. We call $R_a$ the **combined error at $a$**. It is the weighted sum of the errors of the claims at $a$, and it replaces the single error of Section 3 when several claims share a point. When every claim is true, every $R_a$ is zero and the combined fraction equals $f$. The combined fraction has a pole at $a$ exactly when $R_a$ is nonzero. With one claim per point, $R_a$ is a single weighted error and is nonzero whenever that claim is false, which is why a plain sum is safe in that case. With several claims at $a$, the weights make it unlikely that their errors cancel, and the plain-sum attack shows by how much.
+where the outer sum on the right runs over the distinct points $a$ among the $x_i$.
+
+:::
+
+When every claim is true, every $R_a$ is zero and the combined fraction equals $f$. The combined fraction has a pole at $a$ exactly when $R_a$ is nonzero. With one claim per point, $R_a$ is a single weighted error and is nonzero whenever that claim is false, which is why a plain sum is safe in that case. With several claims at $a$, the weights make it unlikely that their errors cancel, and the plain-sum attack shows by how much.
 
 <!-- worked:alpha-count -->
 
@@ -276,7 +298,7 @@ sequenceDiagram
     Note over P,V: Both hold the single claim (P, u, v)
 ```
 
-The soundness of the protocol depends on the order of these messages, as Section 9 explains. Under [Fiat–Shamir](./statements-and-challenges.md#_8-removing-the-verifier-with-fiat–shamir), each challenge becomes a hash of a transcript that has absorbed everything before it, including the claims themselves. The worked examples here use chosen challenges so that the numbers stay readable.
+The soundness of the protocol depends on the order of these messages, as Section 9 explains. Under [Fiat–Shamir](./statements-and-challenges.md#_7-removing-the-verifier-with-fiat–shamir), each challenge becomes a hash of a transcript that has absorbed everything before it, including the claims themselves. The worked examples here use chosen challenges so that the numbers stay readable.
 
 Here is the whole run, gathered from the previous sections. For the last step, the prover reveals $p$, and the verifier checks it directly:
 
@@ -336,6 +358,10 @@ With the pole in place, the honest quotients fail at every $u$, as the first exa
 
 $$f'(u) = \sum_{i=0}^{m-1} \alpha^{m-1-i}\, \frac{p_i(u) - y_i}{u - x_i}.$$
 
+The right side is the combined fraction evaluated at $u$, and it has a pole, so no polynomial $f'$ can match it everywhere. Clearing the denominators turns the requirement into a nonzero polynomial equation in $u$. If the claims use $d$ distinct points, that equation has degree at most $n - 1 + d$, so the cheater matches at most $n - 1 + d$ values of $u$. When only one claim is false, as in our example, the bound tightens to $n$. The box below gives both counts.
+
+::: details Counting the values of u that a different polynomial can match
+
 To count the values of $u$ where this can hold, we turn it into a polynomial equation. Suppose the claims use $d$ distinct points, and let $Z(X) = \prod_a (X - a)$ be the product of $X - a$ over those points, a polynomial of degree $d$. Multiplying both sides by $Z(u)$ cancels every denominator, because each $u - x_i$ is one of the factors of $Z(u)$. Moving everything to one side gives
 
 $$f'(u)\, Z(u) - \sum_{i=0}^{m-1} \alpha^{m-1-i}\, \big(p_i(u) - y_i\big)\, \frac{Z(u)}{u - x_i} = 0.$$
@@ -346,7 +372,11 @@ In our example only claim 1 is false, so Section 5's split of the combined fract
 
 $$\big(f'(u) - f(u)\big)(u - 5) = R_5.$$
 
-The left side has degree at most $(n - 1) + 1 = n$, and the equation cannot hold everywhere because the left side is zero at $u = 5$ while $R_5$ is not. So the cheater matches at most $n$ values of $u$. The next example finds a polynomial that reaches this count.
+The left side has degree at most $(n - 1) + 1 = n$, and the equation cannot hold everywhere because the left side is zero at $u = 5$ while $R_5$ is not. So the cheater matches at most $n$ values of $u$.
+
+:::
+
+The next example finds a polynomial on the toy field that reaches the count of $n$.
 
 <!-- worked:cheat-fit -->
 
@@ -392,11 +422,19 @@ We do not suggest the authors intend this reading of the book, and the code's di
 
 A cheater wins a run if $\alpha$ removes the pole, or else if $u$ lands on a point where its committed polynomial matches, or else if $\beta$ lands on a root of its error polynomial. To bound its chance over all triples of challenges on the toy field, we need the counts for every $\alpha$, while the brute-force searches above used only the running example's $\alpha$.
 
-The equation from the stage for $u$ shows that those searches cover every nonzero $\alpha$. Write $e = p_1(5) - y_1$ for the error of the false claim, so that $R_5 = \alpha e$. The honest $f$ changes with $\alpha$, but the requirement $\big(f'(u) - f(u)\big)(u - 5) = R_5$ keeps its form, and dividing it by $u - 5$ and by the nonzero $\alpha$ gives
+Those searches in fact cover every nonzero $\alpha$. Changing $\alpha$ only rescales the combined error of the false claim, and the cheater can rescale its own polynomial to match, so the set of values of $u$ it can hit is the same for every nonzero $\alpha$. The box below shows the rescaling.
+
+::: details Why one value of alpha stands for all nonzero values
+
+The equation from the stage for $u$ gives the argument. Write $e = p_1(5) - y_1$ for the error of the false claim, so that $R_5 = \alpha e$. The honest $f$ changes with $\alpha$, but the requirement $\big(f'(u) - f(u)\big)(u - 5) = R_5$ keeps its form, and dividing it by $u - 5$ and by the nonzero $\alpha$ gives
 
 $$\frac{f'(u) - f(u)}{\alpha} = \frac{e}{u - 5}.$$
 
-The right side does not mention $\alpha$. As $f'$ ranges over all polynomials of degree at most $n - 1$, so does $(f' - f)/\alpha$, so the set of values of $u$ that a cheater can match is the same for every nonzero $\alpha$. The counts found for the running example's $\alpha$ therefore hold for every nonzero $\alpha$, and the next example adds them up.
+The right side does not mention $\alpha$. As $f'$ ranges over all polynomials of degree at most $n - 1$, so does $(f' - f)/\alpha$, so the set of values of $u$ that a cheater can match is the same for every nonzero $\alpha$.
+
+:::
+
+The counts found for the running example's $\alpha$ therefore hold for every nonzero $\alpha$, and the next example adds them up.
 
 <!-- worked:cheat-total -->
 
@@ -418,7 +456,7 @@ For $n = 2^{13}$, with the six claims, four points and four polynomials from Sec
 
 <!-- /worked:real-bound -->
 
-Fiat–Shamir lets a cheater retry privately, so as [chapter 03 explains](./statements-and-challenges.md#_10-repeated-trials), the chance grows with the number of attempts. We make no claim about Ragu's overall security level here.
+Fiat–Shamir lets a cheater retry privately, so as [chapter 03 explains](./statements-and-challenges.md#_9-repeated-trials), the chance grows with the number of attempts. We make no claim about Ragu's overall security level here.
 
 ### Each challenge has to come after the message it tests
 
@@ -501,13 +539,23 @@ The warning in [chapter 06](./polynomial-commitments.md#_6-hiding-the-vector) ap
 
 The Ragu Book [credits](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md?plain=1#L18-L20) this technique to [SHPLONK](https://eprint.iacr.org/2020/081), by Boneh, Drake, Fisch and Gabizon. That paper works with KZG commitments and lets the prover open each polynomial at a set of points. Its prover commits to a random combination of fractions, one per polynomial, whose numerator is the polynomial minus its claimed values and whose denominator vanishes on the claimed points. When every set holds a single point, each fraction is one of our $(p_i(X) - y_i)/(X - x_i)$, and the committed polynomial is our $f$ with the weights in a different order.
 
-The two protocols then differ in how they finish. SHPLONK's verifier picks a random point and does not receive the values of the polynomials there. In our notation, it uses the polynomial
+The two protocols then differ in how they finish. SHPLONK's verifier picks a random point and does not receive the values of the polynomials there. Instead it builds, from the commitments it already holds, a commitment to one polynomial that should be zero at that point, and the prover opens it to zero. Ragu has the prover send the values at $u$ and combines them under $\beta$, which matches the [multipoint opening in Halo 2](https://zcash.github.io/halo2/design/proving-system/multipoint-opening.html). Neither the Ragu Book nor the code explains why Ragu sends the values. The box below gives SHPLONK's finishing polynomial and a further difference from Halo 2.
+
+::: details How SHPLONK finishes, and how Halo 2 groups its queries
+
+In our notation, SHPLONK's verifier uses the polynomial
 $$L(X) = \sum_{i=0}^{m-1} \alpha^{m-1-i}\, \frac{p_i(X) - y_i}{u - x_i} - f(X),$$
-which equals zero at $X = u$ when every claim is true, by the formula of Section 6. Once $u$ is fixed, each $1/(u - x_i)$ is a number, so $L$ is a linear combination of the $p_i$, the constants $y_i$ and $f$. A constant polynomial $c$ has the coefficient vector $(c, 0, \ldots, 0)$, so it commits to $c \cdot G_0$. The verifier can therefore build the commitment to $L$ from the $C_i$, $F$ and one multiple of $G_0$ that collects all the $y_i$ terms, and the prover opens $L$ at $u$ to the value zero. Ragu has the prover send the values at $u$ and combines them under $\beta$, which matches the [multipoint opening in Halo 2](https://zcash.github.io/halo2/design/proving-system/multipoint-opening.html). Halo 2 also groups polynomials by their sets of query points and interpolates over each set, whereas Ragu gives every claim its own term. This comparison follows a [walkthrough of the paper](https://hackmd.io/@walpo/shplonk) and the documentation of [gnark-crypto's implementation](https://pkg.go.dev/github.com/consensys/gnark-crypto@v0.17.0/ecc/bls12-381/shplonk). Neither the Ragu Book nor the code explains why Ragu sends the values.
+which equals zero at $X = u$ when every claim is true, by the formula of Section 6. Once $u$ is fixed, each $1/(u - x_i)$ is a number, so $L$ is a linear combination of the $p_i$, the constants $y_i$ and $f$. A constant polynomial $c$ has the coefficient vector $(c, 0, \ldots, 0)$, so it commits to $c \cdot G_0$. The verifier can therefore build the commitment to $L$ from the $C_i$, $F$ and one multiple of $G_0$ that collects all the $y_i$ terms, and the prover opens $L$ at $u$ to the value zero. Halo 2 also groups polynomials by their sets of query points and interpolates over each set, whereas Ragu gives every claim its own term. This comparison follows a [walkthrough of the paper](https://hackmd.io/@walpo/shplonk) and the documentation of [gnark-crypto's implementation](https://pkg.go.dev/github.com/consensys/gnark-crypto@v0.17.0/ecc/bls12-381/shplonk).
+
+:::
 
 ## 13. Batching in Ragu
 
-The clearest place to see this protocol in the code is the compression path, whose [module comment](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/batch/mod.rs#L1-L13) describes the same steps. The [prover](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/batch/prover.rs#L35-L60) divides by $X - x_i$ without using the claimed value, as Section 3 predicted, then writes $F$, squeezes $u$, writes the values, and squeezes $\beta$. The verifier computes $f(u)$ and $v$ by Horner's rule, which builds a weighted sum by repeatedly multiplying the running total by the challenge and adding the next term. That rule is how the weights from Section 7 arise. This excerpt comes from [`compress/batch/verifier.rs`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/batch/verifier.rs#L67-L81) at commit `3219e08`:
+The clearest place to see this protocol in the code is the compression path, whose [module comment](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/batch/mod.rs#L1-L13) describes the same steps. The [prover](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/batch/prover.rs#L35-L60) divides by $X - x_i$ without using the claimed value, as Section 3 predicted, then writes $F$, squeezes $u$, writes the values, and squeezes $\beta$. The verifier computes $f(u)$ and $v$ by Horner's rule, which builds a weighted sum by repeatedly multiplying the running total by the challenge and adding the next term. That rule is how the weights from Section 7 arise, with the first claim getting the highest power of $\alpha$ and $f(u)$ the highest power of $\beta$. The box below shows the verifier's two loops.
+
+::: details The verifier's loops in the code
+
+Reconstructed from code at commit `3219e08`, not confirmed by the authors. This excerpt comes from [`compress/batch/verifier.rs`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/batch/verifier.rs#L67-L81) at commit `3219e08`:
 
 ```rust
 let mut f_at_u = C::Scalar::ZERO;
@@ -525,6 +573,8 @@ for &evaluation in &batch.evaluations {
 ```
 
 Each pass through the first loop multiplies everything so far by $\alpha$, so the first claim ends up with the highest power. The second loop starts from $f(u)$, which therefore gets the highest power of $\beta$. The index `claim.poly` is the $j_i$ of Section 10.
+
+:::
 
 ::: warning Reconstructed from code at commit 3219e08, not confirmed by the authors
 The fuse step runs the same reduction with the same weights, spread across [`_08_f.rs`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/_08_f.rs#L1-L18), [`_09_eval.rs`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/_09_eval.rs#L1-L5) and [`_10_p.rs`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/_10_p.rs#L1-L12), with the verifier's arithmetic in the [`compute_v` circuit](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/compute_v.rs#L211-L241). It differs from the description above in two ways that later chapters cover. The values at $u$ go into a committed stage rather than being sent directly, which is the subject of [staging](./staging.md). The challenge $\beta$ is also [derived from a 143-bit endoscalar](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_primitives/src/endoscalar.rs#L64-L67) rather than taken as a full field element, which is the subject of [endoscalars](./endoscalars.md).

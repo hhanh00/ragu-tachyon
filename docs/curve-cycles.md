@@ -57,7 +57,11 @@ The honest witness for $210$ is $r = 24$ and $t = 6$, since $24 + 31 \cdot 6 = 2
 
 <!-- /worked:one-equation -->
 
-The way out is to make every equation the circuit checks so small that it cannot wrap around modulo 43, because an equation between small numbers modulo 43 is also an equation between integers. We split $a$, $b$, $r$ and $t$ into pieces called **limbs**. On the toy field each limb is one bit, so $a = \sum_i a_i 2^i$ with five bits, and similarly for the others. We also write $31\,t = 32\,t - t$. In binary 31 is $11111$, so $31\,t$ would put five shifted copies of $t$ into the columns, while $32\,t - t$ puts in only two, one shifted by five places and one not shifted. Expanding $a b - r - 32\,t + t$ and collecting by powers of 2 gives one column per power:
+The way out is to make every equation the circuit checks so small that it cannot wrap around modulo 43, because an equation between small numbers modulo 43 is also an equation between integers. We split $a$, $b$, $r$ and $t$ into pieces called **limbs**, write the product out column by column as in long multiplication, and let the prover supply a carry for each column. Each column's equation then involves only a few small numbers, so the circuit can check it with ordinary gates. On the toy field each limb is one bit. The box below writes out the column equations and runs them on the first gate of the addition from Section 1, and the count after it gives the result.
+
+::: details Checking one multiplication in columns
+
+With one-bit limbs, $a = \sum_i a_i 2^i$ with five bits, and similarly for the others. We also write $31\,t = 32\,t - t$. In binary 31 is $11111$, so $31\,t$ would put five shifted copies of $t$ into the columns, while $32\,t - t$ puts in only two, one shifted by five places and one not shifted. Expanding $a b - r - 32\,t + t$ and collecting by powers of 2 gives one column per power:
 
 $$a b - r - 31\,t = \sum_{k} \Big( \sum_{i+j=k} a_i b_j \;-\; r_k \;+\; t_k \;-\; t_{k-5} \Big)\, 2^k.$$
 
@@ -92,13 +96,33 @@ Here $a = 21$ and $b = 10$. Each row satisfies its equation and the last carry i
 
 This count assumes that $a$ and $b$ arrive already split into bits, so it charges nothing to check their bits. In a chain of multiplications that is mostly true, because each input is the remainder $r$ of an earlier multiplication, and the circuit already checked the bits of $r$. Inputs that enter the chain from outside would need their own bit checks.
 
+:::
+
+<!-- worked:emul-summary -->
+
+Checked this way, one multiplication in $\F_{31}$ costs $53$ gates in the circuit over $\F_{43}$, where a native multiplication costs one. We ran the check on every input, and it accepted only true remainders.
+
+<!-- /worked:emul-summary -->
+
 One native multiplication has become dozens of gates. The cost multiplies through every point operation, since the formulas are built from these multiplications:
+
+<!-- worked:emul-toy-summary -->
+
+A 6-bit scalar multiplication on $E$, built from these emulated multiplications, costs $1,911$ gates in the circuit over $\F_{43}$. The same operation on $E'$, whose coordinates are native to that circuit, costs $51$ gates in the [recursive proofs chapter](./recursive-proofs.md#point-operations).
+
+<!-- /worked:emul-toy-summary -->
+
+The box breaks that total into multiplications, selections and bit checks.
+
+::: details Counting the gates of a toy scalar multiplication
 
 <!-- worked:emul-toy-scalar -->
 
 A 6-bit scalar multiplication on $E$ does 5 doublings and 5 additions. A doubling takes 4 multiplications in $\F_{31}$ and an addition takes 3, so that makes $5 \cdot 4 + 5 \cdot 3 = 35$ multiplications, at $53$ gates each, or $1,855$ gates. Each of the 5 steps also selects between two points by one scalar bit. The selection works limb by limb on both coordinates, which costs $2 \cdot 5 = 10$ gates per step and $50$ in all, and checking the 6 scalar bits adds $6$ more. The total is $1,855 + 50 + 6 = 1,911$ gates, where the same operation on $E'$ costs $51$ gates in the [recursive proofs chapter](./recursive-proofs.md#point-operations). As in that chapter, the 51 gates keep the 6-bit width of $\F_{43}$ as a stand-in, since the scalars of $E'$ itself have only 5 bits. Our count also leaves out the extra work to reduce the sums and differences in each formula back into range.
 
 <!-- /worked:emul-toy-scalar -->
+
+:::
 
 A real field has room for larger limbs, which lowers the count per bit. The next estimate is our own plain design and not a gadget that Ragu contains, and better gadgets exist that cut these numbers by some factor:
 
@@ -143,13 +167,17 @@ For $E$ we have $31 + 1 - 43 = -11$, and $2\sqrt{31}$ is about $11.1$. For $E'$ 
 
 <!-- /worked:hasse -->
 
-Within the family of curves $y^2 = x^3 + b$, which is the family Pasta belongs to, pairs of curves with this property are uncommon, even among small primes:
+Within the family of curves $y^2 = x^3 + b$, which is the family Pasta belongs to, pairs of curves with this property are uncommon, even among small primes. The box describes an exhaustive search over small primes that confirms this, finds the toy pair among the few cycles, and also counts the anomalous curves.
+
+::: details Searching for small cycles
 
 <!-- worked:cycle-search -->
 
 We searched only curves of the form $y^2 = x^3 + b$, with no $x$ term, because Pasta has that form and the [endoscalars chapter](./endoscalars.md) relies on it. Within this family we restricted the search to primes congruent to 1 modulo 3, because for a prime $p$ congruent to 2 modulo 3 every element of $\F_p$ has exactly one cube root. Then $x^3 + b$ runs over every element once as $x$ does, and every curve $y^2 = x^3 + b$ has exactly $p + 1$ points, which is never prime for an odd $p$. We counted the points on every curve $y^2 = x^3 + b$ over each of the $21$ remaining primes below 200. Among the $210$ pairs of these primes, $10$ form a cycle, and the pair $(31, 43)$ is one of them. The same count finds $5$ primes with a curve whose number of points equals its field size, starting with $7$.
 
 <!-- /worked:cycle-search -->
+
+:::
 
 ## 4. The Pasta cycle
 
@@ -236,7 +264,9 @@ Now we assign each output to the circuit where it is native. For a value, the ci
 
 <!-- /worked:fold-split -->
 
-The table gives only results, so we follow both computations on the first side step by step.
+The table gives only results. On the first side, the primary circuit gets $v$ by computing one quotient value per claim, combining them with $\alpha$, and running Horner's rule in $\beta$. The secondary circuit gets $P$ by running the same Horner rule on the commitments, with point additions and scalar multiplications in place of field operations. The box follows both computations number by number and counts their gates.
+
+::: details The first side, step by step
 
 <!-- worked:fold-steps -->
 
@@ -273,17 +303,31 @@ The first line returns $F$ itself, because $14 \cdot F = -C_0$ on this curve. Th
 
 <!-- /worked:fold-steps -->
 
+:::
+
 <!-- worked:fold-decide -->
 
 The prover also holds the combined polynomials $p = (7, 4, 23, 6)$ and $p' = (23, 30, 16, 2)$. A decider commits to them and gets $(17,\,24)$ on $E$ and $(20,\,40)$ on $E'$. Evaluating at $u = 13$ gives $14$ in $\F_{43}$ and $9$ in $\F_{31}$. All four numbers match the table.
 
 <!-- /worked:fold-decide -->
 
+Compare this with the cost of Section 2:
+
+<!-- worked:fold-compare-summary -->
+
+Every gate in this run worked on values in its own circuit's field. The point $P$ took $68$ gates on the secondary circuit's wires, and computing it on the primary circuit's wires by the method of Section 2 would take at least $2,612$.
+
+<!-- /worked:fold-compare-summary -->
+
+::: details Counting the emulated cost of the same fold
+
 <!-- worked:fold-compare -->
 
 Compare this with the cost of Section 2. Every gate in this run worked on values in its own circuit's field, and the point $P$ took $68$ gates on the secondary circuit's wires in $\F_{31}$. Suppose the primary circuit had computed $P$ on its wires in $\F_{43}$ by the method of Section 2. Each Horner line is a 4-bit double-and-add with 3 doublings and 3 additions, which is $3 \cdot 4 + 3 \cdot 3 = 21$ multiplications in $\F_{31}$, followed by one more addition of 3 multiplications, so $24$ in all, at $53$ gates each. Add $3 \cdot 10 = 30$ gates for the selections and $4$ for the bits of $\beta$, and one line costs $24 \cdot 53 + 30 + 4 = 1,306$ gates. The two lines would cost at least $2 \cdot 1,306 = 2,612$ gates.
 
 <!-- /worked:fold-compare -->
+
+:::
 
 The table hides two assumptions. The secondary circuit computed $P$ from the commitments on $E$ and the primary circuit computed $v$ from claims about those same polynomials, but nothing yet connects what the two circuits read. A prover could give each a different set of inputs. The two circuits also used the same $\alpha$, $u$ and $\beta$ only because we typed the same numbers. The book names these problems [input consistency and challenge consistency](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/core/accumulation/pcs.md?plain=1#L160-L173). The next three sections address them.
 
@@ -370,11 +414,17 @@ Let the prover put $15$ in slot 0 of the later part, which is reserved for the s
 
 So a separate check has to show that $r'$ is zero in the stage's slots. In our toy form, the verifier picks a random $z$ and asks for the combination $\sum_{i=0}^{3} z^i r'_i$ over the four reserved slots to be zero. The entries of $r'$ lie in $\F_{31}$, so $z$ does too. This combination is not $r'(z)$, because it leaves out slots 4 to 7. It is the evaluation at $z$ of $r'$ with the non-reserved slots masked out, that is, set to zero. The verifier holds only the commitment $R'$, so it cannot compute this number itself, and the prover has to supply a claim that the number is zero and back it with a proof about the polynomial behind $R'$. The [staging chapter](./staging.md#_5-the-stage-mask) builds that claim as a revdot product of $r'$ with a **stage mask**, which is the form the book [also uses](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/extensions/staging.md?plain=1#L41-L58), and the next step folds it with the other claims on $E'$. Here we treat it as one more claim on $E'$, whose strength comes from how few values of $z$ a cheater can survive. Like $\alpha$, $u$ and $\beta$, the challenge $z$ comes from the primary circuit's transcript, so it has to cross into $\F_{31}$, which is the problem Section 9 solves.
 
+The check is strong because whatever the prover hides in the reserved slots, the combination is a nonzero polynomial in $z$ whose degree is less than the number of reserved slots. Such a polynomial has few roots, so only a few values of $z$ let the hidden entries through. For the single entry above, no value of $z$ does. The box counts the worst case over pairs of slots on the toy field.
+
+::: details Counting the values of $z$ that miss a hidden entry
+
 <!-- worked:stage-mask -->
 
 For the entry above, the combination equals $15$ at every $z$, so all 31 values of $z$ catch it. A prover that puts nonzero entries $d_0$ and $d_1$ in two adjacent reserved slots, 0 and 1, gets $d_0 + d_1 z$, and over all $900$ pairs of nonzero entries no pair vanishes at more than $1$ value of $z$. Other pairs of slots give the prover more room. Slots 0 and 3 give $d_0 + d_3 z^3$, which vanishes when $z^3 = -d_0/d_3$, and since 3 divides $31 - 1 = 30$, a nonzero element of $\F_{31}$ has either no cube root or three. With $d_0 = d_3 = 1$ the combination vanishes at $z = 6, 26, 30$. Over all $6$ pairs of slots, the worst case is $3$ values of $z$. That is the general bound, because whatever the prover puts in the four reserved slots, the combination is a nonzero polynomial in $z$ of degree at most 3, and such a polynomial has at most 3 roots.
 
 <!-- /worked:stage-mask -->
+
+:::
 
 To summarize, each step leaves [two kinds of work](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/nested_commitment.md?plain=1#L92-L96) for the next. It has to check that the partial traces are well formed, and it has to check that the deferred group operations were computed correctly. Both are claims about a circuit that the next step folds like any other, which is why deferring them does not make them pile up.
 
@@ -455,13 +505,17 @@ We can now run the fold for two steps and then add the checks of Sections 7 to 9
 
 The gate counts of the fold do not change between steps, which is the [fixed circuit](./recursive-proofs.md#_6-why-the-circuit-cannot-keep-growing) that recursion requires.
 
-The table also hides when each step's challenges are fixed. Section 9 required the secondary circuit's inputs to be bound before the challenges that test them, so each step's transcript absorbs its nested commitment before it squeezes those challenges, in the same step that folds the commitments behind it:
+The table also hides when each step's challenges are fixed. Section 9 required the secondary circuit's inputs to be bound before the challenges that test them, so each step's transcript absorbs its nested commitment before it squeezes those challenges, in the same step that folds the commitments behind it. Our toy run then replaces the squeezed values with short hand-picked challenges, for the reason Section 9 gave. The box traces this for both steps.
+
+::: details When each step's challenges are fixed
 
 <!-- worked:two-steps-transcript -->
 
 Step 1 folds $A = C_0 = (27,\,30)$ and $B = C_1 = (6,\,23)$ on $E$, so its sponge absorbs $\mathring{A} = (12,\,12)$ from Section 7 and squeezes $2$, and only after that does it produce $\alpha$, $u$ and $\beta$. Step 1's primary circuit replays this hash in gates, so the challenges it uses are tied to $\mathring{A}$. A real run would take the challenges from this sponge state, and our toy run replaces them with the hand-picked $11, 13, 15$ to keep them short. Step 2 does the same with its own inputs. Its points on $E$ are the accumulator's $(17,\,24)$ and the new claim's $(11,\,1)$, whose coordinates $(17, 24, 11, 1)$ commit on $G'_0$ to $G'_3$ to $(34,\,40)$. The sponge absorbs that point and squeezes $38$, and the step-2 challenges $6, 10, 9$ stand in for values derived from it.
 
 <!-- /worked:two-steps-transcript -->
+
+:::
 
 The table leaves out the checks that step 2 makes on step 1's secondary circuit. Our stand-in traces have only four wires, which is too few to hold a stage, so for these checks we take step 1's secondary circuit to be the staged trace of Section 8, with the challenge stage of Section 9. The primary circuit of step 2 then runs the following:
 
@@ -504,7 +558,7 @@ We tried every wrong output for the addition of $A$ and $B$ with every possible 
 
 <!-- /worked:gates-exact -->
 
-**Different data for each circuit.** Section 8 showed that the sum check catches a prover who uses other coordinates in a trace, and that the overlap check catches a prover who hides a change in a reserved slot. Changing $\mathring{A}$ itself to match would change the transcript and therefore every later challenge. So the prover has to commit to the secondary circuit's inputs before it learns the challenges, as in [chapter 03's discussion of omitted data](./statements-and-challenges.md#_9-omitting-data-from-the-transcript).
+**Different data for each circuit.** Section 8 showed that the sum check catches a prover who uses other coordinates in a trace, and that the overlap check catches a prover who hides a change in a reserved slot. Changing $\mathring{A}$ itself to match would change the transcript and therefore every later challenge. So the prover has to commit to the secondary circuit's inputs before it learns the challenges, as in [chapter 03's discussion of omitted data](./statements-and-challenges.md#_8-omitting-data-from-the-transcript).
 
 **Different challenges for each circuit.** Section 9 showed that the primary circuit recomputes the challenge stage's commitment on $E'$ from its own transcript, so the secondary circuit cannot use any other values without a commitment mismatch. That comparison sees each challenge only modulo the size of $\F_{31}$, as the example with $\beta = 38$ showed, so on the toy cycle the shortness of the challenges is part of this defence. On Pasta every challenge already fits in $\F_q$, and the comparison alone suffices.
 

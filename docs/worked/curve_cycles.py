@@ -336,6 +336,9 @@ def main():
         f'Here $a = {lam}$ and $b = {dx}$. Each row satisfies its equation and the last carry is 0. The gates are ${LIMBS * LIMBS}$ for the products $a_i b_j$, ${2 * LIMBS}$ to show that the bits of $r$ and $t$ are bits, and ${(2 * LIMBS - 1) * CARRY_BITS}$ for the ${2 * LIMBS - 1}$ carries at ${CARRY_BITS}$ bits each, '
         f'since an honest carry always lies between ${CARRY_LOW}$ and ${CARRY_HIGH}$. That is ${EMUL_MUL}$ gates for one multiplication in $\\F_{{31}}$. '
         f'We ran the check on all ${P}^2$ pairs $(a, b)$ against all ${2 ** LIMBS}^2$ pairs $(r, t)$. It accepted ${accepted}$ inputs, one for each pair $(a, b)$, and each of them had the true remainder.')
+    frag['emul-summary'] = (
+        f'Checked this way, one multiplication in $\\F_{{31}}$ costs ${EMUL_MUL}$ gates in the circuit over $\\F_{{43}}$, where a native multiplication costs one. '
+        f'We ran the check on every input, and it accepted only true remainders.')
 
     # A double-and-add step per lower bit: 4 + 3 emulated multiplications, 2 selects over limbs.
     b6 = 6
@@ -352,6 +355,9 @@ def main():
         f'The total is ${mults * EMUL_MUL:,} + {sel6} + {b6} = {emul6:,}$ gates, where the same operation on $E\'$ costs ${plain_scalar_gates(b6)}$ gates in the [recursive proofs chapter](./recursive-proofs.md#point-operations). '
         f'As in that chapter, the {plain_scalar_gates(b6)} gates keep the {b6}-bit width of $\\F_{{43}}$ as a stand-in, since the scalars of $E\'$ itself have only {LIMBS} bits. '
         f'Our count also leaves out the extra work to reduce the sums and differences in each formula back into range.')
+    frag['emul-toy-summary'] = (
+        f'A 6-bit scalar multiplication on $E$, built from these emulated multiplications, costs ${emul6:,}$ gates in the circuit over $\\F_{{43}}$. '
+        f'The same operation on $E\'$, whose coordinates are native to that circuit, costs ${plain_scalar_gates(b6)}$ gates in the [recursive proofs chapter](./recursive-proofs.md#point-operations).')
 
     w_limb, n_limb = 64, 4
     assert w_limb * n_limb >= 255
@@ -587,6 +593,8 @@ def main():
         f'Suppose the primary circuit had computed $P$ on its wires in $\\F_{{43}}$ by the method of Section 2. Each Horner line is a 4-bit double-and-add with 3 doublings and 3 additions, which is $3 \\cdot 4 + 3 \\cdot 3 = {mults4}$ multiplications in $\\F_{{31}}$, followed by one more addition of 3 multiplications, so ${line_mults}$ in all, at ${EMUL_MUL}$ gates each. '
         f'Add $3 \\cdot {2 * LIMBS} = {3 * 2 * LIMBS}$ gates for the selections and $4$ for the bits of $\\beta$, and one line costs ${line_mults} \\cdot {EMUL_MUL} + {3 * 2 * LIMBS} + 4 = {line_emul:,}$ gates. '
         f'The two lines would cost at least ${steps} \\cdot {line_emul:,} = {emul_p:,}$ gates.')
+    frag['fold-compare-summary'] = (
+        f'Every gate in this run worked on values in its own circuit\'s field. The point $P$ took ${native_p}$ gates on the secondary circuit\'s wires, and computing it on the primary circuit\'s wires by the method of Section 2 would take at least ${emul_p:,}$.')
 
     # ---- Section 7: nested commitment ----
     A, B_ = C0, C1

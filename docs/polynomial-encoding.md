@@ -6,7 +6,7 @@ There are two routes, and we take them in order. The first is the **quadratic ar
 
 ## 1. What polynomials provide
 
-Suppose two polynomials of degree at most $d$ differ. Their difference is a nonzero polynomial of degree at most $d$, so it has at most $d$ roots, and the two polynomials agree on at most $d$ points. This is the one-variable case of the Schwartz–Zippel lemma from [Statements and Challenges](./statements-and-challenges.md#_5-testing-polynomials-at-a-random-point). So a check at one random point says something about every coefficient at once, and a verifier can learn whether two large polynomials are equal without reading either of them.
+Suppose two polynomials of degree at most $d$ differ. Their difference is a nonzero polynomial of degree at most $d$, so it has at most $d$ roots, and the two polynomials agree on at most $d$ points. This is the one-variable case of the Schwartz–Zippel lemma from [Statements and Challenges](./statements-and-challenges.md#testing-at-a-random-point). So a check at one random point says something about every coefficient at once, and a verifier can learn whether two large polynomials are equal without reading either of them.
 
 To use this fact, we have to express "all the constraints hold" as an equality of polynomials. Each route does this differently. A QAP assigns each constraint row to its own point of the field, so a true statement makes a polynomial vanish at all of those points. Ragu has already merged its constraints into one scalar equation, so it only has to place that scalar where a verifier can reach it.
 
@@ -52,11 +52,15 @@ $$A_\ell(\rho_i) = A_{i\ell} \quad \text{for every row } i.$$
 
 The polynomials $B_\ell$ and $C_\ell$ come from the columns of $B$ and $C$ in the same way. Since $m$ points determine a unique polynomial of degree at most $m - 1$, these polynomials exist and depend only on the circuit.
 
-To construct them, we first build a polynomial for each domain point that equals 1 at that point and 0 at the others. A product of factors $(X - \rho_j)$ over all $j \neq i$ is zero at every other point, and dividing by its value at $\rho_i$ scales it to 1 there:
+To construct them, we first build a polynomial $L_i(X)$ for each domain point $\rho_i$ that equals 1 at that point and 0 at the others. These are the **Lagrange basis polynomials** for $D$. A column is then a sum of basis polynomials, each weighted by that column's entry for the row. For example, the column $(0, 0, 5)$ of $A$ becomes $5L_2(X)$, which is 0 at the points 1 and 2 and 5 at the point 3. The box below gives the formula for $L_i$ and works out the three basis polynomials of our domain.
+
+::: details Building the Lagrange basis
+
+A product of factors $(X - \rho_j)$ over all $j \neq i$ is zero at every other point, and dividing by its value at $\rho_i$ scales it to 1 there:
 
 $$L_i(X) = \prod_{j \neq i} \frac{X - \rho_j}{\rho_i - \rho_j}.$$
 
-These are the **Lagrange basis polynomials** for $D$. For our domain they are
+For our domain these are
 
 <!-- worked:lagrange -->
 
@@ -74,7 +78,11 @@ Any column can now be written as a sum of basis polynomials, each weighted by th
 
 $$A_\ell(X) = \sum_{i=0}^{m-1} A_{i\ell}\, L_i(X).$$
 
-At $X = \rho_i$ only the term with $L_i$ survives, which gives $A_{i\ell}$ as required. The nonzero columns of our three matrices produce the following polynomials, and every column not listed is all zeros and gives the zero polynomial.
+At $X = \rho_i$ only the term with $L_i$ survives, which gives $A_{i\ell}$ as required.
+
+:::
+
+The nonzero columns of our three matrices produce the following polynomials, and every column not listed is all zeros and gives the zero polynomial.
 
 <!-- worked:columns -->
 
@@ -144,7 +152,9 @@ With $m = 3$ rows, the degree of $P$ is at most 4, and multiplying and subtracti
 
 <!-- /worked:p-poly -->
 
-The next step divides $P$ by $V$.
+The next step divides $P$ by $V$. The division is exact, so the quotient exists, and it has degree $m - 2$, as predicted. The box shows the long division.
+
+::: details Long division by V(X)
 
 <!-- worked:division -->
 
@@ -159,11 +169,19 @@ The last column ends at 0, so the division is exact and $h(X) = 37 + 33X$, which
 
 <!-- /worked:division -->
 
+:::
+
 ## 6. Testing the identity at one point
 
 The equation $P(X) = h(X)V(X)$ is now an equality of polynomials, so Section 1 applies. In oracle form, the prover sends oracles for $A$, $B$ and $C$ with degree bound $m - 1$, and an oracle for $h$ with degree bound $m - 2$. The verifier then picks a random $\tau$, queries the four oracles at $\tau$, computes $V(\tau)$ itself because $V$ is public, and compares $A(\tau)B(\tau) - C(\tau)$ with $h(\tau)V(\tau)$.
 
-The degree bounds limit how often a false identity can pass. The left side has degree at most $(m-1) + (m-1) = 2(m-1)$, and the right side has degree at most $(m - 2) + m = 2(m-1)$. So if the two sides are different polynomials, their difference has degree at most $2(m - 1)$, and they agree on at most that many points. The chance that a false identity passes at a random $\tau$ is at most $2(m - 1)/|\F_q|$.
+The degree bounds limit how often a false identity can pass. Both sides have degree at most $2(m-1)$, so two different sides agree on at most that many points, and the chance that a false identity passes at a random $\tau$ is at most $2(m - 1)/|\F_q|$.
+
+::: details The degree count
+
+The left side has degree at most $(m-1) + (m-1) = 2(m-1)$, because $A$ and $B$ each have degree at most $m - 1$ and $C$ has lower degree than their product. The right side has degree at most $(m - 2) + m = 2(m-1)$, from the bound on $h$ and the degree of $V$. So if the two sides are different polynomials, their difference has degree at most $2(m - 1)$, and it has at most that many roots.
+
+:::
 
 <!-- worked:qap-test -->
 
@@ -209,13 +227,19 @@ The table covers all $43^2 = 1849$ candidate polynomials $h$ of degree at most 1
 
 <!-- /worked:guess-h -->
 
-The degree bound explains the maximum. A guess passes at $\tau$ exactly when $P'(\tau) - h(\tau)V(\tau) = 0$, so the passing points are roots of $P' - hV$. This polynomial is nonzero, because $P'$ is not a multiple of $V$, and the degree bounds limit its degree.
+The degree bound explains the maximum. A guess passes at $\tau$ exactly when $\tau$ is a root of the nonzero polynomial $P' - hV$, and the degree bounds limit how many roots that polynomial can have. Part of that budget is always used up inside the domain, which leaves the small number of passing points seen in the table. The box counts the roots.
+
+::: details Counting the passing points
+
+A guess passes at $\tau$ exactly when $P'(\tau) - h(\tau)V(\tau) = 0$, so the passing points are roots of $P' - hV$. This polynomial is nonzero, because $P'$ is not a multiple of $V$, and the degree bounds limit its degree.
 
 <!-- worked:guess-h-bound -->
 
 Here $P'$ has degree 4 and $hV$ has degree at most 4, so $P' - hV$ has degree at most 4 and at most 4 roots. Some of those roots are always spent inside the domain. Since $P'(1) = P'(2) = 0$ and every multiple of $V$ is also zero at 1 and 2, the difference has the 2 roots 1 and 2 inside $D$, whatever $h$ the prover chooses. That leaves at most $4 - 2 = 2$ roots among the points outside the domain, which is the maximum in the table.
 
 <!-- /worked:guess-h-bound -->
+
+:::
 
 This argument only works if the oracles are fixed before the verifier picks $\tau$, and the next example shows what happens otherwise.
 
@@ -261,7 +285,13 @@ For a circuit of $m = 2^{16} = 65,536$ rows, $P(X)$ has degree up to $2(m-1) = 1
 
 <!-- /worked:scale -->
 
-Groth16 provers avoid the larger domain by working on a shifted copy $gD$ of the domain, for some $g$ outside $D$. When $D$ is the set of $m$-th roots of unity, $V(X) = X^m - 1$ takes the same nonzero value $g^m - 1$ at every point of $gD$, so the prover can get $h$ at each of those points by dividing the value of $P$ there by that constant. The quotient has degree below $m$, so its $m$ values determine it, and every FFT stays at size $m$. The prover still runs several FFTs, over a field with the required roots of unity.
+Groth16 provers avoid the larger domain by working on a shifted copy of the domain, where $V$ takes the same nonzero value at every point. Dividing by that one constant gives the quotient's values directly, so every FFT stays at size $m$. The prover still runs several FFTs, over a field with the required roots of unity.
+
+::: details How the shifted domain avoids the larger FFT
+
+The shifted copy is $gD$, for some $g$ outside $D$. When $D$ is the set of $m$-th roots of unity, $V(X) = X^m - 1$ takes the same nonzero value $g^m - 1$ at every point of $gD$, so the prover can get $h$ at each of those points by dividing the value of $P$ there by that constant. The quotient has degree below $m$, so its $m$ values determine it, and every FFT stays at size $m$.
+
+:::
 
 **The setup requires trust.** Anyone who learns $\tau$ or the other secret values can forge proofs, as Section 7 showed on a small scale. Groth16 also ties its setup to one circuit, because the ceremony publishes points built from that circuit's column polynomials, so a new circuit needs a new ceremony. Ragu's [overview](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/index.md) sets out to avoid a trusted setup altogether.
 
@@ -285,18 +315,20 @@ $$r(X) = \sum_{i=0}^{n-1} \big( c_i X^i + a_i X^{2n-1-i} + b_i X^{2n+i} \big).$$
 
 The dilated vector $\v{r} \circ \v{z^{4n}}$ multiplies coefficient $k$ by $z^k$, which is the effect of substituting $zX$ for $X$, because $r_k (zX)^k = (r_k z^k) X^k$. So the dilated vector is the coefficient vector of $r(zX)$, and no new data is involved.
 
-The public vectors $\v{s}$ and $\v{t}$ depend on the challenges, and the circuit is fixed before the challenges exist. We therefore describe them with polynomials in two variables, and substitute a challenge for the second variable once it is known.
+The public vectors $\v{s}$ and $\v{t}$ depend on the challenges, and the circuit is fixed before the challenges exist. We therefore describe them with polynomials in two variables, the **wiring polynomial** $s(X, Y)$ and the **gate polynomial** $t(X, Z)$, and substitute a challenge for the second variable once it is known. The vector $\v{s}$ is the coefficient vector of $s(X, y)$, and $\v{t}$ is the coefficient vector of $t(X, z)$. Each coefficient of a constraint or gate sits at the partner of its wire's position in $r(X)$, where two powers of $X$ are partners when their exponents add up to $4n - 1$. On the right side of the equation, the **public input polynomial** $k(Y) = \sum_j k_j Y^j$ gives $\dot{\v{k}}{\v{y^{4n}}} = k(y)$. The box below writes out $s$ and $t$ in full.
 
-The entries of these vectors come from Sections 10 and 11 of the arithmetization chapter. Recall from [Section 4 of that chapter](./arithmetization.md#_4-linear-constraints) that $u_{j,i}$, $v_{j,i}$ and $w_{j,i}$ are the coefficients of $a_i$, $b_i$ and $c_i$ in linear constraint $j$ (these $w_{j,i}$ carry two indices and are unrelated to the R1CS vector $\v{w}$). Each coefficient goes at the partner of its wire's position in $r$, and two positions are partners when they add up to $4n - 1$. The wire $a_i$ sits at $X^{2n-1-i}$, so its partner is $X^{4n-1-(2n-1-i)} = X^{2n+i}$. In the same way, $b_i$ at $X^{2n+i}$ has its partner at $X^{2n-1-i}$, and $c_i$ at $X^i$ has its partner at $X^{4n-1-i}$. Weighting constraint $j$ by $Y^j$ and the gate terms by powers of $Z$ as in that chapter gives the **wiring polynomial** and the **gate polynomial**:
+::: details The formulas for s(X, Y) and t(X, Z)
+
+The entries of these vectors come from Sections 10 and 11 of the arithmetization chapter. Recall from [Section 4 of that chapter](./arithmetization.md#_4-linear-constraints) that $u_{j,i}$, $v_{j,i}$ and $w_{j,i}$ are the coefficients of $a_i$, $b_i$ and $c_i$ in linear constraint $j$ (these $w_{j,i}$ carry two indices and are unrelated to the R1CS vector $\v{w}$). The wire $a_i$ sits at $X^{2n-1-i}$, so its partner is $X^{4n-1-(2n-1-i)} = X^{2n+i}$. In the same way, $b_i$ at $X^{2n+i}$ has its partner at $X^{2n-1-i}$, and $c_i$ at $X^i$ has its partner at $X^{4n-1-i}$. Weighting constraint $j$ by $Y^j$ and the gate terms by powers of $Z$ as in that chapter gives the wiring polynomial and the gate polynomial:
 
 $$s(X, Y) = \sum_{j=0}^{4n-1} Y^j \sum_{i=0}^{n-1} \big( u_{j,i} X^{2n+i} + v_{j,i} X^{2n-1-i} + w_{j,i} X^{4n-1-i} \big),$$
 
 $$t(X, Z) = -\sum_{i=0}^{n-1} \big( Z^{2n-1-i} + Z^{2n+i} \big) X^{4n-1-i}.$$
 
-The vector $\v{s}$ is the coefficient vector of $s(X, y)$, and $\v{t}$ is the coefficient vector of $t(X, z)$. On the right side of the equation, the **public input polynomial** $k(Y) = \sum_j k_j Y^j$ gives $\dot{\v{k}}{\v{y^{4n}}} = k(y)$.
+:::
 
 ::: warning The Ragu Book's NARK chapter uses the other layout
-The NARK chapter writes $r(X) = \sum_i (c_i X^i + b_i X^{2n-1-i} + a_i X^{2n+i})$ and puts $u_{j,i}$ at $X^{2n-1-i}$ and $v_{j,i}$ at $X^{2n+i}$ in $s(X, Y)$. The [wiring code](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/wiring/mod.rs#L13-L22) at commit `3219e08` puts the coefficients of the $a$ wires at $X^{2n+i}$ in $s(X, Y)$, as above. The two forms differ only by swapping the names $\v{a}$ and $\v{b}$. This site follows the code, as the arithmetization chapter did.
+The NARK chapter writes $r(X) = \sum_i (c_i X^i + b_i X^{2n-1-i} + a_i X^{2n+i})$ and puts $u_{j,i}$ at $X^{2n-1-i}$ and $v_{j,i}$ at $X^{2n+i}$ in $s(X, Y)$. The [wiring code](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/wiring/mod.rs#L13-L22) at commit `3219e08` puts the coefficients of the $a$ wires at $X^{2n+i}$ in $s(X, Y)$, as in the box above. The two forms differ only by swapping the names $\v{a}$ and $\v{b}$. This site follows the code, as the arithmetization chapter did.
 :::
 
 Now collect the second factor into one polynomial,
@@ -323,13 +355,17 @@ The vector for $f(X)$ is the combined right vector from Section 12 of the arithm
 
 <!-- /worked:right-factor -->
 
-Each entry of the middle three rows comes from the formulas above. Here is one entry from each row:
+Each entry of the middle three rows comes from the formulas for $r$, $s$ and $t$. The box traces one entry from each row back to its source.
+
+::: details Where three of the coefficients come from
 
 <!-- worked:coefficient-sources -->
 
 For $r(5X)$, the coefficient of $X^1$ is $r_1 \cdot 5 = 27 \cdot 5 = 135 = 6$ modulo 43. For $t(X, 5)$, the coefficient of $X^7$ belongs to $i = 0$, the partner of $c_0$, and equals $-(5^3 + 5^4) = -750 = 24$ modulo 43. For $s(X, 7)$, the wire $a_0$ sits at $X^3$ in $r$, so its partner is $X^4$, and the coefficient of $X^4$ collects $u_{j,0} 7^j$ from every constraint $j$ that uses $a_0$. Constraints 0, 2 and 3 use it with coefficients $1$, $-1$ and $1$, which gives $1 - 7^2 + 7^3 = 295 = 37$ modulo 43.
 
 <!-- /worked:coefficient-sources -->
+
+:::
 
 The coefficient of $X^7$ in the product collects every pair of exponents that adds to 7:
 
@@ -382,13 +418,19 @@ The one coefficient of a polynomial that evaluation can reach is the constant te
 
 $$c_1(X) = X^{4n-1}\, c_{\mathrm{lo}}(X^{-1}), \qquad c_2(X) = c_{\mathrm{hi}}(X).$$
 
-To see that this is a reversal, write $c_{\mathrm{lo}}(X) = \sum_{k=0}^{4n-1} \lambda_k X^k$ and multiply through:
+Substituting $X^{-1}$ turns each power $X^k$ into $X^{-k}$, and multiplying by $X^{4n-1}$ shifts it to $X^{4n-1-k}$, so $c_1$ holds the coefficients of $c_{\mathrm{lo}}$ in reverse order. Its constant term is therefore the top coefficient of $c_{\mathrm{lo}}$, and the consolidated equation has become
+
+$$c_1(0) = k(y).$$
+
+::: details The reversal written out
+
+Write $c_{\mathrm{lo}}(X) = \sum_{k=0}^{4n-1} \lambda_k X^k$ and multiply through:
 
 $$c_1(X) = X^{4n-1} \sum_{k=0}^{4n-1} \lambda_k X^{-k} = \sum_{k=0}^{4n-1} \lambda_k X^{4n-1-k}.$$
 
-The coefficient $\lambda_{4n-1}$ is attached to $X^0$, so $c_1(0) = \lambda_{4n-1}$, and the consolidated equation has become
+The coefficient $\lambda_{4n-1}$ is attached to $X^0$, so $c_1(0) = \lambda_{4n-1}$.
 
-$$c_1(0) = k(y).$$
+:::
 
 ![Fifteen cells for the powers X^0 to X^14 of the product. The lower eight cells appear in reverse order as c_1, with X^7 in position 0, and the upper seven appear in the same order as c_2.](./manim/product-split.png)
 
@@ -400,13 +442,19 @@ For our product, $c_{\mathrm{lo}}$ has coefficients $(38, 39, 0, 9, 18, 29, 14, 
 
 The notation is close to the wires of the arithmetization chapter, but the meaning is different. The polynomials $c_1(X)$ and $c_2(X)$ are unrelated to the wire values $c_0, c_1, \ldots$, and we will always write the polynomials with their argument. The wires now appear only inside $r(X)$.
 
-The verifier also needs a way to know that $c_1$ and $c_2$ really came from the product. Since reversing twice restores the original, we can recover the lower half from $c_1$ by substituting $X^{-1}$ into its definition and multiplying by $X^{4n-1}$:
+The verifier also needs a way to know that $c_1$ and $c_2$ really came from the product. Reversing twice restores the original, so $X^{4n-1} c_1(X^{-1})$ is the lower half $c_{\mathrm{lo}}(X)$ again. Putting this back into the cut gives one equation that ties the two new polynomials to the product:
+
+$$r(X)f(X) = X^{4n-1} c_1(X^{-1}) + X^{4n} c_2(X).$$
+
+::: details Undoing the reversal
+
+Substitute $X^{-1}$ into the definition of $c_1$ and multiply by $X^{4n-1}$:
 
 $$X^{4n-1} c_1(X^{-1}) = X^{4n-1} \cdot X^{-(4n-1)}\, c_{\mathrm{lo}}(X) = c_{\mathrm{lo}}(X).$$
 
-Substituting this into the cut gives one equation that ties the two new polynomials to the product:
+Replacing $c_{\mathrm{lo}}(X)$ in the cut $r(X)f(X) = c_{\mathrm{lo}}(X) + X^{4n} c_{\mathrm{hi}}(X)$ with this expression, and $c_{\mathrm{hi}}$ with $c_2$, gives the equation above.
 
-$$r(X)f(X) = X^{4n-1} c_1(X^{-1}) + X^{4n} c_2(X).$$
+:::
 
 The verifier has to evaluate this at a nonzero point $x$, since it uses $X^{-1}$.
 
@@ -472,7 +520,7 @@ Both checks pass. Repeating step 11 at all 42 nonzero values of $x$ shows that t
 
 ## 15. Why cheating fails
 
-The argument assumes that oracles are fixed when sent and respect their degree bound, and that the challenges are uniform and arrive after the messages they test. The commitments of the next chapter provide the first assumption. They rely on the discrete log relation assumption, which the next chapter states and which says roughly that nobody can find a nontrivial linear relation among the public curve points. [Fiat–Shamir](./statements-and-challenges.md#_8-removing-the-verifier-with-fiat–shamir) provides the second in a non-interactive proof, treating its hash as a random oracle. Inside this model, the argument only counts roots of polynomials.
+The argument assumes that oracles are fixed when sent and respect their degree bound, and that the challenges are uniform and arrive after the messages they test. The commitments of the next chapter provide the first assumption. They rely on the discrete log relation assumption, which the next chapter states and which says roughly that nobody can find a nontrivial linear relation among the public curve points. [Fiat–Shamir](./statements-and-challenges.md#_7-removing-the-verifier-with-fiat–shamir) provides the second in a non-interactive proof, treating its hash as a random oracle. Inside this model, the argument only counts roots of polynomials.
 
 A prover with a false witness has to send some $r'(X)$ before seeing $z$ and $y$. The arithmetization chapter showed that a random pair $(z, y)$ rarely makes the true coefficient equal to $k(y)$.
 
@@ -490,9 +538,15 @@ Take the false witness with secret input 4 from Section 7, so $r'(X) = 16 + 21X 
 
 <!-- /worked:cheat-naive -->
 
-This lie is the easiest to catch, since the error sits on one power of $X$. Any polynomials $c_1$ and $c_2$ that pass the target check must describe a polynomial other than $r'(X)f'(X)$, because they disagree with it on the coefficient of $X^{4n-1}$. To see this, look at the right side of the split check, $X^{4n-1}c_1(X^{-1}) + X^{4n}c_2(X)$. The term with $c_2$ starts at $X^{4n}$, so the coefficient of $X^{4n-1}$ comes only from the first term, and Section 12 showed that this coefficient is $c_1(0)$. The target check forces $c_1(0) = k(y)$, while the true coefficient in $r'(X)f'(X)$ differs from $k(y)$. Whatever they are, the two sides of the split check form a nonzero polynomial difference, so the prover's best option is to give that difference as many roots as possible.
+This lie is the easiest to catch, since the error sits on one power of $X$. A cleverer prover still cannot make the split check an identity. In the right side of the split check, only the reversed $c_1$ contributes to the coefficient of $X^{4n-1}$, and that coefficient is $c_1(0)$. The target check forces $c_1(0) = k(y)$, while the true coefficient in $r'(X)f'(X)$ differs from $k(y)$. So whatever $c_1$ and $c_2$ the prover sends, the two sides of the split check are different polynomials, and the prover's best option is to give their difference as many roots as possible. The degree bounds of Section 13 cap that number at $8n - 1$, which the box below derives.
 
-The degree bounds of Section 13 cap that number. The left side $r'(x)f'(x)$ has degree at most $8n - 2$. On the right side, $c_1$ has degree at most $4n - 1$, so $x^{4n-1}c_1(x^{-1})$ is a polynomial of degree at most $4n - 1$, and $x^{4n}c_2(x)$ has degree at most $4n + (4n - 1) = 8n - 1$. The honest $c_2$ uses only $4n - 1$ coefficients, but its oracle has room for $4n$, so a cheater can fill the last one. The difference therefore has degree at most $8n - 1$, and it can have at most that many roots.
+::: details Where the coefficient and the degree cap come from
+
+The right side of the split check is $X^{4n-1}c_1(X^{-1}) + X^{4n}c_2(X)$. The term with $c_2$ starts at $X^{4n}$, so the coefficient of $X^{4n-1}$ comes only from the first term, and Section 12 showed that this coefficient is $c_1(0)$.
+
+The degree bounds cap the number of roots of the difference. The left side $r'(x)f'(x)$ has degree at most $8n - 2$. On the right side, $c_1$ has degree at most $4n - 1$, so $x^{4n-1}c_1(x^{-1})$ is a polynomial of degree at most $4n - 1$, and $x^{4n}c_2(x)$ has degree at most $4n + (4n - 1) = 8n - 1$. The honest $c_2$ uses only $4n - 1$ coefficients, but its oracle has room for $4n$, so a cheater can fill the last one. The difference therefore has degree at most $8n - 1$, and it can have at most that many roots.
+
+:::
 
 <!-- worked:cheat-best -->
 

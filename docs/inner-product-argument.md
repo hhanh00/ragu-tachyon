@@ -83,17 +83,25 @@ The prover could make this correction because it knew the weight on $R$ before i
 
 ## 3. Choosing the weights
 
-The weights must not disturb the two terms that make up the original commitment. Suppose we scale the upper half of $\v{a}$ by a scalar $\alpha$ and the upper half of $\v{G}$ by a scalar $\beta$. Expanding as before gives
-
-$$\dot{\v{a}_{lo} + \alpha \v{a}_{hi}}{\v{G}_{lo} + \beta \v{G}_{hi}} = \dot{\v{a}_{lo}}{\v{G}_{lo}} + \alpha\beta\,\dot{\v{a}_{hi}}{\v{G}_{hi}} + \alpha\,\dot{\v{a}_{hi}}{\v{G}_{lo}} + \beta\,\dot{\v{a}_{lo}}{\v{G}_{hi}}.$$
-
-For the second term to keep weight 1 we need $\alpha\beta = 1$, so $\alpha$ and $\beta$ must be inverses of each other. This is why inverses of the challenge appear throughout the argument. One half of the pair goes on the scalars and the other goes on the generators, and they cancel exactly on the terms we want to keep.
+The weights must not disturb the two terms that make up the original commitment. Suppose we scale the upper half of $\v{a}$ by a scalar $\alpha$ and the upper half of $\v{G}$ by a scalar $\beta$. The term $\dot{\v{a}_{hi}}{\v{G}_{hi}}$ then picks up both scalars, while the lower term picks up neither. Here is what happens with two choices of weights on the vector $\v{d}$:
 
 <!-- worked:weights -->
 
 Take the weight $3$, whose inverse modulo 43 is $29$. Scaling both high halves by $3$ gives $(26,\,8)$. Removing the cross pieces, each of which carries weight $3$, leaves $(17,\,7)$, which is $\dot{\v{d}_{lo}}{\v{G}_{lo}} + 9\dot{\v{d}_{hi}}{\v{G}_{hi}}$ and not $C_d$. Scaling $\v{d}_{hi}$ by $29$ and $\v{G}_{hi}$ by $3$ gives $(4,\,6)$. Removing the cross pieces, which now carry weights $29$ and $3$, leaves $(6,\,23) = C_d$.
 
 <!-- /worked:weights -->
+
+The first choice fails because the upper term picks up the product of the two weights, which is the square of the weight. The second works because the two weights are inverses, so their product is 1. In general the upper term keeps weight 1 exactly when $\alpha\beta = 1$, so $\alpha$ and $\beta$ must be inverses of each other. This is why inverses of the challenge appear throughout the argument. One half of the pair goes on the scalars and the other goes on the generators, and they cancel exactly on the terms we want to keep. The box below shows the general expansion.
+
+::: details The expansion with weights $\alpha$ and $\beta$
+
+Expanding as in Section 2 gives
+
+$$\dot{\v{a}_{lo} + \alpha \v{a}_{hi}}{\v{G}_{lo} + \beta \v{G}_{hi}} = \dot{\v{a}_{lo}}{\v{G}_{lo}} + \alpha\beta\,\dot{\v{a}_{hi}}{\v{G}_{hi}} + \alpha\,\dot{\v{a}_{hi}}{\v{G}_{lo}} + \beta\,\dot{\v{a}_{lo}}{\v{G}_{hi}}.$$
+
+For the second term to keep weight 1 we need $\alpha\beta = 1$. The last two terms are the cross terms, now carrying weights $\alpha$ and $\beta$.
+
+:::
 
 The scale of each half is also free, as long as the product over a matching pair of halves stays 1. Like Bulletproofs and the Ragu Book, this chapter spreads a challenge $u$ over both halves, with weights $u, u^{-1}$ on the scalars and $u^{-1}, u$ on the generators. We use this symmetric form because the book uses it and because the polynomial $g(X)$ of Section 8, which later chapters rely on, comes from it. Section 9 returns to the one-sided form, which is what Ragu's code runs.
 
@@ -109,7 +117,19 @@ $$
 \end{aligned}
 $$
 
-We now find the point that these three vectors commit to. Expanding the first inner product term by term gives
+We now find the point $P' = \dot{\v{a}'}{\v{G}'} + \dot{\v{a}'}{\v{b}'} \cdot U$ that these three vectors commit to. Expanding both inner products leaves the original $P$ untouched, because the diagonal terms carry $u \cdot u^{-1} = 1$, and adds the two cross pieces with weights $u^{2}$ and $u^{-2}$:
+
+![A two by two grid showing how the four inner products of a folding round sort into the diagonal, which keeps weight one, and two off-diagonal cross terms.](./manim/ipa-folding-grid.png)
+
+The cross pieces of the commitment and of the value group into exactly the points $L$ and $R$ that Section 2 defined, with $L$ collecting the pieces that carry $u^{-2}$ and $R$ those that carry $u^{2}$. This gives the update rule for the statement point:
+
+$$P' = P + u^{-2} \cdot L + u^{2} \cdot R.$$
+
+The box below carries out the expansion term by term.
+
+::: details The full expansion of one round
+
+Expanding the first inner product term by term gives
 
 $$
 \begin{aligned}
@@ -123,8 +143,6 @@ The scalar inner product expands in exactly the same way, because $\v{b}'$ has t
 
 $$\dot{\v{a}'}{\v{b}'} = \dot{\v{a}}{\v{b}} + u^{2}\dot{\v{a}_{lo}}{\v{b}_{hi}} + u^{-2}\dot{\v{a}_{hi}}{\v{b}_{lo}}.$$
 
-![A two by two grid showing how the four inner products of a folding round sort into the diagonal, which keeps weight one, and two off-diagonal cross terms.](./manim/ipa-folding-grid.png)
-
 Next we form the point $P' = \dot{\v{a}'}{\v{G}'} + \dot{\v{a}'}{\v{b}'} \cdot U$ by adding the first expansion to $U$ times the second, and we collect terms by their power of $u$:
 
 $$
@@ -135,18 +153,9 @@ P' &= \dot{\v{a}}{\v{G}} + \dot{\v{a}}{\v{b}} \cdot U \\
 \end{aligned}
 $$
 
-The first line is $P$. The other two brackets are the two points the prover must send, and we name them
+The first line is $P$, and the other two brackets are $L$ and $R$, which gives the update rule.
 
-$$
-\begin{aligned}
-L &= \dot{\v{a}_{hi}}{\v{G}_{lo}} + \dot{\v{a}_{hi}}{\v{b}_{lo}} \cdot U, \\
-R &= \dot{\v{a}_{lo}}{\v{G}_{hi}} + \dot{\v{a}_{lo}}{\v{b}_{hi}} \cdot U.
-\end{aligned}
-$$
-
-This gives the update rule for the statement point:
-
-$$P' = P + u^{-2} \cdot L + u^{2} \cdot R.$$
+:::
 
 The verifier can compute everything on the right once it has $L$ and $R$, and it can fold $\v{G}$ and $\v{b}$ itself because they are public. Only $\v{a}'$ remains in the prover's hands. The result is a new claim with the same shape as the old one, at half the length:
 
@@ -166,7 +175,7 @@ sequenceDiagram
 
 ## 5. A complete run on the toy curve
 
-For $n = 4$ the argument takes $k = \log_2 n = 2$ rounds. We number rounds in the order they happen, write $\v{a}^{(j)}$ for the vector after round $j$, and start from $\v{a}^{(0)} = \v{a}$, $\v{b}^{(0)} = \v{b}$, $\v{G}^{(0)} = \v{G}$ and $P^{(0)} = P$. The challenges below are picked by hand so that the numbers avoid accidental coincidences. Fiat–Shamir, covered in [Statements and Challenges](./statements-and-challenges.md#_8-removing-the-verifier-with-fiat–shamir), would derive them from a transcript in a real proof.
+For $n = 4$ the argument takes $k = \log_2 n = 2$ rounds. We number rounds in the order they happen, write $\v{a}^{(j)}$ for the vector after round $j$, and start from $\v{a}^{(0)} = \v{a}$, $\v{b}^{(0)} = \v{b}$, $\v{G}^{(0)} = \v{G}$ and $P^{(0)} = P$. The challenges below are picked by hand so that the numbers avoid accidental coincidences. Fiat–Shamir, covered in [Statements and Challenges](./statements-and-challenges.md#_7-removing-the-verifier-with-fiat–shamir), would derive them from a transcript in a real proof.
 
 ### Round 1
 
@@ -302,7 +311,13 @@ The honest statement point $C + 37 \cdot U$ has coefficients $\v{a} = (7, 2, 5, 
 
 The gap is linear in the point, which means $\text{gap}(X + r \cdot Y) = \text{gap}(X) + r\,\text{gap}(Y)$. It also has simple values on the generators, namely $\text{gap}(G_i) = -b_i$ and $\text{gap}(U) = 1$.
 
-Now look at the right side of the final check. For a folded generator, linearity gives
+Now look at the right side of the final check, $\hat{a} \cdot (\hat{G} + \hat{b} \cdot U)$. Because $\hat{G}$ and $\hat{b}$ are folded with the same weights, the gap of $\hat{G}$ is exactly $-\hat{b}$, and the $\hat{b} \cdot U$ term cancels it. So the right side has gap zero whatever scalar $\hat{a}$ the prover sends. Two equal points have equal coefficients when no relation among the generators is known, so a passing proof needs the left side of the check to have gap zero as well:
+
+$$\text{gap}(P) + \sum_{j=1}^{k} \left(u_j^{-2}\,\text{gap}(L_j) + u_j^{2}\,\text{gap}(R_j)\right) = 0.$$
+
+::: details Why the right side always has gap zero
+
+For a folded generator, linearity gives
 
 $$\text{gap}(u^{-1} \cdot G_i + u \cdot G_{i + n/2}) = -(u^{-1}b_i + u\,b_{i + n/2}) = -b'_i,$$
 
@@ -310,9 +325,9 @@ so each folded generator has the folded entry of $\v{b}$ as its negative gap, an
 
 $$\text{gap}\left(\hat{a} \cdot (\hat{G} + \hat{b} \cdot U)\right) = \hat{a}(-\hat{b} + \hat{b}) = 0$$
 
-for every possible $\hat{a}$. Without any relation among the generators, two equal points have equal coefficients and so equal gaps. A passing proof therefore needs the left side of the check to have gap zero as well:
+for every possible $\hat{a}$.
 
-$$\text{gap}(P) + \sum_{j=1}^{k} \left(u_j^{-2}\,\text{gap}(L_j) + u_j^{2}\,\text{gap}(R_j)\right) = 0.$$
+:::
 
 ### Counting the challenges a cheater can survive
 
@@ -320,9 +335,13 @@ Let $e$ be the gap of the current statement point at the start of some round, an
 
 $$e + w^{-1}\,\text{gap}(L) + w\,\text{gap}(R) = 0.$$
 
-Multiplying by $w$ gives the polynomial equation $\text{gap}(R)\,w^2 + e\,w + \text{gap}(L) = 0$. Its middle coefficient is $e \neq 0$, so the polynomial is not zero, whatever the prover chose. By the [root count from Statements and Challenges](./statements-and-challenges.md#_4-counting-the-roots-of-a-polynomial) it has at most 2 roots $w$, and each root has at most 2 square roots $u$. At most 4 challenges in a round can therefore clear a nonzero gap, and the same bound holds for every vector length.
+Multiplying by $w$ gives the polynomial equation $\text{gap}(R)\,w^2 + e\,w + \text{gap}(L) = 0$. Its middle coefficient is $e \neq 0$, so the polynomial is not zero, whatever the prover chose. By the [root count from Statements and Challenges](./statements-and-challenges.md#_4-counting-roots-and-testing-at-a-random-point) it has at most 2 roots $w$, and each root has at most 2 square roots $u$. At most 4 challenges in a round can therefore clear a nonzero gap, and the same bound holds for every vector length.
 
-The gap argument can look abstract, so we now check it against the final check itself in the smallest case, a vector of length $n = 2$ with one round. The generators are $G_0$ and $G_1$, and the prover may build $P$, $L$ and $R$ from any coefficients it likes:
+The gap argument can look abstract, so we now check it against the final check itself in the smallest case, a vector of length $n = 2$ with one round. Let the prover build $P$, $L$ and $R$ from any coefficients it likes on $G_0$, $G_1$ and $U$. The final check compares two combinations of these three generators, so it splits into three equations, one per generator. The first two equations involve the final scalar $\hat{a}$ and fix it. Eliminating $\hat{a}$ from the third leaves exactly the gap equation $e + w^{-1}\,\text{gap}(L) + w\,\text{gap}(R) = 0$ with $w = u^2$, so whatever $\hat{a}$ the prover sends, a passing challenge must solve it. The box below writes out the three equations and the elimination, and the numbers after it show the bound in action.
+
+::: details The three coefficient equations for $n = 2$
+
+The generators are $G_0$ and $G_1$, and the prover may build $P$, $L$ and $R$ from any coefficients it likes:
 
 $$
 \begin{aligned}
@@ -346,7 +365,11 @@ The prover sends $\hat{a}$ after it sees $u$, so it can pick $\hat{a}$ to satisf
 
 $$(p_U - p_0 b_0 - p_1 b_1) + u^{-2}(l_U - l_0 b_0 - l_1 b_1) + u^{2}(r_U - r_0 b_0 - r_1 b_1) = 0.$$
 
-The three brackets are $\text{gap}(P)$, $\text{gap}(L)$ and $\text{gap}(R)$, so this is the equation $e + w^{-1}\,\text{gap}(L) + w\,\text{gap}(R) = 0$ from above, with $w = u^2$. Whatever $\hat{a}$ the prover sends, a passing challenge must solve it. The $G_0$ and $G_1$ equations must also give the same $\hat{a}$, which can only remove more challenges, so the gap equation is a necessary condition for passing. Here is a numeric case:
+The three brackets are $\text{gap}(P)$, $\text{gap}(L)$ and $\text{gap}(R)$, so this is the equation $e + w^{-1}\,\text{gap}(L) + w\,\text{gap}(R) = 0$ from above, with $w = u^2$. Whatever $\hat{a}$ the prover sends, a passing challenge must solve it. The $G_0$ and $G_1$ equations must also give the same $\hat{a}$, which can only remove more challenges, so the gap equation is a necessary condition for passing.
+
+:::
+
+Here is a numeric case. We write $l_U$ and $r_U$ for the coefficients of $U$ in $L$ and $R$. "The first two equations" are the $G_0$ and $G_1$ equations that fix $\hat{a}$, and "the gap equation" is the $U$ equation after eliminating $\hat{a}$:
 
 <!-- worked:two-entry -->
 
@@ -388,7 +411,7 @@ In this attack $\text{gap}(P) = 1$, $\text{gap}(L_1) = 0$ and $\text{gap}(R_1) =
 
 <!-- /worked:early-gap -->
 
-In a non-interactive proof this ordering becomes a requirement on the transcript. Every $L_j$ and $R_j$ must go into the hash before $u_j$ comes out, for the reason given in [the section on omitted transcript data](./statements-and-challenges.md#_9-omitting-data-from-the-transcript).
+In a non-interactive proof this ordering becomes a requirement on the transcript. Every $L_j$ and $R_j$ must go into the hash before $u_j$ comes out, for the reason given in [the section on omitted transcript data](./statements-and-challenges.md#_8-omitting-data-from-the-transcript).
 
 ### Why the generators must have no known relation
 
@@ -410,24 +433,7 @@ The second limit concerns what "sound" means. The argument shows that a false st
 
 The proof is short, but the verifier still has to compute $\hat{G}$ and $\hat{b}$. Folding $\v{G}$ round by round costs about $n$ scalar multiplications in the first round, $n/2$ in the second, and so on. The verifier can do better by computing the final point in one step, which requires knowing the final weight of each original generator.
 
-For $n = 4$ we can substitute one round into the other. The first round gives
-
-$$\v{G}^{(1)} = \left(u_1^{-1} \cdot G_0 + u_1 \cdot G_2,\quad u_1^{-1} \cdot G_1 + u_1 \cdot G_3\right),$$
-
-and the second round combines those two entries with weights $u_2^{-1}$ and $u_2$:
-
-$$
-\begin{aligned}
-\hat{G} &= u_2^{-1} \cdot (u_1^{-1} \cdot G_0 + u_1 \cdot G_2) + u_2 \cdot (u_1^{-1} \cdot G_1 + u_1 \cdot G_3) \\
-&= u_1^{-1}u_2^{-1} \cdot G_0 + u_1^{-1}u_2 \cdot G_1 + u_1 u_2^{-1} \cdot G_2 + u_1 u_2 \cdot G_3.
-\end{aligned}
-$$
-
-Each generator's weight is a product with one factor per round. Round $j$ contributes $u_j$ if the generator sat in the upper half at that round and $u_j^{-1}$ if it sat in the lower half. Reading the index $i$ in binary, round 1 looks at the highest bit and the last round at the lowest. This defines the vector $\v{s}$ with
-
-$$s_i = \prod_{j=1}^{k} u_j^{\pm 1}, \quad \text{with exponent } +1 \text{ when bit } k - j \text{ of } i \text{ is } 1, \text{ and } -1 \text{ otherwise},$$
-
-and it gives $\hat{G} = \dot{\v{s}}{\v{G}}$. The vector $\v{b}$ folds with the same weights, so $\hat{b} = \dot{\v{s}}{\v{b}}$ for the same $\v{s}$. Here is the table for our run:
+Each generator's final weight is a product with one factor per round. Round $j$ contributes $u_j$ if the generator sat in the upper half at that round and $u_j^{-1}$ if it sat in the lower half. Reading the index $i$ in binary, round 1 looks at the highest bit and the last round at the lowest. Collecting these weights into a vector $\v{s}$ gives $\hat{G} = \dot{\v{s}}{\v{G}}$. The vector $\v{b}$ folds with the same weights, so $\hat{b} = \dot{\v{s}}{\v{b}}$ for the same $\v{s}$. Here is the table for our run:
 
 <!-- worked:s-table -->
 
@@ -441,6 +447,29 @@ and it gives $\hat{G} = \dot{\v{s}}{\v{G}}$. The vector $\v{b}$ folds with the s
 With $(u_1, u_2) = (15, 10)$, the multi-scalar multiplication $\dot{\v{s}}{\v{G}}$ gives $(20,\,25)$, the same point as $\hat{G}$ from the round-by-round folding. The same weights applied to $\v{b}$ give $\dot{\v{s}}{\v{b}} = 19 = \hat{b}$.
 
 <!-- /worked:s-table -->
+
+The box below derives the table's weights by substituting one round into the other, and states the rule for general $k$.
+
+::: details Deriving the weights $\v{s}$
+
+For $n = 4$ we can substitute one round into the other. The first round gives
+
+$$\v{G}^{(1)} = \left(u_1^{-1} \cdot G_0 + u_1 \cdot G_2,\quad u_1^{-1} \cdot G_1 + u_1 \cdot G_3\right),$$
+
+and the second round combines those two entries with weights $u_2^{-1}$ and $u_2$:
+
+$$
+\begin{aligned}
+\hat{G} &= u_2^{-1} \cdot (u_1^{-1} \cdot G_0 + u_1 \cdot G_2) + u_2 \cdot (u_1^{-1} \cdot G_1 + u_1 \cdot G_3) \\
+&= u_1^{-1}u_2^{-1} \cdot G_0 + u_1^{-1}u_2 \cdot G_1 + u_1 u_2^{-1} \cdot G_2 + u_1 u_2 \cdot G_3.
+\end{aligned}
+$$
+
+For general $k$ the same reasoning gives
+
+$$s_i = \prod_{j=1}^{k} u_j^{\pm 1}, \quad \text{with exponent } +1 \text{ when bit } k - j \text{ of } i \text{ is } 1, \text{ and } -1 \text{ otherwise}.$$
+
+:::
 
 Computing $\hat{G}$ this way is one **multi-scalar multiplication** (MSM) with $n$ terms. An MSM of that size is cheaper than folding, because a single MSM can share work across its terms, but its cost still grows linearly with $n$, and no shortcut is available, because the generators are independent points with no structure to exploit.
 
@@ -462,13 +491,19 @@ Round $j$ acts on a vector of length $2^{k-j+1}$, so its factor uses the exponen
 
 $$g(X) = \prod_{j=1}^{k} \left(u_j^{-1} + u_j X^{2^{k-j}}\right),$$
 
-and then $\hat{b} = g(x)$. The coefficients of this polynomial are the entries of $\v{s}$. To see this, expand the product by choosing one term from each factor. Choosing $u_j X^{2^{k-j}}$ adds $2^{k-j}$ to the power of $X$ and contributes $u_j$, while choosing $u_j^{-1}$ adds nothing and contributes $u_j^{-1}$. The coefficient of $X^i$ then comes from the single choice that matches the binary digits of $i$, which is the rule for $s_i$ from Section 7.
+and then $\hat{b} = g(x)$. The coefficients of this polynomial are the entries of $\v{s}$, as the example below shows and the box after it explains.
 
 <!-- worked:g-poly -->
 
 With $(u_1, u_2) = (15, 10)$, the polynomial is $g(X) = (23 + 15X^2)(13 + 10X)$. Multiplying it out gives coefficients $(41, 15, 23, 21)$, which is the $\v{s}$ of the table. At $x = 9$ the first factor is $23 + 15 \cdot 38 = 34$, the second is $13 + 10 \cdot 9 = 17$, and their product is $19 = \hat{b}$.
 
 <!-- /worked:g-poly -->
+
+::: details Why the coefficients of $g$ are the weights $\v{s}$
+
+Expand the product by choosing one term from each factor. Choosing $u_j X^{2^{k-j}}$ adds $2^{k-j}$ to the power of $X$ and contributes $u_j$, while choosing $u_j^{-1}$ adds nothing and contributes $u_j^{-1}$. The coefficient of $X^i$ then comes from the single choice that matches the binary digits of $i$, which is the rule for $s_i$ from Section 7.
+
+:::
 
 Ordering mistakes are easy to make here, so we also check a longer case:
 
@@ -478,7 +513,13 @@ The script behind this chapter repeats the comparison for $k = 3$ with eight gen
 
 <!-- /worked:order-check -->
 
+The Ragu Book numbers the rounds in the opposite order, so its formula for $g(X)$ looks different. The box below lines up the two labellings.
+
+::: details Matching the Ragu Book's round labels
+
 Comparing with the Ragu Book needs one relabelling. The book [indexes rounds downward](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/bulletproofs.md?plain=1#L20), from $j = k$ to $j = 1$, so its $u_1$ is the last challenge, its $\v{G}^{(0)}$ is the final vector, and it [calls the final generator](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/bulletproofs.md?plain=1#L43) $G_0$. This site writes $\hat{G}$ instead, because $G_0$ already names the first public generator. The book's $u_j$ is therefore our $u_{k+1-j}$, and its exponent $2^{k-j}$ becomes $2^{j-1}$, so in the book's labels $g(X) = \prod_j (u_j^{-1} + u_j X^{2^{j-1}})$. The book's [listing of $\v{s}$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/bulletproofs.md?plain=1#L43-L55) matches ours after this relabelling. For $k = 2$ the book's second entry is $u_1 u_2^{-1}$ in its labels. Its $u_1$ is our $u_2$ and its $u_2$ is our $u_1$, so in our labels that entry is $u_1^{-1}u_2$, which is the $s_1$ of the table above.
+
+:::
 
 This also gives a compact statement of the verifier's costs. The expression $\hat{G} = \dot{\v{s}}{\v{G}}$ says that $\hat{G}$ is the Pedersen commitment to $g$, whose coefficient vector is $\v{s}$:
 
@@ -503,7 +544,7 @@ The remaining sections compare the form above with Ragu's implementation, which 
 The Ragu Book and the code differ here, and everything we say about the code in Sections 9 to 12 is our reading of it. The [book](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/prelim/bulletproofs.md?plain=1#L24-L31) uses the symmetric weights $u, u^{-1}$ of Section 4. The [prover code](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/ipa/prover.rs#L132-L141) uses the one-sided weights below. This site teaches the symmetric form because the book uses it and because the $g(X)$ of later chapters comes from it. Where the question is what Ragu actually runs, the site follows the code.
 :::
 
-Section 3 showed that only the product of the two weights on a matching pair of halves is fixed, at 1, so the scale of each half is a free choice. The book spends this freedom on the symmetric split. The code instead uses the one-sided form from the display in Section 3, with the lower halves unweighted. To avoid mixing up the two conventions, we write $w$ for the challenge in this form, although the code calls it $u_j$:
+Section 3 showed that only the product of the two weights on a matching pair of halves is fixed, at 1, so the scale of each half is a free choice. The book spends this freedom on the symmetric split. The code instead puts the whole weight on the upper halves, taking $\alpha = w^{-1}$ on the scalars and $\beta = w$ on the generators in the notation of Section 3, and leaves the lower halves unweighted. To avoid mixing up the two conventions, we write $w$ for the challenge in this form, although the code calls it $u_j$:
 
 $$
 \begin{aligned}
@@ -522,7 +563,9 @@ for i in 0..half {
 }
 ```
 
-Repeating the expansion from Section 4 with these weights gives the terms $w^{-1}L$ and $wR$, with the same $L$ and $R$:
+Repeating the expansion from Section 4 with these weights gives the update $P' = P + w^{-1} \cdot L + w \cdot R$, with the same $L$ and $R$. Setting $w = u^2$ makes this update identical to the symmetric one. The folded vectors then differ from the symmetric ones only by a factor of $u$ or $u^{-1}$, and these factors cancel in both inner products, so the statement point does not change. The box below carries out the expansion and the rescaling.
+
+::: details The one-sided expansion and the scale factor
 
 $$
 \begin{aligned}
@@ -536,6 +579,8 @@ Setting $w = u^2$ makes this update identical to the symmetric one. The folded v
 $$\v{a}'_{\text{sym}} = u\,\v{a}_{lo} + u^{-1}\v{a}_{hi} = u\left(\v{a}_{lo} + u^{-2}\v{a}_{hi}\right) = u\,\v{a}',$$
 
 and likewise $\v{G}'_{\text{sym}} = u^{-1}\v{G}'$ and $\v{b}'_{\text{sym}} = u^{-1}\v{b}'$. The factors cancel in both inner products, which explains why the statement point does not change.
+
+:::
 
 <!-- worked:code-fold -->
 
@@ -609,7 +654,13 @@ Section 11 shows the mask's effect on the final scalar in a full run. The [modul
 
 Section 6 ended by noting that a commitment with a hidden $U$ component, $C^* = \dot{\v{a}}{\v{G}} + \delta \cdot U$, can be opened to a false value when $U$ has a fixed weight, because the extra $\delta$ makes up the difference between the true evaluation and the claim.
 
-The code handles this by sampling a challenge $z$ after $C$, $v$ and $S$ are in the transcript, and using $z \cdot U$ as the generator for inner products in every round. To see why this helps, follow the hidden term through the statement. Let $\tilde{\v{a}}$ be formed from the $\v{G}$ part of $C^*$, the mask and the claimed $v$, as in the previous subsection. The $\v{G}$ parts of $C^*$, $v \cdot G_0$ and $\xi \cdot S$ combine exactly as in the $\tilde{P}$ example, and the hidden term passes through unchanged:
+The code handles this by sampling a challenge $z$ after $C$, $v$ and $S$ are in the transcript, and using $z \cdot U$ as the generator for inner products in every round. To see why this helps, follow the hidden term through the statement. Let $\tilde{\v{a}}$ be formed from the $\v{G}$ part of $C^*$, the mask and the claimed $v$, as in the previous subsection. The hidden $\delta \cdot U$ passes through to $\tilde{P}$ unchanged, while the argument, now run with generator $z \cdot U$, proves that the $U$ coefficient of $\tilde{P}$ is $z\,\dot{\tilde{\v{a}}}{\v{b}}$. Comparing the two gives the condition a passing proof must meet:
+
+$$\delta = z\,\dot{\tilde{\v{a}}}{\v{b}}.$$
+
+::: details Where the condition on $\delta$ comes from
+
+The $\v{G}$ parts of $C^*$, $v \cdot G_0$ and $\xi \cdot S$ combine exactly as in the $\tilde{P}$ example, and the hidden term passes through unchanged:
 
 $$\tilde{P} = C^* - v \cdot G_0 + \xi \cdot S = \dot{\tilde{\v{a}}}{\v{G}} + \delta \cdot U.$$
 
@@ -617,9 +668,9 @@ Running the argument with generator $z \cdot U$ in place of $U$ proves, by the g
 
 $$\tilde{P} = \dot{\tilde{\v{a}}}{\v{G}} + z\,\dot{\tilde{\v{a}}}{\v{b}} \cdot U.$$
 
-With no known relation among $\v{G}$ and $U$, the two expressions for $\tilde{P}$ must have the same coefficient on $U$, which gives
+With no known relation among $\v{G}$ and $U$, the two expressions for $\tilde{P}$ must have the same coefficient on $U$, which gives the condition above.
 
-$$\delta = z\,\dot{\tilde{\v{a}}}{\v{b}}.$$
+:::
 
 There are two cases. If the claim is true, then $\dot{\tilde{\v{a}}}{\v{b}} = 0$, so the check forces $\delta = 0$, and a hidden $U$ term cannot help. If the claim is false, then $\dot{\tilde{\v{a}}}{\v{b}} \neq 0$, and only the single value $z = \delta / \dot{\tilde{\v{a}}}{\v{b}}$ passes. The prover chose $\delta$ and $v$ before it saw $z$, so it hits that value only by luck.
 

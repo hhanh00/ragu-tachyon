@@ -417,7 +417,8 @@ if __name__ == '__main__':
         table(['Claim $i$'] + [str(i) for i in range(6)], [
             ['$\\lambda_i$'] + [f'${v}$' for v in la_],
             ['$\\eta_i$'] + [f'${v}$' for v in et_],
-        ]), '',
+        ])])
+    frag['fold-layers'] = '\n'.join([
         f'**First layer.** The prover computes the twelve in-group cross terms and commits to them as $\\bar{{E}}_1 = {show(run["E1_pt"])}$ before any weight exists. '
         f'Once all four challenges are drawn, each term gets the weight $(\\mu\'_c\\nu\'_c)^\\gamma \\mu_c^\\kappa \\nu_c^{{\\kappa\'}}$. The pair $(0, 1)$ has $\\gamma = 0$, $\\kappa = 0$ and $\\kappa\' = 1$, so its weight is $\\nu_c = {iw[0]}$. '
         f'The pair $(3, 4)$ has $\\gamma = 1$, $\\kappa = 0$ and $\\kappa\' = 1$, so its weight is $\\mu\'_c\\nu\'_c\\nu_c = {mup_c} \\cdot {nup_c} \\cdot {nu_c} = {iw[6]}$ modulo 43.', '',
@@ -430,8 +431,9 @@ if __name__ == '__main__':
         'The vector $M_\\sigma$ reads only the wires $a_1$ and $d_1$, which belong to the stages, and the final traces leave gate 1 empty.', '',
         f'**Second layer.** With $\\mu_c$ and $\\nu_c$ known, the prover forms $\\v{{A}}_0$, $\\v{{B}}_0$, $\\v{{A}}_1$ and $\\v{{B}}_1$ and computes the two cross-group terms $\\revdot{{\\v{{A}}_0}}{{\\v{{B}}_1}} = {e2a}$ and $\\revdot{{\\v{{A}}_1}}{{\\v{{B}}_0}} = {e2b}$. '
         f'It commits to them as $\\bar{{E}}_2 = {show(run["E2_pt"])}$, and only then are $\\mu\'_c$ and $\\nu\'_c$ drawn. Their weights are $(\\mu\'_c)^0(\\nu\'_c)^1 = {nup_c}$ and $(\\mu\'_c)^1(\\nu\'_c)^0 = {mup_c}$, so '
-        f'$\\varepsilon_2 = {e2a} \\cdot {nup_c} + {e2b} \\cdot {mup_c} = {run["eps2"]}$ modulo 43.', '',
-        f'**The target.** The prover sends $\\varepsilon_1 = {run["eps1"]}$ and $\\varepsilon_2 = {run["eps2"]}$. The diagonal gives $\\sum_i \\lambda_i \\eta_i k_i = {run["K_diag"]}$, so the verifier sets '
+        f'$\\varepsilon_2 = {e2a} \\cdot {nup_c} + {e2b} \\cdot {mup_c} = {run["eps2"]}$ modulo 43.'])
+    frag['fold-target'] = '\n'.join([
+        f'The prover sends $\\varepsilon_1 = {run["eps1"]}$ and $\\varepsilon_2 = {run["eps2"]}$. The diagonal gives $\\sum_i \\lambda_i \\eta_i k_i = {run["K_diag"]}$, so the verifier sets '
         f'$K = {run["K_diag"]} + {run["eps1"]} + {run["eps2"]} = {run["K"]}$. The prover can check that $\\revdot{{\\v{{A}}}}{{\\v{{B}}}}$ is also ${revdot(run["A"], run["B"])}$, but the verifier cannot compute that product, and the split of Section 5 is what tests it.'])
 
     frag['derived'] = (
@@ -455,6 +457,8 @@ if __name__ == '__main__':
         f'It then picks $r = {r_c}$, so that $rz = {r_c * z_c % Q}$ and $1/r = {run["ri"]}$, and the prover sends seven values.', '',
         table(['$A_c(r)$', '$T(rz)$', '$B_c(r)$', '$E_1(r)$', '$E_2(r)$', '$\\Pi_{\\text{lo}}(1/r)$', '$\\Pi_{\\text{hi}}(r)$'],
               [tuple(f'${o[k]}$' for k in ['Ac', 'T', 'Bc', 'E1', 'E2', 'p', 'q'])]), '',
+        f'The verifier adds the public parts, which it evaluates at $r$ itself, and both sides of the identity come to ${run["lhs"]}$.'])
+    frag['split-detail'] = '\n'.join([
         f'The verifier evaluates the public parts at $r$ itself. Only the wire binding contributes to $A_{{\\text{{pub}}}}$, and $E_\\sigma(r) = {run["Er"]}$, so',
         '',
         f'$$A_{{\\text{{pub}}}}(r) = -\\lambda_5 E_\\sigma(r) = -{la_[5]} \\cdot {run["Er"]} = {run["pub_a"]} \\pmod{{43}}.$$',

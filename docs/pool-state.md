@@ -39,7 +39,19 @@ Tachygrams are elements of $\F_p$, the base field of Pallas, and this polynomial
 
 <!-- worked:set-poly -->
 
-Take a stamp A with the three tachygrams $22$, $24$, $40$. Multiplying the factors one at a time, with coefficients reduced modulo 43, gives
+Take a stamp A with the three tachygrams $22$, $24$, $40$. Multiplying out the three factors and reducing the coefficients modulo 43 gives
+
+$$(X - 22)(X - 24)(X - 40) = X^{3} + 3X + 36.$$
+
+<!-- /worked:set-poly -->
+
+The box below multiplies the factors out one at a time.
+
+::: details Expanding the product step by step
+
+<!-- worked:set-poly-steps -->
+
+Multiplying the factors one at a time, with coefficients reduced modulo 43, gives
 
 $$\begin{aligned}
 (X - 22)(X - 24) &= X^2 - 46X + 528 = X^{2} + 40X + 12,\\
@@ -47,7 +59,9 @@ $$\begin{aligned}
 &= X^3 + 0 \cdot X^2 - 1588X - 480 = X^{3} + 3X + 36.
 \end{aligned}$$
 
-<!-- /worked:set-poly -->
+<!-- /worked:set-poly-steps -->
+
+:::
 
 As in chapter 20, a zero means the value is in the set, and a nonzero result means it is not.
 
@@ -83,7 +97,17 @@ The polynomial has as many coefficients as the stamp has tachygrams, plus one, s
 
 $$C = \sum_i c_i \cdot G_i, \qquad \mathsf{tachygram\_acc}(X) = \sum_i c_i X^i.$$
 
-Vesta's scalar field is $\F_p$, so the coefficients act directly as scalars. Here is the same computation with the toy curve's four generators.
+Vesta's scalar field is $\F_p$, so the coefficients act directly as scalars. The toy curve has four generators, which is enough for the four coefficients of stamp A's polynomial.
+
+<!-- worked:commit-result -->
+
+The commitment to stamp A is $C_A = (23,\,24)$. Coefficients live in $\F_{43}$, like the tachygrams, and the coordinates of $C_A$ live in $\F_{31}$.
+
+<!-- /worked:commit-result -->
+
+The box shows the sum term by term.
+
+::: details The commitment to stamp A, term by term
 
 <!-- worked:commit -->
 
@@ -94,9 +118,9 @@ Vesta's scalar field is $\F_p$, so the coefficients act directly as scalars. Her
 | $X^2$ | 0 | $G_2$ | $\mathcal{O}$ | $(22,\,7)$ |
 | $X^3$ | 1 | $G_3$ | $(17,\,7)$ | $(23,\,24)$ |
 
-The commitment is $C_A = (23,\,24)$. Coefficients live in $\F_{43}$, like the tachygrams, and the coordinates of $C_A$ live in $\F_{31}$.
-
 <!-- /worked:commit -->
+
+:::
 
 The code labels this commitment "deterministic (untrapdoored)," which means it has no blinding term $r \cdot H$. A blinding term would stop anyone else from reproducing the point, and validators have to reproduce it. The tachygrams are published in the stamp in any case, so a blind would hide nothing.
 
@@ -130,19 +154,31 @@ At the challenge $r = 11$, the check reads $p(11) = 27$ against $f_A(11) \cdot f
 
 <!-- /worked:union -->
 
-The order of events is what gives the test its force. If $p \neq f_A f_B$, the difference $p - f_A f_B$ is a nonzero polynomial whose degree is at most the larger of $\deg p$ and $\deg f_A + \deg f_B$, so Schwartz–Zippel from [chapter 3](./statements-and-challenges.md) bounds the number of challenges that pass. Here is that bound in a cheating attempt.
+The order of events is what gives the test its force. A false product is a different polynomial from the true one, and two different polynomials of small degree agree at only a few points. Because the challenge is drawn after the commitments are fixed, the prover cannot steer it onto one of those points, and Schwartz–Zippel from [chapter 3](./statements-and-challenges.md) bounds how often it lands there by luck. Here is a cheating attempt on the toy field.
 
 <!-- worked:union-cheat -->
 
-Suppose a prover claims a union $p'$ with the root $40$ replaced by $31$. Then $p'(40) = 5$, so $40$ would look absent from the merged set, and $p'(31) = 0$, so $31$ would look present. Trying every challenge in $\F_{43}$, the false product passes at exactly 5 of the 43 values, namely 20, 22, 23, 24, 41.
+Suppose a prover claims a union $p'$ with the root $40$ replaced by $31$. Then $p'(40) = 5$, so $40$ would look absent from the merged set, and $p'(31) = 0$, so $31$ would look present. Trying every challenge in $\F_{43}$, the false product passes at exactly 5 of the 43 values, namely 20, 22, 23, 24, 41. The chance 5/43 is large here only because the field is tiny. On a field of about $2^{254}$ elements, the same bound is negligible.
+
+<!-- /worked:union-cheat -->
+
+The box explains where the count of passing challenges comes from. In short, the false and true products differ by a nonzero polynomial of lower degree, and its roots are exactly the passing challenges.
+
+::: details Counting the passing challenges
+
+In general, if $p \neq f_A f_B$, the difference $p - f_A f_B$ is a nonzero polynomial whose degree is at most the larger of $\deg p$ and $\deg f_A + \deg f_B$, and it has at most that many roots.
+
+<!-- worked:union-cheat-why -->
 
 The bound explains this count. Both $p'$ and $f_A f_B$ are monic of degree 6, so their leading terms cancel and the difference has degree at most 5. Here the two products share every factor except one, so the difference factors as
 
 $$p'(X) - f_A(X)f_B(X) = (X - 22)(X - 24)\,f_B(X)\,\big((X - 31) - (X - 40)\big) = 9\,(X - 22)(X - 24)\,f_B(X).$$
 
-Its roots are the five values that the two products share, and those are exactly the passing challenges, so this example meets the bound of 5. The chance 5/43 is large here only because the field is tiny. On a field of about $2^{254}$ elements, the same bound is negligible.
+Its roots are the five values that the two products share, and those are exactly the passing challenges, so this example meets the bound of 5.
 
-<!-- /worked:union-cheat -->
+<!-- /worked:union-cheat-why -->
+
+:::
 
 Division is the reverse. A quotient exists with zero remainder exactly when the divisor's multiset is contained in the dividend's, and this is how `StampUnmerge` from [chapter 24](./aggregation-and-bundles.md#_11-when-a-block-lands) removes a contributor. An aggregator needs that step when a block includes one of its inputs on its own, because publishing the aggregate would then repeat that input's tachygrams. The step never divides inside the proof. It witnesses the quotient $q$ along with the dividend $p$ and the divisor $f_B$, and it [proves $p = q \cdot f_B$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/stamp/proof/stamp.rs#L815-L828) with the same product test as the union, at a challenge derived after all three commitments are fixed.
 
@@ -197,7 +233,9 @@ and we write this as $H_\mathsf{st}$ for short. Each input is there for a reason
 
 **The epoch.** The epoch is the [epoch of the block containing the stamp](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/anchor.md?plain=1#L9), which a validator [reads from the height](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/primitives/block_height.rs#L49-L53). Absorbing it at every step [lets a proof learn the epoch of a chain segment](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L800-L801) from the segment itself, with no outside help. This is the epoch of the absorption. The stamp's carried anchor names an earlier state, which can lie in the preceding epoch, as Section 11 shows.
 
-**The limbs.** The last two inputs encode the set commitment. Poseidon works over $\F_p$, while the coordinates of a Vesta point lie in the other Pasta field, as [chapter 13](./curve-cycles.md) explained. A coordinate may not fit in $\F_p$ as an element, and the point also needs a bit for the sign of $y$. The code therefore takes the [32-byte compressed encoding](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/digest/poseidon.rs#L192-L213) and reads each half as a 128-bit integer. Both integers lie far below the modulus, and the pair determines the point.
+**The limbs.** The last two inputs encode the set commitment. Poseidon works over $\F_p$, while the coordinates of a Vesta point lie in the other Pasta field, as [chapter 13](./curve-cycles.md) explained. A coordinate may not fit in $\F_p$ as an element, and the point also needs a bit for the sign of $y$. The code therefore takes the [32-byte compressed encoding](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/digest/poseidon.rs#L192-L213) and reads each half as a 128-bit integer. Both integers lie far below the modulus, and the pair determines the point. The toy chain below uses a small version of the same split, and the box shows how stamp A's commitment becomes its two limbs, $\mathsf{tg}_\mathsf{lo}$ and $\mathsf{tg}_\mathsf{hi}$.
+
+::: details Splitting a toy point into two limbs
 
 The toy curve has the same shape, with coordinates in $\F_{31}$ and a hash working in $\F_{43}$. Since 31 is smaller than 43, a toy coordinate would always fit in the hash field, so the toy does not reproduce the problem that the limbs solve. We split a six-bit encoding into two three-bit limbs anyway, so that the toy fold takes the same inputs as the real one.
 
@@ -206,6 +244,8 @@ The toy curve has the same shape, with coordinates in $\F_{31}$ and a hash worki
 For $C_A = (23,\,24)$, the coordinate $23$ fits in five bits, and we place the parity of $y = 24$ in a sixth bit. The encoding is $23 + 32 \cdot 0 = 23$. Splitting it into a low and a high part of three bits each gives $\mathsf{tg}_\mathsf{lo} = 7$ and $\mathsf{tg}_\mathsf{hi} = 2$, since $23 = 7 + 8 \cdot 2$. Checking all 42 affine points of the toy curve shows that each one gets a different encoding, so the pair of limbs determines the point.
 
 <!-- /worked:limbs -->
+
+:::
 
 **The domain.** The string `Tachyon-AnchorSt` is a [tag placed in the sponge's capacity](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/digest/poseidon.rs#L5-L7), as with every Tachyon Poseidon hash. Section 7 needs it to tell two kinds of fold apart.
 

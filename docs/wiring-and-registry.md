@@ -86,7 +86,13 @@ $$S_0(x) = S'(y_0), \qquad S_1(x) = S'(y_1), \qquad S_{\text{new}}(x) = S'(y_{\t
 
 Here we write $S(x)$ for the value at $x$ of the polynomial behind a commitment $S$, as the book does.
 
-This one-circuit version shows how claims chain, but it does not yet place the new claim where a trace check can read it. The check of Section 1 needs $s(x, y)$ at an $x$ drawn after $y$, because the prover commits to the right factor once it knows $y$, and $x$ then tests that commitment. Here $x$ comes before $y_{\text{new}}$, so the claim $S_{\text{new}}(x) = s(x, y_{\text{new}})$ sits at an $x$ that the right factor could have been built to pass. We cannot repair this by drawing $y_{\text{new}}$ first, because the bridge $S'$ is read at $y_{\text{new}}$, and reading a commitment at a point tests it only if the point was drawn after the commitment was fixed. With only two variables, $x$ has to come before $y_{\text{new}}$. The extra variable $W$ of Section 5 gives Section 6 the room to reorder the challenges as $w$, then $y$, then $x$, and with that order the new claim lands at exactly the point the trace check reads.
+This one-circuit version shows how claims chain, but it does not yet place the new claim where a trace check can read it. The trace check of Section 1 needs its $x$ drawn after $y$, and here $x$ comes first. With only two variables the order cannot be swapped, so Section 6 uses the extra variable $W$ of Section 5 to draw the challenges as $w$, then $y$, then $x$. The box explains why the order matters.
+
+::: details Why the one-circuit order cannot serve the trace check
+
+The check of Section 1 needs $s(x, y)$ at an $x$ drawn after $y$, because the prover commits to the right factor once it knows $y$, and $x$ then tests that commitment. Here $x$ comes before $y_{\text{new}}$, so the claim $S_{\text{new}}(x) = s(x, y_{\text{new}})$ sits at an $x$ that the right factor could have been built to pass. We cannot repair this by drawing $y_{\text{new}}$ first, because the bridge $S'$ is read at $y_{\text{new}}$, and reading a commitment at a point tests it only if the point was drawn after the commitment was fixed. With only two variables, $x$ has to come before $y_{\text{new}}$. The extra variable $W$ of Section 5 gives Section 6 the room to reorder the challenges as $w$, then $y$, then $x$, and with that order the new claim lands at exactly the point the trace check reads.
+
+:::
 
 We now run this on our circuit, using two accumulators with values we have already met. The first holds [chapter 09's](./nark.md#_5-building-the-two-multiplicands) $y$, and the second holds the $y$ of [chapter 12's second proof](./split-accumulation.md#_6-a-run-on-the-toy-curve):
 
@@ -102,7 +108,9 @@ We now run this on our circuit, using two accumulators with values we have alrea
 
 <!-- /worked:single-run -->
 
-The prover states one value for each pair, which gives six claims about four polynomials:
+The prover states one value for each pair, which gives six claims about four polynomials. The verifier never computes these values. It places them in the batch of chapter 08, which turns them into one claim that a decider can settle, and the box below lists the six claims and runs that batch. An honest prover passes at every challenge.
+
+::: details The six claims and their batch
 
 <!-- worked:single-claims -->
 
@@ -117,7 +125,7 @@ The prover states one value for each pair, which gives six claims about four pol
 
 <!-- /worked:single-claims -->
 
-The verifier never computes these values. It treats them as [claims that share polynomials](./batched-openings.md#_10-claims-that-share-a-polynomial-or-a-point) and places them in the batch, so one number in each pair appears twice. Chapter 08's batch runs in three moves, which the run below follows:
+The verifier treats these values as [claims that share polynomials](./batched-openings.md#_10-claims-that-share-a-polynomial-or-a-point) and places them in the batch, so one number in each pair appears twice. Chapter 08's batch runs in three moves, which the run below follows:
 
 - The challenge $\alpha$ weights the claims' quotients, and the prover sends $F$, a commitment to their weighted sum $f$.
 - At a second challenge $u$ the prover reveals each polynomial's value, so that the verifier can derive $f(u)$ without opening $F$.
@@ -128,6 +136,8 @@ The verifier never computes these values. It treats them as [claims that share p
 With $\alpha = 11$, $u = 17$ and $\beta = 15$, the prover sends $F = (9,\,9)$ and the values at $u$, one for each of the four polynomials: $35, 31, 33, 4$. The verifier derives $f(17) = 4$, then $P = (11,\,30)$ and $v = 9$. A decider holding $\v{p} = (35, 38, 42, 37, 30, 17, 37, 17)$ commits to it and evaluates it, and both results match. Checking the crossing identity at all 1849 pairs $(x, y)$ confirms that an honest prover passes at every challenge.
 
 <!-- /worked:single-batch -->
+
+:::
 
 A batched check tells us that the claims are true of the committed polynomials, and it says nothing about the circuit. Something still has to connect the last commitment to the real wiring. That job falls to the end of the chain, in the same way that a single MSM ended [chapter 11's](./accumulation.md#_3-deciding-a-claim) chain:
 
@@ -252,7 +262,11 @@ Here are the steps of the protocol:
 
 ![Six boxes joined by arrows. The old accumulators S0 and S1 lead to S prime 0 and S prime 1, which both lead to S double prime, which leads to S new. Values v0 to v4 label the arrows. An arrow from S new leads to the formula s_i(x, y) = m(omega^i, x, y).](./manim/registry-walk.png)
 
-Each arrow in the figure stands for a crossing of two restrictions, and each crossing gives a pair of claims:
+Each arrow in the figure stands for a crossing of two restrictions, and each crossing gives a pair of claims that must share a value, so the five arrows give ten claims. The first two crossings tie the children's old claims to their bridges in $Y$, the next two tie those bridges to the single bridge in $X$, and the last ties that bridge to the new accumulator.
+
+Step 3 uses two bridges because the children have different $x_i$, and a restriction in $Y$ is taken at one value of $X$. Step 5 uses one, because after step 4 both children's restrictions are read at the same $y$, and both land on the same polynomial in $X$.
+
+::: details The five crossings as equations
 
 $$
 \begin{aligned}
@@ -264,7 +278,7 @@ S''(x) &= m(w, x, y) = S_{\text{new}}(w).
 \end{aligned}
 $$
 
-Step 3 uses two bridges because the children have different $x_i$, and a restriction in $Y$ is taken at one value of $X$. Step 5 uses one, because after step 4 both children's restrictions are read at the same $y$, and both land on the same polynomial in $X$.
+:::
 
 For the toy run, let the left child have used circuit A at chapter 09's challenges, and the right child circuit B at the $x$ and $y$ of chapter 12's second proof. The choice of circuit does not show up in $S_0$ or $S_1$, because each of them holds every circuit's value at its child's point. It matters only when Section 7 opens the new accumulator at a circuit's point:
 
@@ -285,7 +299,9 @@ The left child's $S_0 = (5,\,29)$ happens to equal the false accumulator of Sect
 
 <!-- /worked:reg-run -->
 
-Notice that the commitment to $m(W, x, y)$ uses only the first two generators, because on this domain it has degree 1 in $W$. The five crossings give the following values:
+Notice that the commitment to $m(W, x, y)$ uses only the first two generators, because on this domain it has degree 1 in $W$. The box lists the shared value at each of the five crossings, and the script confirms that an honest prover passes at every choice of challenges.
+
+::: details The shared values in the toy run
 
 <!-- worked:reg-claims -->
 
@@ -304,6 +320,8 @@ Notice that the commitment to $m(W, x, y)$ uses only the first two generators, b
 The script repeats these comparisons at all 79,507 triples $(w, x, y)$, and an honest prover passes every one.
 
 <!-- /worked:reg-honest -->
+
+:::
 
 The accumulator that leaves the fold is $(S_{\text{new}}, x, y)$, and it has the same form as the two that entered, so the next node can repeat the walk.
 
@@ -332,7 +350,9 @@ The script also confirms that each child's revdot product at $z = 16$ and $y = 1
 
 <!-- /worked:select -->
 
-The two children here used different wiring and the same step of the protocol handled both. Only the evaluation point changed. These two openings bring the list to twelve claims, on six polynomials, and the batch of chapter 08 combines them into one claim $(P, u, v)$ as in Section 3:
+The two children here used different wiring and the same step of the protocol handled both. Only the evaluation point changed. These two openings bring the list to twelve claims, on six polynomials, and the batch of chapter 08 combines them into one claim $(P, u, v)$ as in Section 3. The box runs that batch. It ends with the registry's form of the decider, which evaluates the accumulator at a fresh $W$ and compares the result with the Lagrange-weighted sum of every circuit's value at $(x, y)$.
+
+::: details Batching the twelve claims
 
 <!-- worked:reg-batch -->
 
@@ -340,7 +360,9 @@ With $\alpha = 11$, $u = 17$ and $\beta = 23$, the prover sends $F = (28,\,21)$ 
 
 <!-- /worked:reg-batch -->
 
-The last sentence of that run is the registry's form of the decider. Section 10 counts what it costs, after two sections on how circuits get their points and on which points a prover may name.
+:::
+
+Section 10 counts what that decider costs, after two sections on how circuits get their points and on which points a prover may name.
 
 ## 8. Assigning domain points
 
@@ -376,7 +398,13 @@ Reversing the bits puts the low bits of $j$ at the top of the exponent, so small
 
 <!-- /worked:bitrev -->
 
-The last column shows why this works. The first $2^k$ circuits always land on elements of order at most $2^k$, which are exactly the $2^k$-th roots of unity. They fill the small domain first, and growing the registry adds new points without moving old ones. The element also stays the same when written in the smaller domain, since $\omega_S^{\text{rev}(j, S)} = \omega_k^{\text{rev}(j, k)}$ for $j < 2^k$, which the script checks at every size. So a circuit can compute its own point, or another circuit's, from its index alone. The code's [`omega_j`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/registry.rs#L90-L104) does this, and a [test](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/registry.rs#L862-L883) asserts the orders 1, 2, 4, 4, 8, 8, 8, 8 that the table shows.
+The last column shows why this works. The first $2^k$ circuits always land on elements of order at most $2^k$, which are exactly the $2^k$-th roots of unity. They fill the small domain first, and growing the registry adds new points without moving old ones. So a circuit can compute its own point, or another circuit's, from its index alone.
+
+::: details The point does not depend on the domain size
+
+The element also stays the same when written in the smaller domain, since $\omega_S^{\text{rev}(j, S)} = \omega_k^{\text{rev}(j, k)}$ for $j < 2^k$, which the script checks at every size. The code's [`omega_j`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/registry.rs#L90-L104) does this, and a [test](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/registry.rs#L862-L883) asserts the orders 1, 2, 4, 4, 8, 8, 8, 8 that the table shows.
+
+:::
 
 <!-- worked:bitrev-toy -->
 
@@ -419,11 +447,17 @@ The domain usually has more points than circuits, because $2^k$ is the next powe
 
 <!-- /worked:kinds -->
 
-The verifier always sets $k_0 = 1$ when it expects a circuit, and this rules out every entry with $s(X, 0) = 0$. To see this, read the consolidated equation at $y = 0$, as a statement about the coefficient of $Y^0$. Such an entry contributes nothing to that coefficient, so the only terms left on the left side are the gate terms from [chapter 04](./arithmetization.md#_12-the-consolidated-equation),
+The verifier always sets $k_0 = 1$ when it expects a circuit, and this rules out every entry with $s(X, 0) = 0$. At $y = 0$ the right side of the consolidated equation is $k_0 = 1$, while an entry with $s(X, 0) = 0$ leaves only gate terms on the left, and no trace can make those equal the constant 1 for every $z$. The box shows why, and the run after it shows the prover failing.
+
+::: details Why the gate terms cannot produce the constant 1
+
+Read the consolidated equation at $y = 0$, as a statement about the coefficient of $Y^0$. Such an entry contributes nothing to that coefficient, so the only terms left on the left side are the gate terms from [chapter 04](./arithmetization.md#_12-the-consolidated-equation),
 
 $$\sum_{i=0}^{n-1} (a_i b_i - c_i) \big( z^{2n-1-i} + z^{2n+i} \big) + \sum_{i=0}^{n-1} c_i d_i \big( z^{i} + z^{4n-1-i} \big),$$
 
 and these would have to equal 1 for every $z$. Only the term with $i = 0$ in the second sum contains $z^0$, and it brings $z^{4n-1}$ with it, so a constant 1 cannot be formed.
+
+:::
 
 <!-- worked:zero-count -->
 
@@ -485,7 +519,7 @@ Adding a circuit therefore leaves the recursive circuit almost unchanged, so the
 
 We can now say what is unusual about this design. Many recursive systems preprocess each circuit into a **verification key**, a short commitment to the circuit's polynomials, and the verifier reads this key. With many circuits, a recursive verifier would have to handle a table of keys. Ragu has no such keys, as its [book states](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/appendix/related.md?plain=1#L106-L110). A verifier holds [the registries themselves](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/lib.rs#L596-L597), built from the circuit definitions, and a prover computes the restrictions it needs at each step. That is the sense in which the work moves from before the proof to after it.
 
-Without keys, one question remains, which is how the transcript comes to depend on the circuits. Fiat–Shamir requires the [statement to enter the transcript](./statements-and-challenges.md#_9-omitting-data-from-the-transcript) before any challenge, and the circuits are part of the statement. Here is what goes wrong otherwise:
+Without keys, one question remains, which is how the transcript comes to depend on the circuits. Fiat–Shamir requires the [statement to enter the transcript](./statements-and-challenges.md#_8-omitting-data-from-the-transcript) before any challenge, and the circuits are part of the statement. Here is what goes wrong otherwise:
 
 <!-- worked:adaptive -->
 
@@ -499,7 +533,13 @@ Ragu breaks the cycle with a **registry tag**, a field element $\kappa$ added to
 
 $$m(W, X, Y) \;\to\; m(W, X, Y) + \kappa\, (XY)^{4n-1}.$$
 
-We should first check that this cannot break an honest proof. Read as a constraint, the term is at row $Y^{4n-1}$, and at $X^{4n-1}$ its partner in the revdot product is position 0 of the trace, the wire $c_0$. So it [adds the constraint](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/local/wiring.md?plain=1#L93-L104) $\kappa c_0 = 0$, which holds for every $\kappa$, because the system gate has $c_0 = 0$. The code [reserves that row](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/lib.rs#L245-L251) by refusing a circuit that would reach it. The term has no factor of $W$, so it [appears at every domain point](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/registry.rs#L516-L522), and it vanishes at $Y = 0$, so it does not disturb the distinction of Section 9.
+We should first check that this cannot break an honest proof. The term acts as one extra constraint, $\kappa c_0 = 0$, which every honest trace satisfies because the system gate sets $c_0 = 0$. It also vanishes at $Y = 0$, so it leaves the distinction of Section 9 intact.
+
+::: details Where the tag sits and what it constrains
+
+Read as a constraint, the term is at row $Y^{4n-1}$, and at $X^{4n-1}$ its partner in the revdot product is position 0 of the trace, the wire $c_0$. So it [adds the constraint](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/local/wiring.md?plain=1#L93-L104) $\kappa c_0 = 0$, which holds for every $\kappa$, because the system gate has $c_0 = 0$. The code [reserves that row](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/lib.rs#L245-L251) by refusing a circuit that would reach it. The term has no factor of $W$, so it [appears at every domain point](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_circuits/src/registry.rs#L516-L522), and it vanishes at $Y = 0$, so it does not disturb the distinction of Section 9.
+
+:::
 
 <!-- worked:tag-run -->
 
@@ -552,7 +592,11 @@ That false accumulator then behaves as in Section 4. It moves from node to node,
 
 ## 13. Wiring and the registry in Ragu
 
-The code at commit `3219e08` runs the walk of Section 6 inside [`fuse`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/mod.rs#L108-L125) on both of its registries. Its test-oracle verifier [states what each stage must hold](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/verify.rs#L460-L469), and this list locates all five shared values from our table in Section 6 and the two openings from Section 7. Here `m` is the registry polynomial, `left_id` is the left child's domain point, and the first entry is the value shared by $S''$ and $S_{\text{new}}$:
+The code at commit `3219e08` runs the walk of Section 6 inside [`fuse`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/mod.rs#L108-L125) on both of its registries. The first box shows the code's list of shared values, and the second matches this chapter's names with the book's and the code's.
+
+::: details The code's list of shared values, at commit 3219e08
+
+Its test-oracle verifier [states what each stage must hold](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/verify.rs#L460-L469), and this list locates all five shared values from our table in Section 6 and the two openings from Section 7. Here `m` is the registry polynomial, `left_id` is the left child's domain point, and the first entry is the value shared by $S''$ and $S_{\text{new}}$:
 
 ```rust
 let query_claim = claimed
@@ -567,6 +611,10 @@ let query_claim = claimed
     ];
 ```
 
+:::
+
+::: details Names in this chapter, the book and the code
+
 The book and the code use different names for the same objects:
 
 | This chapter | Polynomial | Book | Code |
@@ -579,6 +627,8 @@ The book and the code use different names for the same objects:
 | $\omega^i$ | A circuit's point | $\omega^i$ | `CircuitIndex::omega_j`, and $\omega^j$ in comments |
 
 We use $\kappa$ because $k$ already names the public input polynomial.
+
+:::
 
 ::: warning Reconstructed from code at commit 3219e08, not confirmed by the authors
 - **Message order.** The fuse squeezes [$w$ after the preamble](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/mod.rs#L105-L112), which [carries the children's stored commitments](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/nested/stages/preamble.rs#L92-L93), and then [commits to the two $m(w, x_i, Y)$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/_03_s_prime.rs#L1-L10). It squeezes $y$ and $z$ together, [commits to $m(w, X, y)$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/_04_inner_error.rs#L134-L136), and later squeezes $x$ and [commits to $m(W, x, y)$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/_07_query.rs#L81-L88). The order matches Section 6, with the revdot messages of [chapter 14](./revdot-folding.md) in between.

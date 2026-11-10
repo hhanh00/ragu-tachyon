@@ -27,7 +27,7 @@ So the work has to be divided. The table lists the jobs, the chapter that explai
 | Job | Explained in | Where the code does it |
 | --- | --- | --- |
 | Run the application's step | [Chapter 2](./pcd-intro.md#_4-steps) | Application circuit |
-| Replay the transcript to get the challenges | [Chapter 3](./statements-and-challenges.md#_8-removing-the-verifier-with-fiat–shamir) | `hashes_1`, `hashes_2` |
+| Replay the transcript to get the challenges | [Chapter 3](./statements-and-challenges.md#_7-removing-the-verifier-with-fiat–shamir) | `hashes_1`, `hashes_2` |
 | Compute the children's $k(y)$ from their public data | [Chapter 10](./recursive-proofs.md#_3-writing-the-verifier-as-gates) | `hashes_1`, `collapse` |
 | Fold the scalars of the revdot claims | [Chapter 14](./revdot-folding.md#_10-the-quotient-fold-in-ragu-s-fuse) | `collapse` |
 | Check the batched evaluation $v$ | [Chapter 8](./batched-openings.md#_7-beta-batching) | `compute_v` |
@@ -96,7 +96,11 @@ The [code](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe38
 
 Nearly every row is a step of an earlier chapter. Phases 2 to 4 and 7 run the [registry consistency check of chapter 15](./wiring-and-registry.md#_6-consistency-for-the-registry), phases 4 to 6 run the [quotient fold of chapter 14](./revdot-folding.md#_10-the-quotient-fold-in-ragu-s-fuse), and phases 8 to 10 run the [split accumulation of chapter 12](./split-accumulation.md#_6-a-run-on-the-toy-curve).
 
-The points stages hold nested-curve commitments, and each one is committed in the phase where its points first exist, so that its commitment rides in the bridge absorbed in that phase. The [code's table](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/stages/points.rs#L14-L20) lists what each holds. Here $m_n$, $A_n$, $B_n$, $F_n$ and $P_n$ are the nested side's own restrictions, accumulator pair, quotient and batch commitment.
+The points stages hold nested-curve commitments, and each one is committed in the phase where its points first exist, so that its commitment rides in the bridge absorbed in that phase. The box lists what each of the five holds and which challenge it must precede.
+
+::: details The five points stages
+
+The [code's table](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/stages/points.rs#L14-L20) lists what each holds. Here $m_n$, $A_n$, $B_n$, $F_n$ and $P_n$ are the nested side's own restrictions, accumulator pair, quotient and batch commitment.
 
 | Points stage | What it holds | Fixed before | Carried by |
 | --- | --- | --- | --- |
@@ -106,9 +110,17 @@ The points stages hold nested-curve commitments, and each one is committed in th
 | Points ab | The nested restriction $m_n(w, X, y)$, and the new $A_n$, $B_n$ | $x$ | `ab` |
 | Points f | The nested restriction $m_n(W, x, y)$, and $F_n$ | $u$ | `f` |
 
-Phases 9 and 10 need a further word. Phase 9 ends with `pre_beta`, which has to lie in the range from which [chapter 16 extracts an endoscalar](./endoscalars.md#_9-extracting-bits-from-a-challenge). When a squeeze lands outside that range, the prover [re-randomizes the eval stage and squeezes again](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/mod.rs#L261-L287). [Chapter 3](./statements-and-challenges.md#_10-repeated-trials) called this kind of retrying **grinding**, and it showed that the transform already charges a cheater for every retry, since each one costs a hash call. The retry in the code gives a prover nothing it lacked, because a cheating prover could always re-randomize the eval stage and squeeze again on its own. An honest prover [almost never retries](./endoscalars.md#_9-extracting-bits-from-a-challenge), since the values outside the range are a vanishing fraction of the field. The code grinds no other challenge.
+:::
 
-The nested **challenge stage** of phase 9 holds the lifts of all nine challenges to the nested field, which [chapter 16 used](./endoscalars.md#_11-transcript-bridging) to carry the challenges across the cycle. The prover can fill it only once `pre_beta` exists, so the code [commits it after the squeeze](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/mod.rs#L290-L297), without blinding. Its commitment enters no transcript in this fuse, and it first reaches one in the parent, through the parent's points binding stage. The circuits that check it face a timing problem. The `bind_challenges` circuits of Section 3 sum the stage's terms for the first eight challenges into a partial commitment, and that partial sum sits in the eval stage. But the eval bridge is what `pre_beta` hashes, so the eval stage is committed before `pre_beta` exists and its partial sum cannot contain `pre_beta`'s term. The parent's `bind_beta` adds that term later, as Section 3 describes. The walk stage comes in phase 10 for the same reason, because it holds the bits of `pre_beta`.
+Phases 9 and 10 need a further word. Phase 9 ends with `pre_beta`, which has to lie in the range from which [chapter 16 extracts an endoscalar](./endoscalars.md#_9-extracting-bits-from-a-challenge). When a squeeze lands outside that range, the prover [re-randomizes the eval stage and squeezes again](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/mod.rs#L261-L287). [Chapter 3](./statements-and-challenges.md#_9-repeated-trials) called this kind of retrying **grinding**, and it showed that the transform already charges a cheater for every retry, since each one costs a hash call. The retry in the code gives a prover nothing it lacked, because a cheating prover could always re-randomize the eval stage and squeeze again on its own. An honest prover [almost never retries](./endoscalars.md#_9-extracting-bits-from-a-challenge), since the values outside the range are a vanishing fraction of the field. The code grinds no other challenge.
+
+The nested **challenge stage** of phase 9 holds the lifts of all nine challenges to the nested field, which [chapter 16 used](./endoscalars.md#_11-transcript-bridging) to carry the challenges across the cycle. The prover can fill it only once `pre_beta` exists, so it comes after the squeeze, and its commitment first reaches a transcript in the parent. For the same reason the check that the stage holds `pre_beta` also waits for the parent, while this fuse checks the other eight challenges. The walk stage comes in phase 10 because it holds the bits of `pre_beta`. The box explains the timing in detail.
+
+::: details Why part of the challenge check waits for the parent
+
+The code [commits the challenge stage after the squeeze](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/mod.rs#L290-L297), without blinding. Its commitment enters no transcript in this fuse, and it first reaches one in the parent, through the parent's points binding stage. The circuits that check it face a timing problem. The `bind_challenges` circuits of Section 3 sum the stage's terms for the first eight challenges into a partial commitment, and that partial sum sits in the eval stage. But the eval bridge is what `pre_beta` hashes, so the eval stage is committed before `pre_beta` exists and its partial sum cannot contain `pre_beta`'s term. The parent's `bind_beta` adds that term later, as Section 3 describes.
+
+:::
 
 Phase 1 has no challenge, because nothing in this fuse's transcript tests the application trace. Its commitment [enters the parent's preamble bridge](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/nested/stages/preamble.rs#L38-L56), in the same way as the internal traces described next.
 
@@ -116,7 +128,7 @@ The internal circuits come last because they prove statements about everything b
 
 ## 3. The internal circuits
 
-We can now say what each native circuit does. The first table describes the job, and the second, after it, lists the stages each circuit reads.
+We can now say what each native circuit does. The table describes each circuit's job, and the paragraphs after it explain how the circuits divide the stages among themselves.
 
 | Circuit | Its job |
 | --- | --- |
@@ -129,9 +141,13 @@ We can now say what each native circuit does. The first table describes the job,
 | `bind_endoscalar` | Checks that the bits driving the walk are the bits of `pre_beta` and that the walk's points lie on the curve, and makes the walk's final point public |
 | `endoscaling_step` (23 circuits) | Each performs 4 steps of the walk that combines the nested commitments with powers of $\beta$, as in [chapter 16](./endoscalars.md#_10-folding-with-an-endoscalar), which also [derives the count of 23](./endoscalars.md#_13-feedback-between-the-walks) |
 
-A circuit reads a stage by including it in its sum, as [chapter 17 described](./staging.md#_9-two-circuits-on-one-stage). In the layout, the stages a circuit reads sit along one path of the tree from Section 2, and the circuit's own final trace takes the gates after the last stage on that path. The circuit's **final mask** covers those gates, so it is named after that last stage, and circuits that end on the same stage share one final mask, as [chapter 17 noted](./staging.md#_15-staging-in-ragu). The "Final mask" column of the table below records that last stage.
+A circuit reads a stage by including it in its sum, as [chapter 17 described](./staging.md#_9-two-circuits-on-one-stage). In the layout, the stages a circuit reads sit along one path of the tree from Section 2, and the circuit's own final trace takes the gates after the last stage on that path. The circuit's **final mask** covers those gates, so it is named after that last stage, and circuits that end on the same stage share one final mask, as [chapter 17 noted](./staging.md#_15-staging-in-ragu). For example, `compute_v` reads the preamble, query and eval stages, which lie on one path, so its final mask is named after eval.
 
-Some constraints on a stage, such as a point lying on its curve, have to be written by one of the circuits that read it. [Chapter 17](./staging.md#_10-what-a-mask-does-not-check) explained that the code marks that circuit by loading the stage **enforced**, while the other readers load it unenforced and rely on that one. The last column gives the enforcing circuit, as the [claim list](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/claims.rs#L177-L296) and the circuits' [load calls](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/compute_v.rs#L159-L164) show them. The stages in each sum are listed in layout order.
+Some constraints on a stage, such as a point lying on its curve, have to be written by one of the circuits that read it. [Chapter 17](./staging.md#_10-what-a-mask-does-not-check) explained that the code marks that circuit by loading the stage **enforced**, while the other readers load it unenforced and rely on that one. For example, `bind_endoscalar` checks once that every point in the points stages lies on the curve, and the endoscaling steps rely on that check. Stages that no circuit loads enforced, such as query and eval, get their contents pinned some other way. The first box gives every circuit's stages and final mask, and the second gives the reason behind each enforced load.
+
+::: details Which stages each circuit reads
+
+The last column gives the enforcing circuit, as the [claim list](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/claims.rs#L177-L296) and the circuits' [load calls](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/compute_v.rs#L159-L164) show them. The stages in each sum are listed in layout order.
 
 | Circuit | Stages in its sum, in layout order | Final mask | Stages it loads enforced |
 | --- | --- | --- | --- |
@@ -146,20 +162,7 @@ Some constraints on a stage, such as a point lying on its curve, have to be writ
 
 The `collapse` row shows why the final mask needs its own column. The circuit reads outer error, but inner error follows outer error in the tree, so `collapse` ends on inner error even though the fuse commits inner error earlier. In the code, the [final mask for inner error](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/claims.rs#L374-L376) covers `collapse` alone.
 
-The last column needs a reason for each stage it covers, and the next table gives one. For the stages that no circuit loads enforced, it gives the check that pins their contents instead.
-
-| Stage | What needs checking | How the code checks it |
-| --- | --- | --- |
-| Preamble | The children's points and some bits must be well formed | `compute_v` loads it enforced. The code's [comment](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/compute_v.rs#L159-L161) gives no reason for choosing `compute_v`, and any single reader would serve |
-| Five points stages | Every point must lie on the curve | `bind_endoscalar` checks this once, and the endoscaling steps rely on it |
-| Walk | The bits and intermediate points must be the right ones | No enforced load. `bind_endoscalar` compares the bits wire by wire with `pre_beta`, and each intermediate point must equal the point an endoscaling step computes from enforced inputs, as the [code's comment](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/endoscaling_step.rs#L14-L16) explains |
-| Query and eval | The values must be the true evaluations of the committed polynomials. Field elements need no check to be well formed, in our reading | No enforced load. `compute_v` computes $v$ from these values, and the claim $p(u) = v$ joins the accumulator, so a false value leaves a false claim that a later fold or the [final verifier](./compression.md) catches |
-
-One example shows why [stages](./staging.md) were worth building. The `hashes_1` circuit computes each child's public input value and needs the child's data, which sits in the preamble. The `collapse` circuit reads that same data. Both read one polynomial, so a prover cannot show them different children, and only the preamble's commitment has to enter the transcript.
-
-The nested side has a shorter list, with no transcript and no application circuit, as [chapter 13 found](./curve-cycles.md#_12-cycles-in-ragu). Its [`collapse`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/nested/circuits/collapse.rs#L1-L24) checks the nested fold, its [`compute_v`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/nested/circuits/compute_v.rs#L1-L32) computes the nested $v$, and [26 endoscaling steps](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/profile.rs#L2372) combine the native commitments, a count that [chapter 16 also derives](./endoscalars.md#_13-feedback-between-the-walks).
-
-The application's circuit [uses no stages](./staging.md#_15-staging-in-ragu). All of the machinery above sits beside it and leaves its budget of gates to the application.
+:::
 
 ::: warning The stage chains
 **Book:** the [recursion chapter](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/book/src/protocol/recursion/index.md?plain=1#L87-L88) gives `hashes_2` the chain preamble, outer error.
@@ -168,6 +171,25 @@ The application's circuit [uses no stages](./staging.md#_15-staging-in-ragu). Al
 
 This site follows the code.
 :::
+
+::: details How each stage's contents get checked
+
+The enforced column of the previous box needs a reason for each stage it covers, and the next table gives one. For the stages that no circuit loads enforced, it gives the check that pins their contents instead.
+
+| Stage | What needs checking | How the code checks it |
+| --- | --- | --- |
+| Preamble | The children's points and some bits must be well formed | `compute_v` loads it enforced. The code's [comment](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/compute_v.rs#L159-L161) gives no reason for choosing `compute_v`, and any single reader would serve |
+| Five points stages | Every point must lie on the curve | `bind_endoscalar` checks this once, and the endoscaling steps rely on it |
+| Walk | The bits and intermediate points must be the right ones | No enforced load. `bind_endoscalar` compares the bits wire by wire with `pre_beta`, and each intermediate point must equal the point an endoscaling step computes from enforced inputs, as the [code's comment](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/endoscaling_step.rs#L14-L16) explains |
+| Query and eval | The values must be the true evaluations of the committed polynomials. Field elements need no check to be well formed, in our reading | No enforced load. `compute_v` computes $v$ from these values, and the claim $p(u) = v$ joins the accumulator, so a false value leaves a false claim that a later fold or the [final verifier](./compression.md) catches |
+
+:::
+
+One example shows why [stages](./staging.md) were worth building. The `hashes_1` circuit computes each child's public input value and needs the child's data, which sits in the preamble. The `collapse` circuit reads that same data. Both read one polynomial, so a prover cannot show them different children, and only the preamble's commitment has to enter the transcript.
+
+The nested side has a shorter list, with no transcript and no application circuit, as [chapter 13 found](./curve-cycles.md#_12-cycles-in-ragu). Its [`collapse`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/nested/circuits/collapse.rs#L1-L24) checks the nested fold, its [`compute_v`](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/nested/circuits/compute_v.rs#L1-L32) computes the nested $v$, and [26 endoscaling steps](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/profile.rs#L2372) combine the native commitments, a count that [chapter 16 also derives](./endoscalars.md#_13-feedback-between-the-walks).
+
+The application's circuit [uses no stages](./staging.md#_15-staging-in-ragu). All of the machinery above sits beside it and leaves its budget of gates to the application.
 
 ### What one fuse produces
 
@@ -187,13 +209,23 @@ The table counts the polynomials of one fuse in the standard profile, side by si
 
 The schedule commits $100$ polynomials in all. A proof carries $92$ of them to its parent, which is the count [the code records](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/profile.rs#L2364-L2379). The other $8$ serve only the fuse that made them. Their values at the fuse's points sit in the query and eval stages, and the fuse folds the polynomials themselves into its new batch polynomial $p$, so a parent that holds $p$ never needs them again. The code [marks them as ephemeral](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/fuse/_03_s_prime.rs#L23-L24).
 
-The claims follow the same split. The native side folds $86$ revdot claims, a count that [chapter 17 derived](./staging.md#_15-staging-in-ragu). Its $16$ mask claims are one for each of the $11$ stages and one for each of the $5$ final masks, and those $5$ are exactly the distinct entries of the "Final mask" column above, namely outer error, inner error, eval, preamble and walk. The nested side folds $72$, which are $2$ raw claims (one per child), $56$ circuit claims ($28$ per child) and $14$ mask claims, one for each of its $11$ stages and $3$ for final masks.
-
 <!-- /worked:census -->
+
+The traces and stages also set how many revdot claims the fuse folds, since each child's trace and stage commitments become claims. The box breaks that count down by kind on each side.
+
+::: details Counting the claims
+
+<!-- worked:census-claims -->
+
+The claims follow the same split. The native side folds $86$ revdot claims, a count that [chapter 17 derived](./staging.md#_15-staging-in-ragu). Its $16$ mask claims are one for each of the $11$ stages and one for each of the $5$ final masks, and those $5$ are exactly the distinct entries of the "Final mask" column in the stage table of this section, namely outer error, inner error, eval, preamble and walk. The nested side folds $72$, which are $2$ raw claims (one per child), $56$ circuit claims ($28$ per child) and $14$ mask claims, one for each of its $11$ stages and $3$ for final masks.
+
+<!-- /worked:census-claims -->
+
+:::
 
 ## 4. Splitting the transcript
 
-The transcript has to be replayed in circuit, because the [Fiat–Shamir challenges](./statements-and-challenges.md#_8-removing-the-verifier-with-fiat–shamir) would otherwise be numbers that the prover merely asserts. One circuit cannot hold the whole replay, as a count of gates shows.
+The transcript has to be replayed in circuit, because the [Fiat–Shamir challenges](./statements-and-challenges.md#_7-removing-the-verifier-with-fiat–shamir) would otherwise be numbers that the prover merely asserts. One circuit cannot hold the whole replay, as a count of gates shows.
 
 <!-- worked:perm-cost -->
 
@@ -224,11 +256,17 @@ We run this on the [toy sponge from chapter 3](./statements-and-challenges.md#a-
 
 <!-- /worked:transcript-run -->
 
+Splitting the replay at `inner_error` changes none of the challenges. The box shows the saved state and the permutation count of each half.
+
+::: details The split on the toy sponge
+
 <!-- worked:transcript-split -->
 
 The first half ends by permuting and saving the three cells of the state, $(2, 42, 12)$. The second half loads those cells and squeezes $\tau = 2$ with no further permutation, so the second half's five permutations begin when it absorbs `outer_error`. We ran the sponge once straight through and once split at this point, and all nine challenges agree. The toy sponge takes $3$ permutations in the first half and $5$ in the second, as the code does, because we leave out the domain tag and its rate of 2 fits one point per permutation.
 
 <!-- /worked:transcript-split -->
+
+:::
 
 Reading the state from a stage leaves one question, which is what forces the stage to hold the right value. Only `hashes_1` knows that value, having computed it, so the check goes [in that circuit](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/hashes_1.rs#L281-L286):
 
@@ -241,7 +279,7 @@ transcript
     .enforce_equal(dr, &outer_error.sponge_state)?;
 ```
 
-Without this line, a prover could pick the state and with it the challenges:
+Without this line, a prover could pick the state and with it the challenges. The tamper below changes only the first cell of the honest saved state, which the box above shows.
 
 <!-- worked:transcript-tamper -->
 
@@ -270,7 +308,15 @@ The rows add to $13$ points and $11$ elements, which is the code's [$37$ wires](
 
 <!-- /worked:slots -->
 
-Recursion uses [three forms of $k(Y)$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/stages/preamble.rs#L112-L144) over these values, plus a fourth with no wires of its own. All are Horner evaluations ending in the [constant wire's 1](./nark.md#_15-the-constant-wire):
+Recursion uses [three forms of $k(Y)$](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/stages/preamble.rs#L112-L144) over these values, plus a fourth with no wires of its own. Each one lists some wires and appends the [constant wire's 1](./nark.md#_15-the-constant-wire), and the list becomes the coefficients of $k(Y)$, highest power first.
+
+- $k_{\text{unified}}$ lists the unified instance, then a $0$.
+- $k_{\text{headers}}$ lists the unified instance, the left and right child headers, then a $0$.
+- $k_{\text{app}}$ lists the left, right and output headers.
+
+Because the 1 is the constant term, the last wire before it is the coefficient of $Y$. Section 6 uses that coefficient. The box writes the three forms as formulas.
+
+::: details The three forms as Horner evaluations
 
 $$k_{\text{unified}}(Y) = \text{Horner}(\text{unified} \,\|\, 0 \,\|\, 1,\ Y),$$
 
@@ -278,7 +324,9 @@ $$k_{\text{headers}}(Y) = \text{Horner}(\text{unified} \,\|\, \text{left} \,\|\,
 
 $$k_{\text{app}}(Y) = \text{Horner}(\text{left} \,\|\, \text{right} \,\|\, \text{output} \,\|\, 1,\ Y).$$
 
-Here Horner over wires $h_0, \ldots, h_{m-1}$ and the final 1 means $(\cdots(h_0 y + h_1) y + \cdots + h_{m-1}) y + 1$, so the last wire before the 1 is the coefficient of $Y$. Section 6 uses that coefficient.
+Here Horner over wires $h_0, \ldots, h_{m-1}$ and the final 1 means $(\cdots(h_0 y + h_1) y + \cdots + h_{m-1}) y + 1$, so the last wire before the 1 is the coefficient of $Y$.
+
+:::
 
 The `hashes_1` circuit uses $k_{\text{headers}}$ because it also exposes the child headers. The application circuit exposes the same headers through $k_{\text{app}}$. A parent computes both values from the one preamble, so together the two claims stop a proof from using one pair of headers in the step and another in the recursion.
 
@@ -315,13 +363,25 @@ This site follows the code.
 
 The registry holds internal and application circuits side by side, and [a proof names its application circuit](./wiring-and-registry.md#_9-what-the-prover-may-select) by a domain point the prover selects. So a prover could try to name an internal circuit and claim its trace as an application step. To rule that out, the code makes the two kinds of $k(Y)$ unable to coincide. Each internal circuit ends its output with a zero, and each application header ends with a [suffix that is never zero](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/header.rs#L13-L27).
 
-Section 5 showed that the last wire before the final 1 becomes the coefficient of $Y$ in $k(Y)$, and the last column of its table recorded that coefficient. For every internal circuit that wire is the zero, so every internal $k(Y)$ has $Y$-coefficient $0$. For every application circuit it is the suffix $s$, so every application $k(Y)$ has $Y$-coefficient $s \ne 0$. The difference of an internal and an application $k(Y)$ therefore has $Y$-coefficient $-s$, which means it is never the zero polynomial, whatever the other wires hold. A nonzero polynomial of degree at most $d$ has at most $d$ roots, so the two values agree at only a few $y$, and a random $y$ tells the two kinds of circuit apart. A small example checks this count and also shows what goes wrong without the suffix.
+Section 5 showed that the last wire before the final 1 becomes the coefficient of $Y$ in $k(Y)$, and the last column of its toy table recorded that coefficient. It was zero for every internal circuit and equal to the header's suffix for the application. That one coefficient is enough to keep the two kinds apart, and a toy run shows how much the suffix matters.
 
 <!-- worked:substitution -->
 
-Let an internal circuit expose wires $(a, b)$ and its zero suffix, so that $k_{\text{int}}(Y) = aY^3 + bY^2 + 0 \cdot Y + 1$, and let an application circuit expose a header $(d, s)$, so that $k_{\text{app}}(Y) = dY^2 + sY + 1$. Their difference is $aY^3 + (b - d)Y^2 - sY$. If an application could use the suffix $s = 0$, the difference would vanish whenever $a = 0$ and $b = d$. That happens for $43$ of the $79,507$ triples $(a, b, d)$, and for those the swap would pass at every $y$. For $s = 3, 4, 5$ the coefficient of $Y$ in the difference is $-s$, which is not zero, so no choice of $a$ and $b - d$ can cancel it. We tried all $1,849$ pairs $(a, b - d)$ for each $s$ and found none that makes the polynomials identical. At a nonzero $y$ the difference vanishes only where $ay^2 + (b - d)y - s$ does, and a polynomial of degree $2$ has at most $2$ roots. The worst pair reaches that bound, so the two values agree at no more than $2$ of the $42$ nonzero values of $y$. On a real field the same count of roots is a negligible fraction.
+Take a toy internal circuit with two output wires and its zero, and a toy application circuit with a one-entry header and its suffix, and compare their $k(Y)$ over $\F_{43}$. If an application could use the suffix $0$, then $43$ of the $79,507$ possible choices of wires would make the two polynomials identical, and for those the swap would pass at every $y$. With the suffixes $3$, $4$ and $5$ we tried every choice and found none that makes them identical, and the two values agree at no more than $2$ of the $42$ nonzero values of $y$.
 
 <!-- /worked:substitution -->
+
+In words, an internal $k(Y)$ always has $Y$-coefficient $0$ and an application $k(Y)$ always has $Y$-coefficient $s \ne 0$, so no choice of the other wires makes the two polynomials equal. Two different polynomials of low degree agree at only a few points, so at a random $y$ their values differ except with negligible probability, and a prover cannot pass an internal trace off as an application step. The box carries out the algebra behind the toy count.
+
+::: details The algebra of the toy run
+
+<!-- worked:substitution-detail -->
+
+Let an internal circuit expose wires $(a, b)$ and its zero suffix, so that $k_{\text{int}}(Y) = aY^3 + bY^2 + 0 \cdot Y + 1$, and let an application circuit expose a header $(d, s)$, so that $k_{\text{app}}(Y) = dY^2 + sY + 1$. Their difference is $aY^3 + (b - d)Y^2 - sY$. If an application could use the suffix $s = 0$, the difference would vanish whenever $a = 0$ and $b = d$. That happens for $43$ of the $79,507$ triples $(a, b, d)$, and for those the swap would pass at every $y$. For $s = 3, 4, 5$ the coefficient of $Y$ in the difference is $-s$, which is not zero, so no choice of $a$ and $b - d$ can cancel it. We tried all $1,849$ pairs $(a, b - d)$ for each $s$ and found none that makes the polynomials identical. At a nonzero $y$ the difference vanishes only where $ay^2 + (b - d)y - s$ does, and a polynomial of degree $2$ has at most $2$ roots. The worst pair reaches that bound, so the two values agree at no more than $2$ of the $42$ nonzero values of $y$. On a real field the same count of roots is a negligible fraction.
+
+<!-- /worked:substitution-detail -->
+
+:::
 
 This also explains why an endoscaling step needs the zero although it exposes nothing. [Its comments](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/native/circuits/endoscaling_step.rs#L19-L24) say that the suffix is what stops a step from satisfying an application instance, given that the application's circuit ID may name any native slot. The nested registry [holds internal circuits only](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/internal/nested/unified.rs#L28-L29), so it omits the zero.
 
@@ -360,13 +420,23 @@ Three of these rows are accumulators, namely $(A, B, c)$, $(P, u, v)$ and the re
 | $(P, u, v)$ | $((23,\,24),\ 17,\ 23)$ | $((24,\,1),\ 30,\ 6)$ | $((25,\,29),\ 12,\ 10)$ |
 | Restriction | $m(W, 9, 7)$, committed as $(5,\,29)$ | $m(W, 37, 34)$, committed as $(27,\,30)$ | $m(W, 21, 12)$, committed as $(23,\,7)$ |
 
+<!-- /worked:shape -->
+
+Each row has two inputs and one output, which is the point of the table. The first row uses the quotient fold of chapter 14, the second the batching of chapter 12, and the third the registry chain of chapter 15. The box gives the intermediate values of each fold.
+
+::: details How each row was folded
+
+<!-- worked:shape-detail -->
+
 In the first row the children's pairs are the first two proof claims of chapter 14. The parent folds them with one layer of [that chapter's quotient fold](./revdot-folding.md#_10-the-quotient-fold-in-ragu-s-fuse), the fold the schedule runs in phases 4 and 5. For two claims the quotient has the single coefficient $19$, and at $\tau = 20$, the challenge of chapter 14's run, the weights are $(24, 20)$ and the new value is $c^* = 23 + 36 \cdot 19 = 19$. The folded vectors satisfy $\revdot{\v{a}}{\v{b}} = 19$.
 
 In the second row the left child holds the first accumulator of [chapter 12's run](./split-accumulation.md#_6-a-run-on-the-toy-curve) and the right child holds a fresh one. The parent batches the two claims $p_L(17) = 23$ and $p_R(30) = 6$ with $\alpha = 7$, $u = 12$ and $\beta = 19$, and the new $p$ evaluates to $10$ at $12$.
 
 The third row is the registry run of [chapter 15](./wiring-and-registry.md#_6-consistency-for-the-registry), with the parent's fresh $w = 14$.
 
-<!-- /worked:shape -->
+<!-- /worked:shape-detail -->
+
+:::
 
 The restriction row packs two openings into one step, so here they are in turn. The parent does not keep the child's $m(W, x_i, y_i)$. It opens that polynomial at the parent's fresh $w$, and the [chain of restrictions in chapter 15](./wiring-and-registry.md#_6-consistency-for-the-registry) carries the result into the parent's single new $m(W, x, y)$. The parent then opens its new restriction at the [child's circuit ID](./wiring-and-registry.md#_7-selecting-a-circuit), which gives the wiring value $s(x, y)$ of the child's circuit, the value it needs for the child's circuit claim. In the toy run the two children's circuits are A and B of chapter 15, at the domain points $\omega^0$ and $\omega^1$:
 

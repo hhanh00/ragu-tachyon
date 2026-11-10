@@ -12,6 +12,9 @@ from itertools import combinations
 from math import ceil, isqrt, log2
 
 from toy_curve import G, H as H_POINT, Q, U, add, curve_points, mul, show
+import contextlib, io
+with contextlib.redirect_stdout(io.StringIO()):
+    import pool_state as POOL
 
 frag = {}
 
@@ -338,6 +341,9 @@ frag['run-polys'] = '\n'.join([
     f'| $N(X)$ | 3, 4, 5, 6 | the wallet | ${pshow(Npoly)}$ |',
     f'| $C(X)$ | 3 | the wallet | ${pshow(Comp)}$ |',
 ])
+frag['run-degrees'] = (
+    f'Each factor is a cubic, so $\\Delta$ has degree {len(Delta) - 1}, $C$ has degree {len(Comp) - 1}, and $N$ has degree {len(Npoly) - 1}. '
+    f'The box lists their coefficients.')
 frag['run-commit'] = (
     f'Each polynomial commits on the toy curve as in [chapter 6](./polynomial-commitments.md), with the extra generators of [chapter 21](./pool-state.md#_4-combining-and-dividing-sets) '
     f'and more of the same kind, since $N$ needs 13: $\\mathsf{{Com}}(\\Delta) = {show(cD)}$, $\\mathsf{{Com}}(C) = {show(cC)}$, and $\\mathsf{{Com}}(N) = {show(cN)}$. '
@@ -386,8 +392,11 @@ rows.append(('A genuine nullifier of epoch 7, which the batch does not hold, in 
 frag['run-cheat'] = '\n'.join(
     ['| The segment\'s polynomial $\\Delta\'$ uses | Cases where any $C$ makes $N = \\Delta\' C$ | Challenges that pass with the honest $C$, of 43 |', '| --- | --- | --- |']
     + [f'| {a} | {b} | {c} |' for a, b, c in rows])
+deg_N = len(Npoly) - 1
+frag['run-cheat-bound'] = (
+    f'The difference $N - \\Delta\' C$ has degree at most {deg_N}, so no attempt can pass more than {deg_N} challenges, and the worst one here passes {max(all_counts)}. '
+    f'The box explains why a single wrong value passes so few.')
 frag['run-cheat-note'] = (
-    f'The difference $N - \\Delta\' C$ has degree at most 12, so no attempt can pass more than 12 challenges, and the worst one here passes {max(all_counts)}. '
     f'A wrong value passes so few because $N - \\Delta\' C$ factors as $C$, $F_{{4,{TOY[4]}}}$ and $F_{{6,{TOY[6]}}}$, which have no roots in the field, times $F_{{5,{TOY[5]}}} - F_{{5,m}}$. The constants $c$ cancel in that difference, which leaves $A^3 - B^3$ with $A = {TOY[5]} + {5 + 1}X$ and $B = m + {5 + 1}X$. '
     f'Because $\\F_{{43}}$ contains the cube root of unity $\\omega$, this factors as $(A - B)(A - \\omega B)(A - \\omega^2 B)$. The first factor $A - B = {TOY[5]} - m$ is a nonzero constant, and each of the other two is linear in $X$ with one root. So the difference has at most two roots, and the count of 2 in every case shows that the two roots never coincide here. '
     f'The proportion looks large only because the field has 43 elements.')
@@ -476,6 +485,16 @@ assert TG_PER_TX == 9
 tg_code = 100 * EPOCH_SECONDS * TG_PER_TX
 tg_book4 = 100 * TWO_WEEKS * 4
 assert tg_book4 > 480_000_000 and tg_book4 < 490_000_000
+_seal_start = POOL.h_ep(0, 0)
+_seal_end = POOL.h_ep(POOL.final[0], 1)
+assert _seal_start == POOL.entry[0] and _seal_end == POOL.entry[1]
+frag['seal'] = (
+    f'For our epoch, the step takes $\\mathsf{{anchor\\_final\\_prev}} = 0$ for epoch zero and checks the start against '
+    f'$H_\\mathsf{{ep}}(0,\\ 0) = {_seal_start}$. The last intake ended on the final anchor {POOL.final[0]}, '
+    f'so the step computes $H_\\mathsf{{ep}}({POOL.final[0]},\\ 1) = {_seal_end}$. The bucket covers the half-open range '
+    f'from {_seal_start} to {_seal_end}, using the stand-in values of chapter 21.'
+)
+
 frag['scale'] = (
     f'Take chapter 1\'s hypothetical load of 100 two-input, two-output transactions per second, with {TG_PER_TX} tachygrams each. An epoch of the code\'s 4,096 blocks lasts {num(EPOCH_SECONDS)} seconds at 75 seconds per block, '
     f'so it holds {num(tg_code)} tachygrams, and $e(X)$ has that degree.')

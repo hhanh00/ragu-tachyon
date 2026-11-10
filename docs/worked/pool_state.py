@@ -127,7 +127,12 @@ f2 = roots_poly([ta, tb])
 f3 = POLY['A']
 assert f3 == pmul(f2, roots_poly([tc]))
 frag['set-poly'] = '\n'.join([
-    f'Take a stamp A with the three tachygrams ${ta}$, ${tb}$, ${tc}$. Multiplying the factors one at a time, with coefficients reduced modulo {Q}, gives',
+    f'Take a stamp A with the three tachygrams ${ta}$, ${tb}$, ${tc}$. Multiplying out the three factors and reducing the coefficients modulo {Q} gives',
+    '',
+    f'$$(X - {ta})(X - {tb})(X - {tc}) = {pshow(f3)}.$$',
+])
+frag['set-poly-steps'] = '\n'.join([
+    f'Multiplying the factors one at a time, with coefficients reduced modulo {Q}, gives',
     '',
     f'$$\\begin{{aligned}}',
     f'(X - {ta})(X - {tb}) &= X^2 - {ta + tb}X + {ta * tb} = {pshow(f2)},\\\\',
@@ -165,7 +170,8 @@ for i, c in enumerate(f3):
     run = add(run, term)
     rows.append(f'| ${names[i]}$ | {c} | $G_{i}$ | ${show(term)}$ | ${show(run)}$ |')
 assert run == COMMIT['A'] and f3[3] == 1
-frag['commit'] = '\n'.join(rows + ['', f'The commitment is $C_A = {show(COMMIT["A"])}$. Coefficients live in $\\F_{{{Q}}}$, like the tachygrams, and the coordinates of $C_A$ live in $\\F_{{{P}}}$.'])
+frag['commit'] = '\n'.join(rows)
+frag['commit-result'] = (f'The commitment to stamp A is $C_A = {show(COMMIT["A"])}$. Coefficients live in $\\F_{{{Q}}}$, like the tachygrams, and the coordinates of $C_A$ live in $\\F_{{{P}}}$.')
 assert commit([1]) == G[0]
 frag['empty'] = (
     f'On the toy curve, the empty set has the constant polynomial $1$, so its commitment is $1 \\cdot G_0 = {show(G[0])}$. '
@@ -206,15 +212,16 @@ assert sorted(passing) == sorted(kept + STAMPS['B'])
 frag['union-cheat'] = '\n'.join([
     f'Suppose a prover claims a union $p\'$ with the root ${tc}$ replaced by ${fake_root}$. Then $p\'({tc}) = {ev(pfake, tc)}$, '
     f'so ${tc}$ would look absent from the merged set, and $p\'({fake_root}) = 0$, so ${fake_root}$ would look present. '
-    f'Trying every challenge in $\\F_{{{Q}}}$, the false product passes at exactly {len(passing)} of the {Q} values, namely {", ".join(str(x) for x in passing)}.',
-    '',
+    f'Trying every challenge in $\\F_{{{Q}}}$, the false product passes at exactly {len(passing)} of the {Q} values, namely {", ".join(str(x) for x in passing)}. '
+    f'The chance {len(passing)}/{Q} is large here only because the field is tiny. On a field of about $2^{{254}}$ elements, the same bound is negligible.',
+])
+frag['union-cheat-why'] = '\n'.join([
     f'The bound explains this count. Both $p\'$ and $f_A f_B$ are monic of degree 6, so their leading terms cancel and the difference has degree at most 5. '
     f'Here the two products share every factor except one, so the difference factors as',
     '',
     f'$$p\'(X) - f_A(X)f_B(X) = (X - {kept[0]})(X - {kept[1]})\\,f_B(X)\\,\\big((X - {fake_root}) - (X - {tc})\\big) = {lead}\\,(X - {kept[0]})(X - {kept[1]})\\,f_B(X).$$',
     '',
-    f'Its roots are the five values that the two products share, and those are exactly the passing challenges, so this example meets the bound of 5. '
-    f'The chance {len(passing)}/{Q} is large here only because the field is tiny. On a field of about $2^{{254}}$ elements, the same bound is negligible.',
+    f'Its roots are the five values that the two products share, and those are exactly the passing challenges, so this example meets the bound of 5.',
 ])
 
 q_ok, rem_ok = pdiv(pab, fb)

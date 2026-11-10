@@ -37,7 +37,7 @@ The sections below run all three on the toy curve. We use the two circuits from 
 
 ## 2. Where the last fuse's challenges come from
 
-Compression checks claims that the last fuse made at its own challenges. The accumulator pair was built at $y_f$ and $z_f$, the restriction is $m(W, x_f, y_f)$, and the batch claim sits at $u_f$. If the prover could name these values, it could choose them after building the polynomials, and every check below would test the polynomials at points the prover picked. That is the attack Fiat–Shamir exists to prevent, as [chapter 3](./statements-and-challenges.md#_8-removing-the-verifier-with-fiat–shamir) explained.
+Compression checks claims that the last fuse made at its own challenges. The accumulator pair was built at $y_f$ and $z_f$, the restriction is $m(W, x_f, y_f)$, and the batch claim sits at $u_f$. If the prover could name these values, it could choose them after building the polynomials, and every check below would test the polynomials at points the prover picked. That is the attack Fiat–Shamir exists to prevent, as [chapter 3](./statements-and-challenges.md#_7-removing-the-verifier-with-fiat–shamir) explained.
 
 Inside the tree, a parent's circuits replayed the child's transcript. The root has no parent, so the verifier replays it itself. It does not need the polynomials for this, because the fuse transcript absorbs only the eight bridge commitments of the [last chapter's schedule](./ragu-recursion.md#the-schedule), and the instance carries all eight. So the verifier [absorbs them in the fuse's order and squeezes the fuse's challenges](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/instance.rs#L312-L363), exactly as the [toy transcript run](./ragu-recursion.md#_4-splitting-the-transcript) did. That run lists all of them, and four of them matter here. Three, $x_f$, $y_f$ and $u_f$, enter the claims that compression checks. The fourth, $z_f$, matters only because the fuse built the accumulator pair at it, and in our reading of the code no check of compression evaluates anything at $z_f$. The prover cannot change $x_f$ without changing the bridge commitment that released it. The IPA at the end of compression opens every polynomial commitment that the verifier reads, on its own curve, with [one exception that Section 9 describes](#_9-why-cheating-fails).
 
@@ -114,15 +114,19 @@ The target of slot 0 is the stored value $c_{\text{acc}} = 11$. The targets of s
 
 ### Binding stage wires to the registry
 
-The first five claims have appeared in earlier chapters. The sixth answers a check from the decider's list in Section 1. The last fuse's query stage holds registry values such as $m(\omega_i, x_f, y_f)$, the wiring value of each internal circuit at the fuse's challenges, and the fuse's circuits used those wires in their checks. Nothing inside the tree ties the wires to the true registry, because no circuit can afford to evaluate the registry. The decider closes the gap by reading the wires off the stage polynomial and comparing them with values it computes from the registry. A compressed verifier holds only the stage's commitment, so it needs another way to make the same comparison. The code [turns each such comparison into a revdot claim](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/revdot/claims.rs#L35-L52). For wires at degrees $d_j$ with expected values $q^*_j$, it places the expected values at those degrees and puts the powers of a challenge $\sigma$ in the mirrored positions:
+The first five claims have appeared in earlier chapters. The sixth answers a check from the decider's list in Section 1. The last fuse's query stage holds registry values such as $m(\omega_i, x_f, y_f)$, the wiring value of each internal circuit at the fuse's challenges, and the fuse's circuits used those wires in their checks. Nothing inside the tree ties the wires to the true registry, because no circuit can afford to evaluate the registry. The decider closes the gap by reading the wires off the stage polynomial and comparing them with values it computes from the registry. A compressed verifier holds only the stage's commitment, so it needs another way to make the same comparison. The code [turns each such comparison into a revdot claim](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/revdot/claims.rs#L35-L52). The left vector $q - E_\sigma$ is the stage minus a public vector $E_\sigma$ that holds the expected values at the chosen wires. The right vector $M_\sigma$ is a public vector that picks out exactly those wires and gives the $j$-th one the weight $\sigma^j$, for a fresh challenge $\sigma$. The product of the two is the sum of the errors $\sigma^j(\text{wire}_j - \text{expected}_j)$, and the claim's target is 0. That sum is a polynomial in $\sigma$ whose coefficients are the errors, so it vanishes at a random $\sigma$ only if each wire holds its expected value. The code calls this kind of claim "masked", because its right vector $M_\sigma$ is a public mask that reads chosen wires, where an ordinary mask forbids them.
+
+::: details How the two vectors read the chosen wires
+For wires at degrees $d_j$ with expected values $q^*_j$, the code places the expected values at those degrees and puts the powers of $\sigma$ in the mirrored positions:
 
 $$E_\sigma = \sum_j q^*_j X^{d_j}, \qquad M_\sigma = \sum_j \sigma^j X^{D - 1 - d_j}.$$
 
 A revdot product pairs the coefficient of $X^k$ in its left vector with the coefficient of $X^{D-1-k}$ in its right vector. The only nonzero entries of $M_\sigma$ sit at $D - 1 - d_j$, so the product reads the left vector only at the degrees $d_j$, where $q - E_\sigma$ holds $q_{d_j} - q^*_j$:
 
 $$\revdot{\v{q} - \v{E}_\sigma}{\v{M}_\sigma} = \sum_j \sigma^j (q_{d_j} - q^*_j).$$
+:::
 
-The target is 0. The right side is a polynomial in $\sigma$ whose coefficients are the errors, so it vanishes at a random $\sigma$ only if each wire holds its expected value. The code calls this kind of claim "masked", because its right vector $M_\sigma$ is a public mask that reads chosen wires, where an ordinary mask forbids them. The real list has [five such claims natively and three on the nested side](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/instance.rs#L515-L710). The query stage gives one of them, and the others cover the preamble, the eval stage and two points stages. In our run a small stage $q(X)$ plays the role of the query stage, and the comparison is the one just described.
+The real list has [five such claims natively and three on the nested side](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/instance.rs#L515-L710). The query stage gives one of them, and the others cover the preamble, the eval stage and two points stages. In our run a small stage $q(X)$ plays the role of the query stage, and the comparison is the one just described.
 
 <!-- worked:binding -->
 
@@ -144,7 +148,13 @@ $$\lambda_i = (\mu'_c)^\gamma \mu_c^\kappa, \qquad \eta_i = (\nu'_c)^\gamma \nu_
 
 The accumulator pair always sits in slot 0 of group 0, at $(\gamma, \kappa) = (0, 0)$, so $\lambda_0 = \eta_0 = 1$ in every proof, whatever the challenges.
 
-The folded pair is $\v{A} = \sum_i \lambda_i \v{\ell}_i$ and $\v{B} = \sum_i \eta_i \v{b}_i$. To see what target this pair should have, expand the revdot product by bilinearity. Write $e_{i,j} = \revdot{\v{\ell}_i}{\v{b}_j}$, and let claim $j$ sit at $(\gamma', \kappa')$:
+The folded pair is $\v{A} = \sum_i \lambda_i \v{\ell}_i$ and $\v{B} = \sum_i \eta_i \v{b}_i$. Its revdot product is not simply the weighted sum of the six targets, because multiplying out the two sums also pairs the left vector of one claim with the right vector of another. Expanding the product sorts its terms into three kinds. The diagonal terms pair each claim with itself, and if the claims are true they add up to $\sum_i \lambda_i \eta_i k_i$, which the verifier can compute. The cross terms between claims of the same group add up to a value we call $\varepsilon_1$, and the cross terms between claims of different groups add up to a value we call $\varepsilon_2$. The box below carries out the expansion and writes out both sums.
+
+So the target of the folded pair is $K = \sum_i \lambda_i \eta_i k_i + \varepsilon_1 + \varepsilon_2$. The verifier cannot compute $\varepsilon_1$ or $\varepsilon_2$, because they need the vectors. The prover computes them and sends them as two scalars, and the verifier forms $K$ from them. If nothing else checked the two scalars, the prover could make $K$ anything it liked. Compression makes each of them a revdot claim of its own, which the split of Section 5 tests together with the folded pair. The prover writes the same-group cross terms, which we call the first layer, into a committed vector $\v{E}_1$, and a public vector $\v{W}_1$ holds their weights, so that $\revdot{\v{E}_1}{\v{W}_1} = \varepsilon_1$. The vectors $\v{E}_2$ and $\v{W}_2$ do the same for the cross-group terms of the second layer and $\varepsilon_2$.
+
+::: details Expanding the folded product
+
+Write $e_{i,j} = \revdot{\v{\ell}_i}{\v{b}_j}$, and let claim $j$ sit at $(\gamma', \kappa')$. By bilinearity,
 
 $$\revdot{\v{A}}{\v{B}} = \sum_{i,j} \lambda_i \eta_j\, e_{i,j} = \sum_{i,j} (\mu'_c)^\gamma (\nu'_c)^{\gamma'} \mu_c^\kappa \nu_c^{\kappa'}\, e_{i,j}.$$
 
@@ -158,11 +168,11 @@ Written out, the two sums are
 
 $$\varepsilon_1 = \sum_\gamma (\mu'_c\nu'_c)^\gamma \sum_{\kappa \ne \kappa'} \mu_c^\kappa \nu_c^{\kappa'}\, e_{(\gamma,\kappa),(\gamma,\kappa')}, \qquad \varepsilon_2 = \sum_{\gamma \ne \gamma'} (\mu'_c)^\gamma (\nu'_c)^{\gamma'} \revdot{\v{A}_\gamma}{\v{B}_{\gamma'}}.$$
 
-So the target of the folded pair is $K = \sum_i \lambda_i \eta_i k_i + \varepsilon_1 + \varepsilon_2$. The verifier cannot compute $\varepsilon_1$ or $\varepsilon_2$, because they need the vectors. The prover computes them and sends them as two scalars, and the verifier forms $K$ from them. If nothing else checked the two scalars, the prover could make $K$ anything it liked. Compression makes each of them a revdot claim of its own, which the split of Section 5 tests together with the folded pair.
+In detail, the prover lays the first-layer terms $e_{(\gamma,\kappa),(\gamma,\kappa')}$ out as the low coefficients of a vector $\v{E}_1$, in the fuse's order, group by group and row by row. A public vector $\v{W}_1$ holds the weight of each term in the mirrored position, so the term at degree $d$ of $\v{E}_1$ meets its weight at degree $D - 1 - d$ of $\v{W}_1$. A revdot product pairs exactly those two degrees, so $\revdot{\v{E}_1}{\v{W}_1} = \varepsilon_1$. The second-layer terms $\revdot{\v{A}_\gamma}{\v{B}_{\gamma'}}$ and their weights $(\mu'_c)^\gamma (\nu'_c)^{\gamma'}$ go into $\v{E}_2$ and $\v{W}_2$ in the same way.
 
-The prover lays the first-layer terms $e_{(\gamma,\kappa),(\gamma,\kappa')}$ out as the low coefficients of a vector $\v{E}_1$, in the fuse's order, group by group and row by row. A public vector $\v{W}_1$ holds the weight of each term in the mirrored position, so the term at degree $d$ of $\v{E}_1$ meets its weight at degree $D - 1 - d$ of $\v{W}_1$. A revdot product pairs exactly those two degrees, so $\revdot{\v{E}_1}{\v{W}_1} = \varepsilon_1$. The second-layer terms $\revdot{\v{A}_\gamma}{\v{B}_{\gamma'}}$ and their weights $(\mu'_c)^\gamma (\nu'_c)^{\gamma'}$ go into $\v{E}_2$ and $\v{W}_2$ in the same way.
+:::
 
-The order of the commitments matters. The first-layer terms depend only on the claims, so the prover commits to $\v{E}_1$ before $\mu_c$ and $\nu_c$ exist. The second-layer terms depend on $\mu_c$ and $\nu_c$, through $\v{A}_\gamma$ and $\v{B}_{\gamma'}$, so the prover can only compute them afterwards. It commits to $\v{E}_2$ after $\mu_c$ and $\nu_c$ and before $\mu'_c$ and $\nu'_c$, and it sends $\varepsilon_1$ and $\varepsilon_2$ once all four challenges are [in the transcript](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/revdot/fold.rs#L67-L76). So in both layers the prover fixes the cross terms before it knows the weights that will combine them, and Section 9 shows what a prover could do if the order were different.
+The order of the commitments matters. The first-layer terms depend only on the claims, so the prover commits to $\v{E}_1$ before $\mu_c$ and $\nu_c$ exist. The second-layer terms pair whole groups that are already weighted by $\mu_c$ and $\nu_c$, so the prover can only compute them afterwards. It commits to $\v{E}_2$ after $\mu_c$ and $\nu_c$ and before $\mu'_c$ and $\nu'_c$, and it sends $\varepsilon_1$ and $\varepsilon_2$ once all four challenges are [in the transcript](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/revdot/fold.rs#L67-L76). So in both layers the prover fixes the cross terms before it knows the weights that will combine them, and Section 9 shows what a prover could do if the order were different.
 
 <!-- worked:fold-run -->
 
@@ -172,6 +182,14 @@ Claim $i$ sits in group $\gamma = \lfloor i / 3 \rfloor$ at slot $\kappa = i \bm
 | --- | --- | --- | --- | --- | --- | --- |
 | $\lambda_i$ | $1$ | $19$ | $17$ | $2$ | $38$ | $34$ |
 | $\eta_i$ | $1$ | $38$ | $25$ | $33$ | $7$ | $8$ |
+
+<!-- /worked:fold-run -->
+
+The prover then computes the cross terms layer by layer and commits to each layer before the weights that combine it exist. The box below follows the twelve first-layer terms and the two second-layer terms through to $\varepsilon_1$ and $\varepsilon_2$.
+
+::: details The two layers of cross terms in the toy run
+
+<!-- worked:fold-layers -->
 
 **First layer.** The prover computes the twelve in-group cross terms and commits to them as $\bar{E}_1 = (20,\,25)$ before any weight exists. Once all four challenges are drawn, each term gets the weight $(\mu'_c\nu'_c)^\gamma \mu_c^\kappa \nu_c^{\kappa'}$. The pair $(0, 1)$ has $\gamma = 0$, $\kappa = 0$ and $\kappa' = 1$, so its weight is $\nu_c = 38$. The pair $(3, 4)$ has $\gamma = 1$, $\kappa = 0$ and $\kappa' = 1$, so its weight is $\mu'_c\nu'_c\nu_c = 2 \cdot 33 \cdot 38 = 14$ modulo 43.
 
@@ -191,9 +209,15 @@ The last three terms of group 1, $e_{4,5}$, $e_{5,3}$ and $e_{5,4}$, are zero be
 
 **Second layer.** With $\mu_c$ and $\nu_c$ known, the prover forms $\v{A}_0$, $\v{B}_0$, $\v{A}_1$ and $\v{B}_1$ and computes the two cross-group terms $\revdot{\v{A}_0}{\v{B}_1} = 22$ and $\revdot{\v{A}_1}{\v{B}_0} = 30$. It commits to them as $\bar{E}_2 = (27,\,1)$, and only then are $\mu'_c$ and $\nu'_c$ drawn. Their weights are $(\mu'_c)^0(\nu'_c)^1 = 33$ and $(\mu'_c)^1(\nu'_c)^0 = 2$, so $\varepsilon_2 = 22 \cdot 33 + 30 \cdot 2 = 12$ modulo 43.
 
-**The target.** The prover sends $\varepsilon_1 = 6$ and $\varepsilon_2 = 12$. The diagonal gives $\sum_i \lambda_i \eta_i k_i = 10$, so the verifier sets $K = 10 + 6 + 12 = 28$. The prover can check that $\revdot{\v{A}}{\v{B}}$ is also $28$, but the verifier cannot compute that product, and the split of Section 5 is what tests it.
+<!-- /worked:fold-layers -->
 
-<!-- /worked:fold-run -->
+:::
+
+<!-- worked:fold-target -->
+
+The prover sends $\varepsilon_1 = 6$ and $\varepsilon_2 = 12$. The diagonal gives $\sum_i \lambda_i \eta_i k_i = 10$, so the verifier sets $K = 10 + 6 + 12 = 28$. The prover can check that $\revdot{\v{A}}{\v{B}}$ is also $28$, but the verifier cannot compute that product, and the split of Section 5 is what tests it.
+
+<!-- /worked:fold-target -->
 
 ::: details Why groups, and which form of the fold
 Compression uses the form of the fold in the [code's compression module](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/revdot/fold.rs#L1-L34). [Chapter 14](./revdot-folding.md#_11-compression-and-the-forms-of-the-fold) noted that this form differs from the fuse's quotient fold, and that the sources do not say why.
@@ -211,7 +235,9 @@ The vectors $\v{A}$ and $\v{B}$ have public parts that nobody needs to commit to
 
 $$A(X) = A_c(X) + A_{\text{pub}}(X), \qquad B(X) = B_c(X) + T(zX) + B_{\text{pub}}(X),$$
 
-with these parts:
+Here $A_c$ and $B_c$ are weighted sums of committed polynomials, while $A_{\text{pub}}$ and $B_{\text{pub}}$ collect the wiring, the masks and the wire-binding vectors, which the verifier can evaluate itself. The box lists every term.
+
+::: details The four parts term by term
 
 $$
 \begin{aligned}
@@ -221,6 +247,8 @@ B_c &= \eta_0 B_{\text{acc}}, \\
 B_{\text{pub}} &= \eta_1 \big(s_1(X, y) + t(X, z)\big) + \eta_2 \big(s_2(X, y) + t(X, z)\big) + \eta_3 \cdot \text{mask}_1 + \eta_4 \cdot \text{mask}_{2,3} + \eta_5 M_\sigma.
 \end{aligned}
 $$
+
+:::
 
 The committed parts are combinations of the instance's points with known weights, so the verifier gets their commitments without any help from the prover.
 
@@ -242,7 +270,7 @@ $$\Pi(X) = X^{D-1}\, \Pi_{\text{lo}}(1/X) + X^D\, \Pi_{\text{hi}}(X).$$
 
 Reversing the low half moves the coefficient of $X^{D-1}$ to the constant term, so it lands in $\Pi_{\text{lo}}(0)$. The verifier received $\varepsilon_1$ and $\varepsilon_2$ from the prover and formed $K$ from them, so it can compute the value that $\Pi_{\text{lo}}(0)$ must have, and it checks that value later with an opening at $0$.
 
-The prover commits to both halves, and the verifier now needs to know that they really are the two halves of $\Pi$. It picks a fresh random point $r$, a single field element unrelated to the traces $r_1$ and $r_2$, and checks the identity above at $X = r$. One point is enough for the following reason. If the committed halves are wrong, the two sides of the identity differ by a nonzero polynomial of degree at most $2D - 2$, and by [chapter 3's root count](./statements-and-challenges.md#_4-counting-the-roots-of-a-polynomial) such a polynomial vanishes at no more than $2D - 2$ points. So the two sides agree at a random $r$ with probability at most $(2D - 2)/|\F|$, and the prover had to commit to the halves before $r$ was drawn. Evaluating the identity at $r$ needs the value of each committed piece at $r$, except that $T$ is needed at $rz$ and $\Pi_{\text{lo}}$ at $1/r$.
+The prover commits to both halves, and the verifier now needs to know that they really are the two halves of $\Pi$. It picks a fresh random point $r$, a single field element unrelated to the traces $r_1$ and $r_2$, and checks the identity above at $X = r$. One point is enough for the following reason. If the committed halves are wrong, the two sides of the identity differ by a nonzero polynomial of degree at most $2D - 2$, and by [chapter 3's root count](./statements-and-challenges.md#_4-counting-roots-and-testing-at-a-random-point) such a polynomial vanishes at no more than $2D - 2$ points. So the two sides agree at a random $r$ with probability at most $(2D - 2)/|\F|$, and the prover had to commit to the halves before $r$ was drawn. Evaluating the identity at $r$ needs the value of each committed piece at $r$, except that $T$ is needed at $rz$ and $\Pi_{\text{lo}}$ at $1/r$.
 
 <!-- worked:split-run -->
 
@@ -251,6 +279,14 @@ At $\rho = 41$ the prover commits to $\bar{\Pi}_{\text{lo}} = (23,\,7)$ and $\ba
 | $A_c(r)$ | $T(rz)$ | $B_c(r)$ | $E_1(r)$ | $E_2(r)$ | $\Pi_{\text{lo}}(1/r)$ | $\Pi_{\text{hi}}(r)$ |
 | --- | --- | --- | --- | --- | --- | --- |
 | $38$ | $7$ | $12$ | $25$ | $3$ | $10$ | $8$ |
+
+The verifier adds the public parts, which it evaluates at $r$ itself, and both sides of the identity come to $34$.
+
+<!-- /worked:split-run -->
+
+::: details Evaluating both sides at $r$
+
+<!-- worked:split-detail -->
 
 The verifier evaluates the public parts at $r$ itself. Only the wire binding contributes to $A_{\text{pub}}$, and $E_\sigma(r) = 7$, so
 
@@ -266,7 +302,9 @@ $$A(r)B(r) + \rho\,E_1(r)W_1(r) + \rho^2 E_2(r)W_2(r) = 5 + 31 + 41 = 34,$$
 
 and the right side is $r^{15}\Pi_{\text{lo}}(1/r) + r^{16}\Pi_{\text{hi}}(r) = 5 + 29 = 34$.
 
-<!-- /worked:split-run -->
+<!-- /worked:split-detail -->
+
+:::
 
 The split is also where the prover does work that the fuse never does. Forming $\Pi$ means multiplying polynomials of $D$ coefficients, which the prover does with FFTs. A fuse folds a child's revdot claims into its own accumulator and leaves them unproved, so it never needs the product. Compression is where the accumulated claims [finally get proved](./revdot-folding.md#_11-compression-and-the-forms-of-the-fold), so it is the one step that pays for the product polynomial.
 
@@ -319,11 +357,17 @@ Claim 8 opens $m(W, x_f, y_f)$ at the fresh point $w = 3$. The verifier computes
 
 $B_c$ and $B_{\text{acc}}$ count as two polynomials, even though $B_c = \eta_0 B_{\text{acc}} = B_{\text{acc}}$ in every proof, as Section 4 noted. The code keeps the reduction's openings and the instance's openings in [separate lists](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/instance.rs#L713-L741) and does not merge them, and our toy keeps the same layout. Merging the two would save one value in the batch.
 
-The batch itself takes three messages. After a fresh challenge $\alpha$, the prover commits to the quotient $f(X) = \sum_j \alpha^{J-1-j}\, (h_{i_j}(X) - y_j) / (X - x_j)$. After a fresh point $u$, it sends each polynomial's value $h_i(u)$. A last challenge $\beta$ then weights the polynomials, and the verifier derives
+The batch itself takes three messages, as in chapter 8. After a fresh challenge $\alpha$, the prover commits to a quotient polynomial $f$ that combines all twelve claims. After a fresh point $u$, it sends each polynomial's value at $u$. A last challenge $\beta$ then weights the polynomials, and from the commitments and values the verifier derives one commitment $\bar{H}$ and one value $v$, so that the twelve claims reduce to the single claim $H(u) = v$. The box gives the formulas.
+
+::: details The batch formulas
+
+The quotient is $f(X) = \sum_j \alpha^{J-1-j}\, (h_{i_j}(X) - y_j) / (X - x_j)$, with commitment $\bar{F}$. From $\bar{F}$, the commitments $\bar{h}_i$ and the values $h_i(u)$, the verifier derives
 
 $$\bar{H} = \beta^{N} \cdot \bar{F} + \sum_{i=0}^{N-1} \beta^{N-1-i} \cdot \bar{h}_i,$$
 
 $$v = \beta^{N} \sum_{j=0}^{J-1} \alpha^{J-1-j}\, \frac{h_{i_j}(u) - y_j}{u - x_j} + \sum_{i=0}^{N-1} \beta^{N-1-i} h_i(u).$$
+
+:::
 
 Unlike the fuse's $\beta$, which has to be short so that a circuit can scale points with it, this $\beta$ is [an ordinary squeezed element](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/batch/verifier.rs#L65), since no circuit runs this verifier.
 
@@ -350,11 +394,15 @@ The final scalar is $\hat{a} = 38$. The verifier computes $\hat{G} = (18,\,10)$ 
 
 <!-- /worked:ipa-run -->
 
+::: details Points that repeat in this run
+
 <!-- worked:coincidence -->
 
 With only 43 points on the toy curve, several points in this run repeat by chance: $\bar{A}_{\text{acc}}$ and the IPA statement are both $(1,\,29)$; $\bar{B}_{\text{acc}}$, $L_1$ and $R_3$ are all $(25,\,29)$; $\bar{T}$ and $\bar{E}_1$ are both $(20,\,25)$; $\bar{\Pi}_{\text{lo}}$ and $R_1$ are both $(23,\,7)$; $\bar{\Pi}_{\text{hi}}$ and $L_2$ are both $(30,\,8)$; $R_2$ and $L_3$ are both $(22,\,7)$. The vectors behind them differ. On the real curves, with about $2^{254}$ points each, such a repeat does not happen in practice.
 
 <!-- /worked:coincidence -->
+
+:::
 
 That finishes the run on this curve. In the code the same three reductions run again on the nested curve with its own claims, [on one continuous transcript](https://github.com/tachyon-zcash/ragu/blob/3219e0865e8bff1f9d817bfe3850d9e94b64338c/crates/ragu_pcd/src/compress/mod.rs#L25-L26).
 

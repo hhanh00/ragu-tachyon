@@ -183,17 +183,7 @@ A valid proof shows that the rules produced this header, and the verifier still 
 
 ## 7. Why a false header has no valid proof
 
-The argument rests on three assumptions:
-
-1. The proof system keeps its promise from Section 1, so accepted proofs of false statements do not occur in practice.
-2. The steps are correct, in the sense of Section 4, so a step with true input headers can only output a true header.
-3. The verifier compares the final header with what it wants to know.
-
-Suppose a prover holds an accepted proof for a false header. By assumption 1, the statement from Section 6 is true, so a declared step accepted some input headers and produced this one, and those inputs have valid proofs. By assumption 2, the inputs cannot all be true, or the output would be true as well. So at least one input is a false header with a valid proof, and the same reasoning applies to it. Each repetition moves one level down the tree. The descent eventually reaches a step with no inputs, such as `Entry`, whose check rejects a false entry directly. A prover therefore cannot obtain a valid proof of a false header.
-
-This descent is informal in one respect. Soundness makes accepted proofs of false statements infeasible to find, but such proofs can still exist, so "those inputs have valid proofs" does not by itself show that anyone holds them. The argument really needs a prover who produces a proof to know the child proofs as well. That is the **knowledge soundness** of the [next chapter](./statements-and-challenges.md#_2-completeness-and-soundness), and the [chapter on recursive proofs](./recursive-proofs.md) returns to this point.
-
-Here is what each natural attempt to cheat runs into on the toy tree:
+Before giving the general argument, look at what each natural attempt to cheat runs into on the toy tree:
 
 <!-- worked:cheats -->
 
@@ -207,7 +197,23 @@ Here is what each natural attempt to cheat runs into on the toy tree:
 
 <!-- /worked:cheats -->
 
-In each case the prover cannot obtain a proof for the node where the falsehood first appears, so no later node can use it as an input.
+In each case the falsehood first appears at one particular node, and that node's step rejects it. The prover cannot obtain a proof for that node, so no later node can use it as an input, and the falsehood never reaches the root.
+
+The same reasoning covers every false header, not only these five, provided three assumptions hold:
+
+1. The proof system keeps its promise from Section 1, so accepted proofs of false statements do not occur in practice.
+2. The steps are correct, in the sense of Section 4, so a step with true input headers can only output a true header.
+3. The verifier compares the final header with what it wants to know.
+
+The idea is to follow a false header down the tree. A correct step never turns true inputs into a false output, so at least one input of a false header must itself be false, and following false inputs downward eventually reaches a step with no inputs, such as `Entry`, which checks its value directly and rejects the lie. A prover therefore cannot obtain a valid proof of a false header. The box below gives the descent step by step and notes the stronger property of the proof system that it quietly relies on.
+
+::: details The descent argument, and the knowledge soundness it needs
+
+Suppose a prover holds an accepted proof for a false header. By assumption 1, the statement from Section 6 is true, so a declared step accepted some input headers and produced this one, and those inputs have valid proofs. By assumption 2, the inputs cannot all be true, or the output would be true as well. So at least one input is a false header with a valid proof, and the same reasoning applies to it. Each repetition moves one level down the tree. The descent eventually reaches a step with no inputs, such as `Entry`, whose check rejects a false entry directly. A prover therefore cannot obtain a valid proof of a false header.
+
+This descent is informal in one respect. Soundness makes accepted proofs of false statements infeasible to find, but such proofs can still exist, so "those inputs have valid proofs" does not by itself show that anyone holds them. The argument really needs a prover who produces a proof to know the child proofs as well. That is the **knowledge soundness** of the [next chapter](./statements-and-challenges.md#_2-completeness-and-soundness), and the [chapter on recursive proofs](./recursive-proofs.md) returns to this point.
+
+:::
 
 ## 8. Succinctness
 

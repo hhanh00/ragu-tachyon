@@ -12,21 +12,33 @@ Tachyon has not activated on mainnet and its design is still changing. Everythin
 
 Tachyon's objects live in two fields. Pallas, the curve used for spend authorization, has coordinates in $\F_p$ and scalars in $\F_q$. Poseidon's inputs and outputs, and therefore all tachygrams, are elements of $\F_p$, and signing keys are elements of $\F_q$. The toy curve $E$ from the [curves appendix](./appendix-curves.md) has the same shape, with coordinates in $\F_{31}$ and scalars in $\F_{43}$, so we use it for every signing key below.
 
-The hashes need a different treatment. Tachyon uses Poseidon throughout, which [chapter 3](./statements-and-challenges.md#_11-poseidon-and-the-random-oracle-assumption) introduced, and each use has its own domain. In a field of 31 elements, unrelated hash outputs would collide constantly, and that would hide the behaviour we want to see. So the examples use a stand-in. We write $H_{\texttt{Tag}}(\ldots)$ for SHA-256 of the tag and inputs, reduced modulo 65,537, and a stand-in sponge produces four such values from one call. These numbers are not Poseidon outputs and are not elements of the toy field. They only show the structure, and the small range is useful later, because it lets us count a cheater's chances exhaustively.
+The hashes need a different treatment. Tachyon uses Poseidon throughout, which [chapter 3](./statements-and-challenges.md#_10-poseidon-and-the-random-oracle-assumption) introduced, and each use has its own domain. In a field of 31 elements, unrelated hash outputs would collide constantly, and that would hide the behaviour we want to see. So the examples use a stand-in. We write $H_{\texttt{Tag}}(\ldots)$ for SHA-256 of the tag and inputs, reduced modulo 65,537, and a stand-in sponge produces four such values from one call. These numbers are not Poseidon outputs and are not elements of the toy field. They only show the structure, and the small range is useful later, because it lets us count a cheater's chances exhaustively.
 
 ## 2. The spending key and its two children
 
 Spending a note requires two separate abilities. The owner has to authorize the spend with a signature, and the owner has to produce the note's nullifiers, which nobody else should be able to compute. The [deep dive](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L81-L86) observes that these are the only two abilities the shielded protocol needs from its keys. Everything else in Orchard's key tree, including viewing keys and diversified addresses, supports delivering notes to recipients and detecting them, and [chapter 1](./scaling-zcash.md#_7-separating-note-delivery-from-the-shielded-protocol) explained that delivery has moved to a separate payment protocol.
 
-The root is a [spending key](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/private.rs#L23-L40) $\mathsf{sk}$ of 32 random bytes, and each ability gets one child derived from it. Both children come from the same keyed hash, which Zcash calls $\text{PRF}^{\text{expand}}$. It runs BLAKE2b-512 over $\mathsf{sk}$ and a one-byte domain, with a fixed personalization string that keeps it apart from other uses of BLAKE2b, and it returns 64 bytes. $\text{ToScalar}$ and $\text{ToBase}$ read those 64 bytes as an integer and reduce it modulo $q$ or modulo $p$, so the result lands in the field the key needs:
+The root is a [spending key](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/private.rs#L23-L40) $\mathsf{sk}$ of 32 random bytes, and each ability gets one child derived from it. Both children come from one keyed hash of $\mathsf{sk}$, called with a different one-byte domain for each child, and the output is reduced into the field that the child needs. The box gives the exact formula and the toy replacement.
+
+::: details The key derivation formula
+
+The keyed hash is the one Zcash calls $\text{PRF}^{\text{expand}}$. It runs BLAKE2b-512 over $\mathsf{sk}$ and a one-byte domain, with a fixed personalization string that keeps it apart from other uses of BLAKE2b, and it returns 64 bytes. $\text{ToScalar}$ and $\text{ToBase}$ read those 64 bytes as an integer and reduce it modulo $q$ or modulo $p$, so the result lands in the field the key needs:
 
 $$\mathsf{ask} = \text{ToScalar}\big(\text{PRF}^{\text{expand}}_{\mathsf{sk}}(\texttt{0x21})\big), \qquad \mathsf{nk} = \text{ToBase}\big(\text{PRF}^{\text{expand}}_{\mathsf{sk}}(\texttt{0x22})\big).$$
 
 In the toy we replace BLAKE2b with SHA-256 and reduce modulo 43 for $\mathsf{ask}$ and modulo 65,537 for $\mathsf{nk}$, the stand-in hash range of Section 1.
 
+:::
+
 The **spend authorizing key** $\mathsf{ask}$ is a scalar in $\F_q$, and its public point is the **spend validating key** $\mathsf{ak} = [\mathsf{ask}]\mathcal{G}$. The **nullifier key** $\mathsf{nk}$ is an element of $\F_p$, and it has no public counterpart.
 
-One detail comes from RedPallas, the signature scheme that Orchard and Tachyon share. It requires $\mathsf{ak}$ to have a cleared sign bit in its compressed encoding. In Orchard the rule lets the $x$-coordinate alone determine $\mathsf{ak}$, and Orchard's key derivations rely on that. Tachyon's payment key hashes both coordinates, so nothing in this chapter depends on the rule, and it stays for compatibility with the signature scheme. The keys table below shows its one visible effect. A point and its negative have the same $x$ and opposite signs of $y$, so if the derived point has the wrong sign, [the code negates $\mathsf{ask}$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/private.rs#L89-L110), since $[-\mathsf{ask}]\mathcal{G} = -[\mathsf{ask}]\mathcal{G}$. On the toy curve we use the parity of $y$ as the sign.
+RedPallas, the signature scheme that Orchard and Tachyon share, requires $\mathsf{ak}$ to have a cleared sign bit, so the code negates $\mathsf{ask}$ when the derived point has the wrong sign. That is why the table below has a row for a normalized $\mathsf{ask}$. The box explains the rule and why nothing in this chapter depends on it.
+
+::: details The sign-bit rule for ak
+
+RedPallas requires $\mathsf{ak}$ to have a cleared sign bit in its compressed encoding. In Orchard the rule lets the $x$-coordinate alone determine $\mathsf{ak}$, and Orchard's key derivations rely on that. Tachyon's payment key hashes both coordinates, so nothing in this chapter depends on the rule, and it stays for compatibility with the signature scheme. The keys table below shows its one visible effect. A point and its negative have the same $x$ and opposite signs of $y$, so if the derived point has the wrong sign, [the code negates $\mathsf{ask}$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/keys/private.rs#L89-L110), since $[-\mathsf{ask}]\mathcal{G} = -[\mathsf{ask}]\mathcal{G}$. On the toy curve we use the parity of $y$ as the sign.
+
+:::
 
 <!-- worked:generator -->
 
@@ -133,7 +145,13 @@ $$\mathsf{rsk} = \mathsf{ask} + \alpha, \qquad \mathsf{rk} = \mathsf{ak} + [\alp
 
 The second equation holds because scalar multiplication distributes over addition, so $\mathsf{rk}$ is exactly the public key of $\mathsf{rsk}$. The action publishes $\mathsf{rk}$, and the proof shows that it came from the $\mathsf{ak}$ inside the note's payment key.
 
-Tachyon derives $\alpha$ from [per-action entropy $\theta$ and the note commitment](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/entropy.rs#L19-L32), with $\alpha = \mathsf{Poseidon}_{\texttt{Tachyon-Spend}}(\theta,\ \mathsf{cm})$ [read as a scalar](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/primitives/effect.rs#L19-L26), which is possible because $p < q$. This ties the key to the note, and it lets [a signing device recompute](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/authorization.md?plain=1#L10) $\alpha$ from the note and $\theta$ without having to trust a value handed to it. Our stand-in output is far larger than 43, so here we reduce it modulo 43, which the real construction does not do.
+Tachyon derives $\alpha$ from fresh per-action entropy and the note commitment, so that a signing device can recompute it from the note instead of trusting a value handed to it. In the table below the toy reduces the stand-in hash modulo 43 to get a scalar, and the box gives the real formula.
+
+::: details How α is derived
+
+Tachyon derives $\alpha$ from [per-action entropy $\theta$ and the note commitment](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/entropy.rs#L19-L32), with $\alpha = \mathsf{Poseidon}_{\texttt{Tachyon-Spend}}(\theta,\ \mathsf{cm})$ [read as a scalar](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/primitives/effect.rs#L19-L26), which is possible because $p < q$. This ties the key to the note, and [a signing device can recompute](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/authorization.md?plain=1#L10) $\alpha$ from the note and $\theta$. Our stand-in output is far larger than 43, so here we reduce it modulo 43, which the real construction does not do.
+
+:::
 
 <!-- worked:rk -->
 
@@ -147,11 +165,17 @@ Tachyon derives $\alpha$ from [per-action entropy $\theta$ and the note commitme
 
 <!-- /worked:rk -->
 
+The signature itself is an ordinary Schnorr signature under $\mathsf{rk}$, and the box checks one on the toy curve.
+
+::: details A signature under rk
+
 <!-- worked:signature -->
 
 A signature follows the Schnorr pattern. With nonce 9, the signer computes $R = [9]\mathcal{G} = (9,\,22)$, derives a challenge $c = 18$ from a hash of $R$, $\mathsf{rk}$, and the message, and returns $s = 9 + 18 \cdot 4 = 38$ modulo 43. The verifier checks $[s]\mathcal{G} = R + [c]\mathsf{rk}$, and both sides equal $(26,\,23)$. The verifier never used $\mathsf{ak}$.
 
 <!-- /worked:signature -->
+
+:::
 
 The public $\mathsf{rk}$ reveals nothing about $\mathsf{ak}$ when $\alpha$ is uniform, because adding a uniform multiple of the generator produces a uniform point whatever the starting key.
 
@@ -220,11 +244,17 @@ Both inputs matter. A second note to Alice with $\psi = 58561$ has $\mathsf{mk} 
 
 The privacy argument assumes that Poseidon, keyed by $\mathsf{mk}$, behaves as a pseudorandom function. Revealing some outputs then says nothing about the others, including the [pair revealed at spend time](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L449-L453).
 
+The epoch index has a fixed upper limit in the code, which is large enough not to matter in practice. The box gives the numbers.
+
+::: details How many epochs the code allows
+
 <!-- worked:epoch-space -->
 
 The code [allows epoch indices](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/crates/tachyon/src/constants.rs#L9-L23) up to 1,048,575, since a block height has 32 bits and an epoch has 4,096 blocks. At 75 seconds per block that range lasts about 10,207 years.
 
 <!-- /worked:epoch-space -->
+
+:::
 
 ::: warning Book and code: the nullifier's inputs
 **Deep dive:** [$\mathsf{mk} = \mathsf{Poseidon}^{\mathsf{mk}}(\mathsf{nk}, \psi)$ and $\mathsf{nf}_e = \mathsf{Poseidon}^{\mathsf{nf}}.\mathsf{Permute}(\mathsf{mk}, \lfloor e / \mathsf{Rate} \rfloor)[e \bmod \mathsf{Rate}]$](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/revisit.md?plain=1#L264-L271), calling this the leading candidate.
@@ -244,13 +274,17 @@ This site follows the code. Some code comments still describe older designs, so 
 
 A reader might expect a design in which the wallet hands a sync service a key for a range of epochs, and the service computes the nullifiers itself. An earlier Tachyon design did this, and the book keeps it as [an archived page](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/ggm.md?plain=1#L3-L4). The reason it was replaced is proof cost, which the following comparison makes concrete.
 
-The archived design used the [GGM construction](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/ggm.md?plain=1#L16-L35), which treats an epoch's bits as directions down a binary tree. A seed sits at the root, each node has two children given by hashes $G_0$ and $G_1$, and each leaf is a nullifier. Hashes are one-way, so holding a node gives access to the leaves below it and to nothing else, which is exactly a key for a range of epochs.
+The archived design used the [GGM construction](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/ggm.md?plain=1#L16-L35), which treats an epoch's bits as directions down a binary tree. A seed sits at the root, each node has two children given by hashes $G_0$ and $G_1$, and each leaf is a nullifier. Hashes are one-way, so holding a node gives access to the leaves below it and to nothing else, which is exactly a key for a range of epochs. The box runs a small tree and counts how many nodes a range needs.
+
+::: details A small GGM tree
 
 <!-- worked:ggm-run -->
 
 Take a 3-bit epoch space and the seed 13625, with a stand-in hash for each $G_b$. To delegate epochs 2 and 3, a wallet hands over only the node at prefix `01`, which is $k_{01} = G_1(G_0(13625)) = 23515$. Walking one more level gives $G_0(23515) = 26563$ and $G_1(23515) = 19988$, which are exactly the nullifiers for those epochs, and one-way hashing keeps the holder away from all the others. The range of epochs 0 to 6 needs 3 prefixes (`0`, `10`, `110`). Over all ranges in this small space the worst case needs 4, reached by epochs 1 to 6, so the amount of delegated key material depends on the range.
 
 <!-- /worked:ggm-run -->
+
+:::
 
 The trouble is that each level of the tree costs one hash inside a proof, and proof steps are small. The [analysis](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nf-analysis.md?plain=1#L41-L54) counts it this way.
 
@@ -260,11 +294,17 @@ A step has $2^{11} = 2,048$ multiplication gates, and one Poseidon permutation c
 
 <!-- /worked:step-budget -->
 
+A binary tree deep enough for decades of epochs takes more permutations than a step holds. Raising the tree's arity to four costs nothing extra per level and halves the depth, which just fits one walk in a step. The box counts the levels, and the first two rows of the table below record the result.
+
+::: details Counting the tree's depth
+
 <!-- worked:ggm-space -->
 
 A binary tree over an epoch space of $2^{14}$ days, about 45 years, has depth 14, so one walk takes 14 permutations and overflows a step. The analysis counts epochs as days here, unlike the code's 4,096-block epochs, but only the depth matters for cost. A node with four children costs one permutation, the same as a node with two, because one rate-4 permutation emits 4 outputs. So raising the arity shortens the walk at no extra cost per level, and 7 levels of arity 4 already cover $4^{7} = 16,384 = 2^{14}$ leaves. A walk of depth 7 just fits a step.
 
 <!-- /worked:ggm-space -->
+
+:::
 
 The analysis [wants at least two nullifiers in one step](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nf-analysis.md?plain=1#L58-L60), since a spend publishes two, and a tree walk cannot provide that. It then tries other constructions and [recommends](https://github.com/tachyon-zcash/tachyon/blob/7e502548db33845dbaacdc0efe905d1a3c45e626/book/src/nf-analysis.md?plain=1#L4-L6) using a Poseidon permutation directly, with its rate-4 output. The analysis calls this Attempt 3, and it is the design of Section 6:
 
@@ -305,7 +345,7 @@ flowchart LR
 
 Each node in the diagram is a hash of the nodes that point into it, where the epoch is public and every other input is secret. The proof recomputes every one of those hashes. The spender supplies one opening of the note, meaning the values $\mathsf{ak}$, $\mathsf{nk}$, $v$, $\psi$ and $\mathsf{rcm}$, as private inputs. From that one opening the proof computes $\mathsf{pk}$, then $\mathsf{cm}$, then $\mathsf{mk}$ and the nullifiers. Because $\psi$ and $\mathsf{nk}$ feed both $\mathsf{cm}$ and $\mathsf{mk}$, the commitment and the nullifiers cannot come from different openings.
 
-On its own this proves little, since a spender could invent any opening and compute a commitment for it. What closes the gap is a separate part of the proof, built in chapters [20](./pool-state.md) and [22](./proof-tree.md), which shows that this $\mathsf{cm}$ was already published in the pool when the note was created. A spender who invents an opening gets a commitment that nobody published, and that part of the proof fails. So the spender is held to an existing commitment, and both inputs to $\mathsf{mk}$ sit behind it.
+On its own this proves little, since a spender could invent any opening and compute a commitment for it. What closes the gap is a separate part of the proof, built in chapters [21](./pool-state.md) and [23](./proof-tree.md), which shows that this $\mathsf{cm}$ was already published in the pool when the note was created. A spender who invents an opening gets a commitment that nobody published, and that part of the proof fails. So the spender is held to an existing commitment, and both inputs to $\mathsf{mk}$ sit behind it.
 
 To cheat, a spender would keep $\mathsf{cm}$ fixed while changing what lies behind it. Our small hash range allows us to try every possible change to one field at a time:
 
@@ -366,9 +406,15 @@ Publishing $\mathsf{nf}_{e+1}$ as well closes this gap, because, as chapter 1 no
 
 ![A grid of epochs 6 to 9 with a row of tests, each asking whether the nullifier with that epoch's number is absent from that epoch. A pair accepted in epoch 7 places nf7 in epoch 7, where the test fails. A pair accepted in epoch 8 places nf8 in epoch 8, where the test fails. A lone nf7 accepted in epoch 8 matches no test.](./manim/pair-placement.png)
 
-To check cases by number, we write chapter 1's two cases in symbols. Let a first spend have target $t_1$ and acceptance epoch $a_1$, and let a second spend of the same note have target $t_2$ and acceptance epoch $a_2 \ge a_1$. Chapter 1's first case is $t_2 > a_1$, where the second exclusion proof would have to show $\mathsf{nf}_{a_1}$ absent from epoch $a_1$. Its second case is $t_2 \le a_1$, and the inequalities make each step of it explicit. The case itself gives $t_2 \le a_1$. Since $a_1 \le a_2$ and $a_2 \le t_2 + 1$, we also have $a_1 \le t_2 + 1$. So $a_1$ is $t_2$ or $t_2 + 1$, and the second spend's pair repeats $\mathsf{nf}_{a_1}$.
+Chapter 1's argument splits on how the second spend's target, which we write $t_2$, compares with the epoch $a_1$ that accepted the first spend. If $t_2 > a_1$, the second spend's exclusion proof has to show that the first spend's published nullifier is absent from epoch $a_1$, and it is not. If $t_2 \le a_1$, then because acceptance lags a target by at most one epoch, the second spend's pair contains the very value the first spend published, and the window catches the repeat. The same reasoning fixes the window's length. The repeated value can arrive one epoch after the first copy entered the pool, so validators must still hold the preceding epoch. The box spells out both cases as inequalities.
+
+::: details The two cases in symbols
+
+Let a first spend have target $t_1$ and acceptance epoch $a_1$, and let a second spend of the same note have target $t_2$ and acceptance epoch $a_2 \ge a_1$. Chapter 1's first case is $t_2 > a_1$, where the second exclusion proof would have to show $\mathsf{nf}_{a_1}$ absent from epoch $a_1$. Its second case is $t_2 \le a_1$, and the inequalities make each step of it explicit. The case itself gives $t_2 \le a_1$. Since $a_1 \le a_2$ and $a_2 \le t_2 + 1$, we also have $a_1 \le t_2 + 1$. So $a_1$ is $t_2$ or $t_2 + 1$, and the second spend's pair repeats $\mathsf{nf}_{a_1}$.
 
 The same bounds explain the length of the window. From $a_2 \le t_2 + 1$ and $t_2 \le a_1$ we get $a_2 \le a_1 + 1$, so the repeated value can arrive one epoch after the first copy entered the pool, and validators have to still hold the epoch before the current one.
+
+:::
 
 <!-- worked:window-fail -->
 
@@ -376,7 +422,9 @@ Take two spends with target 7, the first accepted in epoch 7 and the second in e
 
 <!-- /worked:window-fail -->
 
-The argument assumes that a spender cannot choose nullifiers, which Section 8 covered, and that proofs cannot be forged. The next table runs both cases with the running note's values. Chapter 1's table only followed a first spend that landed late, in epoch 8, and this table adds the first spend that lands on time, in epoch 7:
+The argument assumes that a spender cannot choose nullifiers, which Section 8 covered, and that proofs cannot be forged. The box runs both cases with the running note's values. Chapter 1's table only followed a first spend that landed late, in epoch 8, and this table adds the first spend that lands on time, in epoch 7.
+
+::: details Every case for the running note
 
 <!-- worked:case-table -->
 
@@ -396,6 +444,8 @@ The argument assumes that a spender cannot choose nullifiers, which Section 8 co
 | 7, accepted in 8 | 9, accepted in 10 | exclusion proof | $\mathsf{nf}_8 = 61177$ is present in epoch 8 |
 
 <!-- /worked:case-table -->
+
+:::
 
 <!-- worked:case-count -->
 

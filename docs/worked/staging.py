@@ -618,7 +618,7 @@ frag['grind'] = (
 frag['grind-chain'] = (
     f'For ${len(unusable)}$ of the 43 values of $x$, one of the two commitments $\\bar{{A}}$ and $\\mathring{{A}}$ is the identity, which Section 3 showed cannot be absorbed, so we skip them. '
     f'Of the remaining ${len(chain)}$ values, one, $x = {hit[0]}$, reaches the target. '
-    f'A search of about 43 tries succeeds on a field of 43 elements, which is the [repeated-trials problem from chapter 03](./statements-and-challenges.md#_10-repeated-trials), and the same search has no realistic chance on a 255-bit field.')
+    f'A search of about 43 tries succeeds on a field of 43 elements, which is the [repeated-trials problem from chapter 03](./statements-and-challenges.md#_9-repeated-trials), and the same search has no realistic chance on a 255-bit field.')
 
 # ---- Section 13: adding the stage commitments ----
 frag['book-sum'] = (
