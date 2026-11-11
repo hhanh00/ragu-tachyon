@@ -11,6 +11,7 @@ Write the script first, following `audio/BRIEF.md`, and build the deck against t
 ## Pace
 
 - Start a new slide every two to three sentences. `deck_01.py` averages 2.7 sentences per slide. Never leave more than four sentences on one slide, because a static screen under a long stretch of narration loses the viewer.
+- Open every chapter after the first with a recap of the previous chapter: a short spoken paragraph (3 to 5 sentences) right after the title in the script, and one or two recap slides under `deck.part("Previously")`.
 - Start a new slide at every spoken heading, and call `deck.part("Heading")` first so that the section name appears above the slide titles.
 - Give each slide two to four build steps, roughly one per sentence or per idea, so that something changes while the narration moves on.
 
@@ -48,6 +49,8 @@ Use `fill=` on a card for emphasis sparingly, at most once or twice per slide.
 Every label and number on a slide must come from the script or its chapter. The chapter's numbers come from `docs/worked/`, so copy them rather than computing new ones. Slides may show digits and short symbols where the script spells them out. Keep the site's provenance labels: put "Reconstructed from code at the commit this site pins, not confirmed by the authors" in the slide's subtitle (the third argument to `@slide`) wherever the script says it.
 
 ## Building
+
+`audio/README.md` covers the full setup and `audio/make_video.sh`, which renders a chapter's narration, slide video, subtitles and final video in one command. The commands below are the individual steps.
 
 Create the Manim environment once, from the repository root:
 

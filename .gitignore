@@ -14,3 +14,7 @@ __pycache__/
 audio/out/
 audio/timings/
 audio/render.log
+
+# Kokoro TTS environment and model files (see audio/render.py)
+.tts-venv/
+.kokoro/

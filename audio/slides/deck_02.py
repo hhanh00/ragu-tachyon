@@ -108,7 +108,59 @@ def opening(s):
     yield [*[GrowArrow(a) for a in up1], *[FadeIn(m) for m in mid], *[GrowArrow(a) for a in up2], FadeIn(top)]
 
 
-@slide("The previous chapter described", "What Tachyon asks of its proofs")
+# ------------------------------------------------------------------ recap of chapter one
+deck.part("Previously")
+
+
+def store(name, w=4.6, h=2.9, color=BLUE):
+    """A labeled region of validator state, empty at first."""
+    box = card(None, w, h, color)
+    label = T(name, 26, color, True).move_to(box).shift(UP * (h / 2 - 0.32))
+    return VGroup(box, label)
+
+
+@slide("In the previous chapter, we saw why", "Today's pool grows forever")
+def recap_growth(s):
+    val = at(card("Validator", 3, 1.3, TEAL, 30), -5.3, 0.2)
+    nfs = at(store("nullifier set"), -0.6, 0.2)
+    cms = at(store("commitment tree"), 4.4, 0.2)
+    yield [FadeIn(val), FadeIn(nfs), FadeIn(cms), GrowArrow(arrow(val, nfs))]
+    # each spend adds a nullifier, each new note adds a commitment, and nothing ever leaves
+    grid = lambda n, label, box: at(VGroup(*[chip(label, BLUE, size=20, h=0.42) for _ in range(n)])
+                                   .arrange_in_grid(4, 3, buff=(0.16, 0.14)), box.get_x(), box.get_y() - 0.25)
+    nf_grid, cm_grid = grid(12, "nf", nfs[0]), grid(12, "cm", cms[0])
+    yield [LaggedStart(*[FadeIn(c, shift=DOWN * 0.2) for c in nf_grid[:6]], lag_ratio=0.15),
+           LaggedStart(*[FadeIn(c, shift=DOWN * 0.2) for c in cm_grid[:6]], lag_ratio=0.15)]
+    yield [LaggedStart(*[FadeIn(c, shift=DOWN * 0.2) for c in nf_grid[6:]], lag_ratio=0.15),
+           LaggedStart(*[FadeIn(c, shift=DOWN * 0.2) for c in cm_grid[6:]], lag_ratio=0.15),
+           Indicate(nfs[1], color=ORANGE), Indicate(cms[1], color=ORANGE)]
+    yield [FadeIn(caption("Notes never expire, so nothing ever leaves either store.", y=-2.4, color=INK, size=29))]
+
+
+@slide("Tachyon gives a note a different nullifier", "Tachyon: evolving nullifiers and proofs about proofs")
+def recap_epochs(s):
+    epochs = VGroup(*[card(None, 1.9, 1.25, BLUE) for _ in range(6)]).arrange(RIGHT, buff=0.16)
+    at(epochs, 0, 1.15)
+    names = VGroup(*[T(f"epoch {e}", 22, MUTED).next_to(b, UP, buff=0.22) for e, b in zip(range(3, 9), epochs)])
+    nfs = VGroup(*[chip(f"nf {e}", BLUE, size=22, h=0.5).move_to(b) for e, b in zip(range(3, 9), epochs)])
+    yield [FadeIn(epochs), FadeIn(names), LaggedStart(*[FadeIn(c, shift=DOWN * 0.15) for c in nfs], lag_ratio=0.12)]
+    window = SurroundingRectangle(epochs[4:], color=TEAL, buff=0.07, corner_radius=0.12, stroke_width=4)
+    keep = W("validators keep a short window", 18, 24, TEAL, align=ORIGIN).next_to(window, DOWN, buff=0.2)
+    yield [epochs[:4].animate.set_stroke(opacity=0.35).set_fill(opacity=0.03), nfs[:4].animate.set_opacity(0.35), Create(window), FadeIn(keep)]
+    old = Brace(epochs[:4], DOWN, color=ORANGE)
+    proof = at(pill("wallet proves: never appeared", ORANGE, 24), old.get_x(), old.get_y() - 0.5)
+    yield [FadeIn(old), FadeIn(proof, shift=UP * 0.15)]
+    p1 = at(pill("proof", TEAL, 24), -1.6, -1.9)
+    p2 = at(pill("proof", TEAL, 24), -1.6, -2.7)
+    merged = at(card("proof about proofs", 3.6, 0.9, TEAL, 26), 3.0, -2.3)
+    yield [FadeIn(p1), FadeIn(p2), GrowArrow(arrow(p1.get_right(), merged.get_left(), buff=0.12)),
+           GrowArrow(arrow(p2.get_right(), merged.get_left(), buff=0.12)), FadeIn(merged)]
+
+
+deck.part("Chapter two")
+
+
+@slide("Tachyon needs proofs from many separate wallets", "What Tachyon asks of its proofs")
 def asks(s):
     wallets = at(VGroup(*[card("wallet\nproof", 2.1, 1.2, BLUE, 24) for _ in range(3)]).arrange(DOWN, buff=0.25), -5.6, -0.2)
     one = at(card("one proof", 2.6, 1.3, ORANGE, 28), 0.2, -0.2)

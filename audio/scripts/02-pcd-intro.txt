@@ -1,6 +1,8 @@
 Chapter two. An Introduction to Proof-Carrying Data.
 
-The previous chapter described what Tachyon needs from its proofs. Proofs from many separate wallets should collapse into one proof that a validator can check quickly, and anyone should be able to continue that combining later. This chapter states that requirement precisely, as a goal called proof-carrying data. It does not yet explain how to build it.
+In the previous chapter, we saw why today's shielded pool is hard to scale. Every spend publishes a nullifier and every new note adds a commitment, so each validator keeps a nullifier set and a commitment tree that grow forever. Tachyon gives a note a different nullifier in each epoch, which lets validators keep only a short window of recent values. Wallets prove the rest themselves, by showing that their nullifiers never appeared in the older history that validators have forgotten. Those proofs have to extend and merge earlier proofs, so Tachyon needs proofs about proofs, and this chapter picks up from there.
+
+Tachyon needs proofs from many separate wallets to collapse into one proof that a validator can check quickly, and anyone should be able to continue that combining later. This chapter states that requirement precisely, as a goal called proof-carrying data. It does not yet explain how to build it.
 
 We treat the proof as a black box throughout, and the rest of the site opens that box. Most of the chapter works through a small sum on a tree, with no cryptography, so that each idea has concrete numbers. A short section then introduces Ragu's version of the model, and the chapter ends by mapping the same ideas onto Tachyon's aggregation.
 

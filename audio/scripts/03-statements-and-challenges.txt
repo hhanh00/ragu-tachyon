@@ -1,6 +1,8 @@
 Chapter three. Statements and Challenges.
 
-The previous chapter set proof-carrying data as the goal, where each step of a computation hands over its output together with a proof. Before building any proof, we need to say precisely what a proof is about and what it means for one to work. This chapter supplies that vocabulary.
+In the previous chapter, a toy computation added up a list of eight numbers on a tree, and each node held a header giving a range of positions and the sum of the entries in that range. Two steps produced headers, Entry from one entry of the list, and Join from two headers whose ranges meet. Attaching to each header a proof that covers its step and every proof below it lets a verifier check one proof for the whole tree. Succinctness asks that this proof, and the cost of checking it, stay small however large the tree grows. Tachyon's aggregation follows the same model, with aggregators merging stamps from independent wallets so that a validator checks one stamp.
+
+Before building any proof, we need to say precisely what a proof is about and what it means for one to work. This chapter supplies that vocabulary.
 
 It also introduces the three tools that every later chapter uses. The Schwartz-Zippel lemma explains why checking a polynomial at one random point tells us about the whole polynomial. Random linear combinations replace many claims with one. The Fiat-Shamir transform then removes the verifier's live participation by deriving its random choices from a hash.
 
@@ -12,11 +14,27 @@ This claim has a public part and a secret part. The number thirty-five is known 
 
 The relation has to be cheap to evaluate, since it is the test the verifier would run if it were handed the witness. Finding a witness from the instance can be much harder. In our example the field is small enough to search. Evaluating the cubic at all forty-three elements finds that it reaches thirty-five only at the number three, so three is the only witness for this instance. The number four gives thirty, so four falls outside the relation. Some instances have no witness at all, and the instance two is one of them.
 
-Later chapters use a second relation, the one behind every elliptic curve commitment. The instance is a point on a curve, the witness is a scalar, and the relation holds when that scalar times a public generator equals the point. We work on the toy curve, which has forty-three points. Its coordinates are computed modulo thirty-one, and its scalars are computed modulo forty-three because adding a point to itself forty-three times returns the identity. The chapter on polynomial commitments returns to this distinction.
+Later chapters use a second relation, the one behind every elliptic curve commitment. Its instance is a point on a curve, so we first need to say how points combine. We work on the toy curve where y squared equals x cubed plus three, with coordinates computed modulo thirty-one. It has forty-three points.
 
-Take the public generator and the secret scalar twelve, which give the public point twelve times the generator. The relation holds for twelve, because recomputing twelve times the generator gives the public point. It fails for thirteen, since thirteen times the generator is a different point.
+Points on the toy curve.
 
-The two relations differ in one respect that affects what a proof must establish. The group has prime order, so every point is a multiple of the generator. A witness for the public point therefore always exists, and the claim that some scalar satisfies the relation tells the verifier nothing. The useful claim is that the prover knows the scalar, and the next section gives this difference a name.
+To add two points on an elliptic curve, draw the line through them. The line meets the curve at one more point, and reflecting that point across the x-axis gives the sum. Doubling a point uses the tangent line instead. Over a finite field there is no picture, but the same formulas, computed modulo thirty-one, define the addition.
+
+Here is a doubling worked by hand. Take the generator, the point with coordinates one and two. The tangent slope comes out as three quarters, and dividing by four modulo thirty-one means multiplying by eight, so the slope is twenty-four. The formulas then give the point sixteen, ten, which is two times the generator. Both sides of the curve equation equal seven there, so it lies on the curve.
+
+The curve also has an identity point, which plays the role of zero. Forty-two times the generator is the generator reflected across the x-axis. The line through these two points is vertical, so their sum, forty-three times the generator, is the identity.
+
+Before that, the multiples from one to forty-two times the generator visit every other point once. So every point is some number times the generator, and we call that number the point's multiplier. Adding points adds their multipliers, and multiplying a point by a number multiplies its multiplier, both modulo forty-three.
+
+So we can trace any point in this chapter by arithmetic on multipliers, followed by a lookup in a table of all forty-two multiples, while coordinates stay modulo thirty-one. For example, doubling twelve times the generator gives twenty-four times the generator, which the table lists as the point twenty-seven, thirty. The chapter on polynomial commitments returns to these two moduli.
+
+Going from a point back to its multiplier is the discrete log problem, which the table solves only because the curve is tiny.
+
+The discrete log relation.
+
+The instance is a point, the witness is a scalar, and the relation holds when that scalar times a public generator equals the point. Take the public generator and the secret scalar twelve, which give the public point twelve times the generator. The relation holds for twelve, because recomputing twelve times the generator gives the public point. It fails for thirteen, since thirteen times the generator is a different point.
+
+The two relations differ in one respect that affects what a proof must establish. Every point is a multiple of the generator, so a witness for the public point always exists, and the claim that some scalar satisfies the relation tells the verifier nothing. The useful claim is that the prover knows the scalar, and the next section gives this difference a name.
 
 The prover could convince the verifier by sending the witness, and the verifier could run the relation. We want to avoid that for two reasons. The witness may be secret, as the spending keys in a Zcash transaction are. It may also be enormous, because in proof-carrying data the witness for one step includes everything needed to check the previous steps.
 
@@ -52,13 +70,13 @@ So the check is that the response times the generator equals the announced point
 
 The protocol has three messages, and their order is part of the protocol. First, the prover picks a random mask and sends the announced point. Second, the verifier sends a random challenge. Third, the prover sends the response, and the verifier runs the check.
 
-Here is one run with our secret twelve. The prover picks the mask twenty-nine and sends the announced point. The verifier sends the challenge sixteen. The prover's response comes to six modulo forty-three, and the verifier computes both sides of the check and gets the same point.
+Here is one run with our secret twelve. The prover picks the mask twenty-nine and sends the announced point. The verifier sends the challenge sixteen. The prover's response comes to six modulo forty-three, and the verifier computes both sides of the check and gets the same point, six times the generator.
 
 Why the order matters.
 
 The verifier has to send the challenge after receiving the announced point. To see why, rearrange the check to isolate the announced point. It equals the response times the generator, minus the challenge times the public point. So a cheater who knows the challenge ahead of time can pick any response and compute an announced point that makes the equation hold.
 
-Suppose a cheater holds only the public point and learns in advance that the challenge will be sixteen. It picks the response twenty-three first and then computes the matching announced point. The check passes, and the cheater never used the secret.
+Suppose a cheater holds only the public point and learns in advance that the challenge will be sixteen. It picks the response twenty-three first and then computes the matching announced point, which is three times the generator. The check passes, and the cheater never used the secret.
 
 Sending the announced point first removes this option, because that point is then fixed before the challenge exists. Later in the chapter we will see what happens when the same ordering breaks in a non-interactive proof.
 
@@ -218,11 +236,11 @@ For Schnorr's protocol, the sequence has four parts. Start the transcript with t
 
 The toy examples use a small hash over the field of forty-three elements, which we'll describe shortly. It absorbs a curve point as its two coordinates. Each coordinate is below thirty-one, so it is also a distinct element of the field of forty-three elements, and the output is a scalar for the toy curve. On real curves, moving values between the two fields of a curve cycle takes more care, and the chapters on curve cycles and endoscalars cover that step.
 
-Let's run it. The prover starts the transcript with the tag and the public point, computes the announced point with mask twenty-nine, and absorbs it. Squeezing gives the challenge ten, and the response comes to twenty modulo forty-three. The prover publishes the announced point and the response as the proof. The verifier replays the same transcript steps, gets the challenge ten, and confirms the equation.
+Let's run it. The prover starts the transcript with the tag and the public point, computes the announced point with mask twenty-nine, and absorbs it. Squeezing gives the challenge ten, and the response comes to twenty modulo forty-three. The prover publishes the announced point and the response as the proof. The verifier replays the same transcript steps, gets the challenge ten, and confirms the equation, with both sides equal to twenty times the generator.
 
 The proof is now a single message that anyone can check at any time. The verifier no longer picks anything, and it instead recomputes the challenge and confirms the equation.
 
-The challenge depends on the commitment, which restores the ordering Schnorr's protocol needs. A prover cannot choose the announced point after the challenge, because a different point produces a different challenge. Changing the announced point in our run moves the challenge from ten to five, and the old response no longer satisfies the check.
+The challenge depends on the commitment, which restores the ordering Schnorr's protocol needs. A prover cannot choose the announced point after the challenge, because a different point produces a different challenge. Changing the announced point in our run to the next table entry, thirty times the generator, moves the challenge from ten to five, and the old response no longer satisfies the check.
 
 Later challenges also depend on all earlier messages, because the transcript keeps its state between squeezes. Suppose the protocol had a later round, which absorbed the response and squeezed a second challenge. With the same response in both runs, that challenge would be three after the original point and twenty-nine after the changed one.
 
@@ -230,7 +248,7 @@ Omitting data from the transcript.
 
 The transform is safe only when the transcript includes everything the verifier would have seen before choosing the challenge. Leaving out a value lets a prover choose that value after seeing the challenge, which is the earlier attack in a new form. These mistakes have happened in deployed code. Trail of Bits named the class Frozen Heart in its disclosure of such flaws in implementations of Girault's proof of knowledge, Bulletproofs, and PLONK.
 
-Suppose first that the transcript absorbs the tag and the public point but not the announced point. The challenge is then fixed before the commitment exists, so the early-challenge forgery works directly, with no search. Our flawed transcript gives the challenge thirty-nine. The cheater picks the response thirty-one, solves for the announced point, and both sides of the check agree. The flawed verifier accepts. A verifier that also absorbs the announced point derives the challenge twenty-six instead and rejects the same proof.
+Suppose first that the transcript absorbs the tag and the public point but not the announced point. The challenge is then fixed before the commitment exists, so the early-challenge forgery works directly, with no search. Our flawed transcript gives the challenge thirty-nine. The cheater picks the response thirty-one, solves for the announced point, thirty-six times the generator, and both sides of the check agree. The flawed verifier accepts. A verifier that also absorbs the announced point derives the challenge twenty-six instead and rejects the same proof.
 
 This breaks the protocol completely, since a cheater can forge a proof for any instance. The same mistake in a polynomial protocol has the same effect. If the evaluation point does not depend on a polynomial's commitment, the prover can change the polynomial to fit the point.
 
@@ -246,7 +264,7 @@ The cheater now has a valid proof for that point. The construction used only pub
 
 A weak transcript also lets an observer adapt someone else's proof to a related statement, and in that case the observer does choose the target. The challenge does not change when the instance changes. So the observer can add a multiple of the generator to the public point and add the challenge times that multiple to the response, and the equation still balances.
 
-Suppose an honest prover publishes the response thirty-five under the flawed transcript, whose challenge is twenty-two. An observer shifts the public point by seven times the generator and computes a new response of thirty-five plus twenty-two times seven, which is seventeen modulo forty-three. The new response passes for the shifted point.
+Suppose an honest prover publishes the response thirty-five under the flawed transcript, whose challenge is twenty-two. An observer shifts the public point by seven times the generator and computes a new response of thirty-five plus twenty-two times seven, which is seventeen modulo forty-three. The new response passes for the shifted point, with both sides of the check equal to seventeen times the generator.
 
 The witness for that point is the secret plus seven, and the observer does not know it because it does not know the secret. A verifier would nevertheless accept this proof as evidence that someone does.
 
@@ -260,7 +278,7 @@ The transform also changes the soundness error in a way that is easy to miss. In
 
 The toy field makes grinding visible, because each attempt has a chance of about one in forty-three. A cheater repeats the early-challenge trick. It guesses a challenge, picks a response, computes the announced point, and tests whether the hash of the transcript returns its guess.
 
-The cheater tries guesses from forty-two downward and, for each guess, responses from forty-two downward. It skips any pair that gives the identity as the announced point, because the identity has no coordinates for the transcript to absorb. Attempt nineteen succeeds, with the guess forty-two and the response twenty-three. The honest verifier accepts this proof, and the search never touched the secret.
+The cheater tries guesses from forty-two downward and, for each guess, responses from forty-two downward. It skips any pair that gives the identity as the announced point, because the identity has no coordinates for the transcript to absorb. Attempt nineteen succeeds, with the guess forty-two, the response twenty-three, and the announced point thirty-five times the generator. The honest verifier accepts this proof, and the search never touched the secret.
 
 Across all one thousand eight hundred six usable pairs, exactly forty-two succeed, which is one attempt in forty-three. So a cheater with many attempts has a success probability of up to about the number of attempts times the soundness error of a single attempt. The defense is a field large enough for that product to remain tiny.
 

@@ -2,11 +2,15 @@
 
 Usage: render.py MODEL_DIR SCRIPTS_DIR OUT_DIR [--force] [--only STEM]
 
+The environment variables VOICE (default am_michael) and SPEED (default 1.0)
+choose the Kokoro voice and pace.
+
 Skips chapters whose .m4a is newer than their script, so an interrupted run
 can restart, and an edited script re-renders on the next run. Writes each
 sentence's timing to audio/timings/STEM.json for the slide videos.
 """
 import json
+import os
 import re
 import subprocess
 import sys
@@ -17,8 +21,8 @@ import numpy as np
 import soundfile as sf
 from kokoro_onnx import Kokoro
 
-VOICE = "af_heart"
-SPEED = 1.0
+VOICE = os.environ.get("VOICE", "am_michael")
+SPEED = float(os.environ.get("SPEED", "1.0"))
 RATE = 24000
 HEADING_MAX_WORDS = 7
 
