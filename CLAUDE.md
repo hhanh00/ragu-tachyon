@@ -21,6 +21,10 @@ Introduce proof-carrying data as the goal right after the motivation chapter. Th
 
 Each protocol chapter needs a step-by-step derivation with no skipped algebra, a numeric run on the shared toy curve, and an informal explanation of why cheating fails. State assumptions, but leave out security proofs, reductions, and formal definitions of soundness.
 
+Keep the math in the main text to a minimum. The main text carries the motivation, the statement of each result, its intuition in plain words and a numeric example, with the example before the general statement. Put derivations, proofs and reference tables in collapsible `::: details <title>` boxes, so the algebra stays available without interrupting the reading. Make sure no value appears from nowhere: show or point to how each worked number is obtained.
+
+Chapter 1 is the quality bar for every chapter. `process/README.md` records the review-and-revise loop used to bring chapters to it, the slide and narration pipeline, the current state of the work and the open issues. Read it before resuming editorial work. Before committing, run `pnpm docs:worked --check`, `python3 scripts/check-links.py` and `pnpm docs:build`.
+
 Generate every worked number with a script in `docs/worked/` and insert it with `pnpm docs:worked`. Do not type computed values into the prose.
 
 Pin code excerpts and code-derived claims to a named commit. Label anything rebuilt from code or papers as "Reconstructed from code at commit X, not confirmed by the authors". Where the official description and the code disagree, show both.
