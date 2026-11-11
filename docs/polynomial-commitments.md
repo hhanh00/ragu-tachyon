@@ -34,7 +34,7 @@ The [curves appendix](./appendix-curves.md) lists the parameters.
 
 ### Two different moduli
 
-As [Statements and Challenges](./statements-and-challenges.md#_1-statements-instances-and-witnesses) noted, the worked examples use two different moduli. This section adds the point arithmetic behind that remark. Coordinates of points belong to the field the curve is defined over, so we compute with them modulo 31. The box below carries out one point doubling on coordinates, for readers who want to see the field arithmetic. Its result is the second row of the table that follows.
+As [Statements and Challenges](./statements-and-challenges.md#points-on-the-toy-curve) showed, the worked examples use two different moduli. Coordinates of points are computed modulo 31, and multipliers modulo 43. That chapter worked out $G + G$ by hand, and the box below repeats the doubling for readers who skipped it. Its result is the second row of the table that follows.
 
 ::: details Doubling a point by hand
 

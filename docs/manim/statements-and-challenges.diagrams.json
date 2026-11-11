@@ -8,5 +8,15 @@
     "source": "statements_and_challenges.py",
     "scene": "SpongeFlow",
     "output": "statements-sponge-flow.png"
+  },
+  {
+    "source": "statements_and_challenges.py",
+    "scene": "ChordTangent",
+    "output": "statements-chord-tangent.png"
+  },
+  {
+    "source": "statements_and_challenges.py",
+    "scene": "ToyMultiples",
+    "output": "statements-toy-multiples.png"
   }
 ]

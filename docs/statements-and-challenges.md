@@ -20,7 +20,93 @@ Evaluating $x^3 + x + 5$ at all 43 elements of $\F_{43}$ finds that the value 35
 
 <!-- /worked:cubic-witnesses -->
 
-Later chapters use a second relation, the one behind every elliptic curve commitment. The instance is a point $P$ on a curve, the witness is a scalar $a$, and the relation holds when $a \cdot G = P$ for a public generator $G$. We work on the toy curve $E: y^2 = x^3 + 3$ over $\F_{31}$, which has 43 points. Coordinates are computed modulo 31, and scalars are computed modulo 43 because adding a point to itself 43 times returns the identity. The [chapter on polynomial commitments](./polynomial-commitments.md#_2-the-toy-curve) returns to this distinction, and the [curves appendix](./appendix-curves.md) lists the parameters.
+Later chapters use a second relation, the one behind every elliptic curve commitment. Its instance is a point on a curve, so we first need to say how points combine. We work on the toy curve $E: y^2 = x^3 + 3$ over $\F_{31}$, which has 43 points, and the [curves appendix](./appendix-curves.md) lists the parameters.
+
+### Points on the toy curve
+
+To add two points on an elliptic curve, draw the line through them. It meets the curve at one more point, and reflecting that point across the $x$-axis gives the sum. Doubling a point uses the tangent line instead. Over $\F_{31}$ there is no picture, but the same formulas, computed modulo 31, define the addition.
+
+![The real curve y squared equals x cubed plus 3, drawn twice. Left, the line through P and Q meets the curve at a third point, which reflects across the x-axis to P plus Q. Right, the tangent at P meets the curve again, and that point reflects to 2P.](./manim/statements-chord-tangent.png)
+
+<!-- worked:double-g -->
+
+Take $G = (1,\,2)$. The tangent slope is $\lambda = 3x^2 / (2y) = 3 / 4$. Dividing by 4 modulo 31 means multiplying by 8, because $4 \cdot 8 = 32 = 1$ modulo 31, so $\lambda = 3 \cdot 8 = 24$. The new $x$-coordinate is $\lambda^2 - 2x = 576 - 2 = 16$ modulo 31, and the new $y$-coordinate is $\lambda(x - x_3) - y = 24 \cdot (1 - 16) - 2 = -362 = 10$ modulo 31. So $2 \cdot G = (16,\,10)$, which lies on the curve because $10^2$ and $16^3 + 3$ both equal $7$ modulo 31.
+
+<!-- /worked:double-g -->
+
+::: details The chord and tangent formulas
+
+For two points $(x_1, y_1)$ and $(x_2, y_2)$ with $x_1 \neq x_2$, the line through them has slope $\lambda = (y_2 - y_1)/(x_2 - x_1)$. For doubling a point $(x_1, y_1)$ with $y_1 \neq 0$, the tangent has slope $\lambda = 3x_1^2/(2y_1)$. In both cases the sum is
+
+$$x_3 = \lambda^2 - x_1 - x_2, \qquad y_3 = \lambda(x_1 - x_3) - y_1,$$
+
+with $x_2 = x_1$ when doubling. The formula for $x_3$ comes from substituting the line $y = y_1 + \lambda(x - x_1)$ into $y^2 = x^3 + 3$. That gives a cubic in $x$ whose $x^2$ coefficient is $-\lambda^2$, and the three roots $x_1, x_2, x_3$ of a monic cubic add up to minus that coefficient, so $x_1 + x_2 + x_3 = \lambda^2$. The third point on the line has $y = y_1 + \lambda(x_3 - x_1)$, and reflecting it negates $y$, which gives $y_3$. When $x_1 = x_2$ and $y_1 = -y_2$, the line is vertical and the sum is the identity $\mathcal{O}$.
+
+<!-- worked:chord-g -->
+
+Adding $G = (1,\,2)$ and $2 \cdot G = (16,\,10)$ uses the chord slope $\lambda = (10 - 2) / (16 - 1) = 8 / 15$. The inverse of 15 modulo 31 is 29, so $\lambda = 8 \cdot 29 = 15$ modulo 31. Then $x_3 = 15^2 - 1 - 16 = 22$ and $y_3 = 15 \cdot (1 - 22) - 2 = -317 = 24$ modulo 31, so $3 \cdot G = (22,\,24)$.
+
+<!-- /worked:chord-g -->
+
+:::
+
+The curve also has an identity point $\mathcal{O}$, which plays the role of zero. Write $k \cdot G$ for $G$ added to itself $k$ times.
+
+<!-- worked:identity -->
+
+Then $42 \cdot G = (1,\,29)$ is $G$ reflected, since $29 = -2$ modulo 31. The line through these two points is vertical, so their sum is $43 \cdot G = \mathcal{O}$.
+
+<!-- /worked:identity -->
+
+Before that, the multiples $1 \cdot G$ to $42 \cdot G$ visit every other point once, so every point is $k \cdot G$ for one $k$. Adding points adds their multipliers, and multiplying a point by a number multiplies its multiplier, both modulo 43. So any point in this chapter can be traced by arithmetic on $k$ followed by a lookup in the table below, while coordinates stay modulo 31. The [chapter on polynomial commitments](./polynomial-commitments.md#_2-the-toy-curve) returns to these two moduli.
+
+<!-- worked:lookup -->
+
+For example, $2 \cdot G + G = 3 \cdot G = (22,\,24)$, and doubling $12 \cdot G$ gives $24 \cdot G = (27,\,30)$.
+
+<!-- /worked:lookup -->
+
+![The 42 points of the toy curve on a 31 by 31 grid, each labelled with its k. The points for k equal to 1, 2 and 3 are highlighted and lie far apart.](./manim/statements-toy-multiples.png)
+
+::: details All multiples of G
+
+<!-- worked:multiples-table -->
+
+| $k$ | $k \cdot G$ | $43 - k$ | $(43 - k) \cdot G$ |
+| --- | --- | --- | --- |
+| 1 | $(1,\,2)$ | 42 | $(1,\,29)$ |
+| 2 | $(16,\,10)$ | 41 | $(16,\,21)$ |
+| 3 | $(22,\,24)$ | 40 | $(22,\,7)$ |
+| 4 | $(24,\,30)$ | 39 | $(24,\,1)$ |
+| 5 | $(26,\,8)$ | 38 | $(26,\,23)$ |
+| 6 | $(5,\,2)$ | 37 | $(5,\,29)$ |
+| 7 | $(25,\,29)$ | 36 | $(25,\,2)$ |
+| 8 | $(30,\,8)$ | 35 | $(30,\,23)$ |
+| 9 | $(9,\,22)$ | 34 | $(9,\,9)$ |
+| 10 | $(4,\,6)$ | 33 | $(4,\,25)$ |
+| 11 | $(14,\,22)$ | 32 | $(14,\,9)$ |
+| 12 | $(18,\,10)$ | 31 | $(18,\,21)$ |
+| 13 | $(6,\,23)$ | 30 | $(6,\,8)$ |
+| 14 | $(28,\,21)$ | 29 | $(28,\,10)$ |
+| 15 | $(11,\,30)$ | 28 | $(11,\,1)$ |
+| 16 | $(7,\,6)$ | 27 | $(7,\,25)$ |
+| 17 | $(20,\,6)$ | 26 | $(20,\,25)$ |
+| 18 | $(17,\,24)$ | 25 | $(17,\,7)$ |
+| 19 | $(27,\,1)$ | 24 | $(27,\,30)$ |
+| 20 | $(8,\,9)$ | 23 | $(8,\,22)$ |
+| 21 | $(23,\,7)$ | 22 | $(23,\,24)$ |
+
+Each row pairs a point with its negative, which has the same $x$-coordinate and the reflected $y$-coordinate. The 42 entries are all different and are exactly the 42 points with coordinates.
+
+<!-- /worked:multiples-table -->
+
+:::
+
+Going from a point back to its $k$ is the discrete log problem, which the table solves only because the curve is tiny.
+
+### The discrete log relation
+
+The instance is a point $P$, the witness is a scalar $a$, and the relation holds when $a \cdot G = P$ for a public generator $G$.
 
 <!-- worked:dlog-instance -->
 
@@ -28,7 +114,9 @@ Take the public generator $G = (1,\,2)$ and the secret scalar $a = 12$, which gi
 
 <!-- /worked:dlog-instance -->
 
-The two relations differ in one respect that affects what a proof must establish. The group has prime order, so every point is a multiple of $G$. A witness for $P$ therefore always exists, and the claim "some $a$ satisfies this" tells the verifier nothing. The useful claim is that the prover knows $a$, and Section 2 gives this difference a name.
+The two relations differ in one respect that affects what a proof must establish. Every point is a multiple of $G$, so a witness for $P$ always exists, and the claim "some $a$ satisfies this" tells the verifier nothing. The useful claim is that the prover knows $a$, and Section 2 gives this difference a name.
+
+### Keeping the witness out of the proof
 
 The prover could convince the verifier by sending the witness, and the verifier could run the relation. We want to avoid that for two reasons. The witness may be secret, as the spending keys in a Zcash transaction are. It may also be enormous, because in proof-carrying data the witness for one step includes everything needed to check the previous steps. These two reasons lead to two goals. For large computations, which is the case proof-carrying data cares about, the proof should be much shorter than the witness. For small secrets, such as the single scalar $a$ above, length matters less, and the point of a proof is to convince the verifier without revealing the secret. Section 3 shows a proof that is longer than its one-scalar witness yet reveals nothing about it.
 
@@ -97,6 +185,12 @@ Here is one run:
 
 <!-- /worked:schnorr-run -->
 
+<!-- worked:schnorr-run-trace -->
+
+In multipliers, $R + c \cdot P = (29 + 16 \cdot 12) \cdot G = 6 \cdot G$, the same table entry as $s \cdot G$.
+
+<!-- /worked:schnorr-run-trace -->
+
 ### Why the order matters
 
 The verifier has to send $c$ after receiving $R$. To see why, rearrange the check to isolate $R$, which gives $R = s \cdot G - c \cdot P$. If a cheater knows $c$ ahead of time, it can pick any $s$ and compute the $R$ that makes the equation hold.
@@ -106,6 +200,12 @@ The verifier has to send $c$ after receiving $R$. To see why, rearrange the chec
 Suppose a cheater holds only the public point $P = (18,\,10)$ and learns in advance that $c = 16$. It picks the response $s = 23$ first, and then computes $R = 23 \cdot G - 16 \cdot P = (22,\,24)$. The check passes because $s \cdot G = (8,\,22)$ and $R + c \cdot P = (8,\,22)$. The cheater never used $a$.
 
 <!-- /worked:schnorr-early -->
+
+<!-- worked:schnorr-early-trace -->
+
+In multipliers, $R = (23 - 16 \cdot 12) \cdot G = 3 \cdot G$.
+
+<!-- /worked:schnorr-early-trace -->
 
 Sending $R$ first removes this option, since $R$ is fixed before $c$ exists. Section 8 shows what happens when the same ordering breaks in a non-interactive proof.
 
@@ -513,6 +613,12 @@ Section 10 describes the toy hash we use here, which works over $\F_{43}$. It ab
 
 <!-- /worked:fs-run -->
 
+<!-- worked:fs-run-trace -->
+
+In multipliers, $R + c \cdot P = (29 + 10 \cdot 12) \cdot G = 20 \cdot G = s \cdot G$.
+
+<!-- /worked:fs-run-trace -->
+
 The proof is now a single message that anyone can check at any time. The verifier no longer picks anything, and it instead recomputes the challenge and confirms the equation.
 
 The challenge depends on the commitment, which restores the ordering from Section 3. A prover cannot choose $R$ after the challenge, because a different $R$ produces a different challenge. Later challenges depend on all earlier messages, because the transcript keeps its state between squeezes:
@@ -522,6 +628,12 @@ The challenge depends on the commitment, which restores the ordering from Sectio
 Changing the commitment to $R' = (6,\,8)$ changes the challenge from $10$ to $5$, and the old response $20$ no longer satisfies the check. The effect also carries forward. If the protocol had a later round, which absorbed $s$ and squeezed a second challenge, that challenge would be $3$ after $R$ and $29$ after $R'$, with the same $s$ in both runs.
 
 <!-- /worked:fs-tamper -->
+
+<!-- worked:fs-tamper-trace -->
+
+In multipliers, $R' = 30 \cdot G$, one entry after $R = 29 \cdot G$.
+
+<!-- /worked:fs-tamper-trace -->
 
 ## 8. Omitting data from the transcript
 
@@ -545,6 +657,12 @@ The flawed verifier accepts. A verifier that also absorbs $R$ derives the challe
 
 <!-- /worked:omit-commitment -->
 
+<!-- worked:omit-commitment-trace -->
+
+In multipliers, $R = (31 - 39 \cdot 12) \cdot G = 36 \cdot G$.
+
+<!-- /worked:omit-commitment-trace -->
+
 This breaks the protocol completely, since a cheater can forge a proof for any instance. The same mistake in a polynomial protocol has the same effect. If the evaluation point does not depend on a polynomial's commitment, the prover can [change the polynomial to fit the point](./polynomial-commitments.md#choosing-the-point-after-the-commitment).
 
 ### Omitting the instance
@@ -558,6 +676,12 @@ The cheater has to take $R$ from somewhere other than its own mask. If it picked
 Start from the public point $R = G_3 = (17,\,7)$, one of the fixed public points described above, whose discrete log relative to $G$ the cheater is assumed not to know. The flawed transcript gives $c = 15$ without looking at any instance. Picking $s = 19$ and solving gives $P' = c^{-1} \cdot (s \cdot G - R) = (9,\,9)$. The check holds, since $s \cdot G = (27,\,1)$ and $R + c \cdot P' = (27,\,1)$.
 
 <!-- /worked:omit-instance -->
+
+<!-- worked:omit-instance-trace -->
+
+The table gives $G_3 = 25 \cdot G$, which only a tiny curve reveals, so $P' = 23 \cdot (19 - 25) \cdot G = 34 \cdot G$, using $23 = 15^{-1}$ modulo 43.
+
+<!-- /worked:omit-instance-trace -->
 
 The cheater now has a valid proof for $P'$. The construction used only public points, so the cheater does not know the discrete log of $P'$, and the proof claims knowledge it lacks. The cheater cannot aim at a specific $P'$ this way, because for a chosen $P'$ it would need an $s$ with $s \cdot G = R + c \cdot P'$, and finding that $s$ is a discrete log problem. A weak transcript also lets an observer adapt someone else's proof to a related statement, and in that case the observer does choose the target. The challenge does not change when the instance changes, so the observer can shift the instance by $t \cdot G$ for any $t$ it likes and shift the response by $c \cdot t$. Both sides of the check move by the same amount, so it still balances.
 
@@ -576,6 +700,12 @@ The second step uses the honest check $s \cdot G = R + c \cdot P$, and the chall
 An honest prover publishes $(R, s) = ((28,\,10),\ 35)$ for $P = (18,\,10)$ under the flawed transcript, whose challenge is $c = 22$. An observer takes $t = 7$ and computes $P' = P + 7 \cdot G = (27,\,1)$ and $s' = s + c \cdot t = 35 + 22 \cdot 7 = 17$ modulo 43. The pair $(R, s')$ passes for $P'$, because $s' \cdot G = (20,\,6)$ and $R + c \cdot P' = (20,\,6)$.
 
 <!-- /worked:omit-maul -->
+
+<!-- worked:omit-maul-trace -->
+
+In multipliers, $P' = (12 + 7) \cdot G = 19 \cdot G$, and both sides of the check equal $17 \cdot G$.
+
+<!-- /worked:omit-maul-trace -->
 
 The witness for $P'$ is $a + t$, and the observer does not know it because it does not know $a$. A verifier would nevertheless accept this proof as evidence that someone does.
 
@@ -602,6 +732,12 @@ The toy field makes grinding visible, because each attempt has a chance of about
 A cheater repeats the early-challenge trick. It guesses a challenge, picks a response, computes $R = s \cdot G - c \cdot P$, and tests whether the hash of the transcript returns its guess. With $P = (18,\,10)$, it tries guesses $c$ from 42 downward and, for each guess, responses $s$ from 42 downward, skipping any pair that gives the identity as $R$. The identity has no affine coordinates for the transcript to absorb, so a proof with that $R$ cannot be written down. Attempt 19 succeeds with the guess $c = 42$, the response $s = 23$ and $R = (30,\,23)$. The honest verifier accepts this proof, and the search never touched $a$. Across all 1806 pairs that give a nonidentity $R$, exactly 42 succeed, which is one attempt in 43.
 
 <!-- /worked:grinding -->
+
+<!-- worked:grinding-trace -->
+
+In multipliers, $R = (23 - 42 \cdot 12) \cdot G = 35 \cdot G$.
+
+<!-- /worked:grinding-trace -->
 
 A cheater with $T$ attempts therefore has a success probability of up to about $T$ times the soundness error of a single attempt. The defense is a field large enough for the product to remain tiny:
 

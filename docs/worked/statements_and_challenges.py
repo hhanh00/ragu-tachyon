@@ -77,6 +77,64 @@ frag['cubic-witnesses'] = (
     + f'The value $x = 4$ gives ${circuit(4)}$, so the pair $(35, 4)$ falls outside the relation. '
     + f'Some instances have no witness at all, and the instance {next(t for t in range(1, Q) if t not in {circuit(x) for x in range(Q)})} is one of them.')
 
+# Section 1: point arithmetic on the toy curve. Coordinates live in F_31.
+FP = 31
+gx, gy = GEN
+inv4 = pow(2 * gy, -1, FP)
+lam = 3 * gx * gx * inv4 % FP
+lam_sq = lam * lam
+x2 = (lam_sq - 2 * gx) % FP
+y2_raw = lam * (gx - x2) - gy
+y2 = y2_raw % FP
+assert (x2, y2) == mul(2, GEN) and (2 * gy * inv4) % FP == 1
+assert (y2 * y2 - x2 ** 3 - 3) % FP == 0
+frag['double-g'] = (
+    f'Take $G = {show(GEN)}$. The tangent slope is $\\lambda = 3x^2 / (2y) = {3 * gx * gx} / {2 * gy}$. '
+    f'Dividing by {2 * gy} modulo {FP} means multiplying by {inv4}, because ${2 * gy} \\cdot {inv4} = {2 * gy * inv4} = 1$ modulo {FP}, so $\\lambda = {3 * gx * gx} \\cdot {inv4} = {lam}$. '
+    f'The new $x$-coordinate is $\\lambda^2 - 2x = {lam_sq} - {2 * gx} = {x2}$ modulo {FP}, and the new $y$-coordinate is $\\lambda(x - x_3) - y = {lam} \\cdot ({gx} - {x2}) - {gy} = {y2_raw} = {y2}$ modulo {FP}. '
+    f'So $2 \\cdot G = {show((x2, y2))}$, which lies on the curve because ${y2}^2$ and ${x2}^3 + 3$ both equal ${y2 * y2 % FP}$ modulo {FP}.')
+
+# Chord example: G + 2G
+num, den = (y2 - gy) % FP, (x2 - gx) % FP
+inv_den = pow(den, -1, FP)
+lam_c = num * inv_den % FP
+x3 = (lam_c * lam_c - gx - x2) % FP
+y3_raw = lam_c * (gx - x3) - gy
+y3 = y3_raw % FP
+assert (x3, y3) == mul(3, GEN) == add(GEN, (x2, y2))
+frag['chord-g'] = (
+    f'Adding $G = {show(GEN)}$ and $2 \\cdot G = {show((x2, y2))}$ uses the chord slope $\\lambda = ({y2} - {gy}) / ({x2} - {gx}) = {num} / {den}$. '
+    f'The inverse of {den} modulo {FP} is {inv_den}, so $\\lambda = {num} \\cdot {inv_den} = {lam_c}$ modulo {FP}. '
+    f'Then $x_3 = {lam_c}^2 - {gx} - {x2} = {x3}$ and $y_3 = {lam_c} \\cdot ({gx} - {x3}) - {gy} = {y3_raw} = {y3}$ modulo {FP}, so $3 \\cdot G = {show((x3, y3))}$.')
+
+multiples = [mul(k, GEN) for k in range(Q + 1)]
+affine = [(x, y) for x in range(FP) for y in range(FP) if (y * y - x ** 3 - 3) % FP == 0]
+assert multiples[0] is None and multiples[Q] is None
+assert sorted(multiples[1:Q]) == sorted(affine) and len(affine) == Q - 1
+assert multiples[Q - 1] == (gx, -gy % FP)
+frag['identity'] = (
+    f'Then ${Q - 1} \\cdot G = {show(multiples[Q - 1])}$ is $G$ reflected, since ${-gy % FP} = -{gy}$ modulo {FP}. '
+    f'The line through these two points is vertical, so their sum is ${Q} \\cdot G = \\mathcal{{O}}$.')
+
+assert add(multiples[2], GEN) == multiples[3]
+frag['lookup'] = (
+    f'For example, $2 \\cdot G + G = 3 \\cdot G = {show(multiples[3])}$, and doubling $12 \\cdot G$ gives $24 \\cdot G = {show(multiples[24])}$.')
+assert add(multiples[12], multiples[12]) == multiples[24]
+
+half = (Q - 1) // 2
+mrows = ['| $k$ | $k \\cdot G$ | $43 - k$ | $(43 - k) \\cdot G$ |', '| --- | --- | --- | --- |']
+for k in range(1, half + 1):
+    mrows.append(f'| {k} | ${show(multiples[k])}$ | {Q - k} | ${show(multiples[Q - k])}$ |')
+    assert multiples[Q - k] == (multiples[k][0], -multiples[k][1] % FP)
+frag['multiples-table'] = '\n'.join(mrows) + (
+    f'\n\nEach row pairs a point with its negative, which has the same $x$-coordinate and the reflected $y$-coordinate. '
+    f'The {Q - 1} entries are all different and are exactly the {len(affine)} points with coordinates.')
+
+
+def k_of(pt):
+    return multiples.index(pt)
+
+
 a = 12
 P = mul(a, GEN)
 assert P not in G and P is not None
@@ -583,5 +641,32 @@ zero_b.absorb(0)
 v_a, v_b = zero_a.squeeze(), zero_b.squeeze()
 assert v_a == v_b == fs_c
 frag['zero-absorb'] = (f'Absorb the seven elements from the sponge trace in Section 10. The seventh waits in the buffer alone, so absorbing a zero after it leaves the sum unchanged. Both runs squeeze the challenge ${v_a}$.')
+
+# Multiplier notes. Each restates a point above as k·G and checks k against the table.
+def trace(pt, k):
+    assert k_of(pt) == k % Q
+    return k % Q
+
+
+k_run = trace(add(R, cP), r + c * a)
+assert k_run == s
+frag['schnorr-run-trace'] = (f'In multipliers, $R + c \\cdot P = ({r} + {c} \\cdot {a}) \\cdot G = {k_run} \\cdot G$, the same table entry as $s \\cdot G$.')
+k_early = trace(fR, fs_ - c * a)
+frag['schnorr-early-trace'] = (f'In multipliers, $R = ({fs_} - {c} \\cdot {a}) \\cdot G = {k_early} \\cdot G$.')
+k_fs = trace(add(fs_R, mul(fs_c, P)), fs_r + fs_c * a)
+assert k_fs == fs_s
+frag['fs-run-trace'] = (f'In multipliers, $R + c \\cdot P = ({fs_r} + {fs_c} \\cdot {a}) \\cdot G = {k_fs} \\cdot G = s \\cdot G$.')
+frag['fs-tamper-trace'] = (f'In multipliers, $R\' = {trace(alt_R, fs_r + 1)} \\cdot G$, one entry after $R = {fs_r} \\cdot G$.')
+k_oc = trace(atk_R, atk_s - weak_c * a)
+frag['omit-commitment-trace'] = (f'In multipliers, $R = ({atk_s} - {weak_c} \\cdot {a}) \\cdot G = {k_oc} \\cdot G$.')
+k_g3 = k_of(chosen_R)
+inv_c2 = pow(weak2_c, -1, Q)
+k_oi = trace(atk2_P, inv_c2 * (atk2_s - k_g3))
+frag['omit-instance-trace'] = (f'The table gives $G_3 = {k_g3} \\cdot G$, which only a tiny curve reveals, so $P\' = {inv_c2} \\cdot ({atk2_s} - {k_g3}) \\cdot G = {k_oi} \\cdot G$, using ${inv_c2} = {weak2_c}^{{-1}}$ modulo 43.')
+k_maul = trace(mauled_P, a + shift)
+trace(add(fs_R, mul(honest_weak_c, mauled_P)), mauled_s)
+frag['omit-maul-trace'] = (f'In multipliers, $P\' = ({a} + {shift}) \\cdot G = {k_maul} \\cdot G$, and both sides of the check equal ${mauled_s} \\cdot G$.')
+k_grind = trace(first[3], first[2] - first[1] * a)
+frag['grinding-trace'] = (f'In multipliers, $R = ({first[2]} - {first[1]} \\cdot {a}) \\cdot G = {k_grind} \\cdot G$.')
 
 print(json.dumps(frag))
